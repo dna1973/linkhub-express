@@ -84,12 +84,16 @@ const Analytics = () => {
         .from('link_clicks')
         .select(`
           *,
-          links!inner(title)
+          links!inner(title, url)
         `)
         .eq('profile_id', user.id)
         .gte('clicked_at', startDate.toISOString())
         .lte('clicked_at', endDate.toISOString())
         .order('clicked_at', { ascending: true });
+
+      console.log('📊 Analytics - Views encontradas:', views?.length);
+      console.log('📊 Analytics - Cliques encontrados:', clicks?.length);
+      console.log('📊 Analytics - Dados dos cliques:', clicks);
 
       setTotalViews(views?.length || 0);
       setTotalClicks(clicks?.length || 0);

@@ -181,17 +181,33 @@ const PublicProfile = () => {
 
   const handleLinkClick = async (linkId: number, url: string) => {
     try {
+      // Obter dados de geolocalização
+      let country = null;
+      let city = null;
+      
+      try {
+        // Usar ipapi.co para obter localização
+        const geoResponse = await fetch('https://ipapi.co/json/');
+        if (geoResponse.ok) {
+          const geoData = await geoResponse.json();
+          country = geoData.country_name || null;
+          city = geoData.city || null;
+        }
+      } catch (geoError) {
+        console.warn('Erro ao obter geolocalização:', geoError);
+      }
+
       // Registrar clique na tabela de analytics
       await supabase
         .from('link_clicks')
         .insert({
           link_id: linkId,
           profile_id: profile.id,
-          ip_address: null, // Será preenchido pelo servidor se necessário
+          ip_address: null,
           user_agent: navigator.userAgent,
           referrer: document.referrer || null,
-          country: null, // Pode ser implementado com API de geolocalização
-          city: null
+          country: country,
+          city: city
         });
 
       // Increment click count na tabela links
