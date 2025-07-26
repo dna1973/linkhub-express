@@ -4,16 +4,18 @@ import { useNavigate } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { LogOut, Settings, Link as LinkIcon, Palette, User } from 'lucide-react';
+import { LogOut, Link as LinkIcon, Palette, User, Sun, Moon } from 'lucide-react';
 import { LinksTab } from '@/components/dashboard/LinksTab';
 import { DesignTab } from '@/components/dashboard/DesignTab';
 import { SettingsTab } from '@/components/dashboard/SettingsTab';
 import { ProfilePreview } from '@/components/dashboard/ProfilePreview';
 import { supabase } from '@/integrations/supabase/client';
+import { useTheme } from 'next-themes';
 
 const Dashboard = () => {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
+  const { theme, setTheme } = useTheme();
   const [profile, setProfile] = useState<any>(null);
   const [activeTab, setActiveTab] = useState('links');
 
@@ -83,10 +85,14 @@ const Dashboard = () => {
             <Button 
               variant="ghost" 
               size="sm"
-              onClick={() => setActiveTab('settings')}
+              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
             >
-              <Settings className="h-4 w-4 mr-2" />
-              Configurações
+              {theme === 'dark' ? (
+                <Sun className="h-4 w-4 mr-2" />
+              ) : (
+                <Moon className="h-4 w-4 mr-2" />
+              )}
+              {theme === 'dark' ? 'Claro' : 'Escuro'}
             </Button>
             <Button 
               variant="ghost" 
