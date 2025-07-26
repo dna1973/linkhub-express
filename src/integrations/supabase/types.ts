@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      link_clicks: {
+        Row: {
+          city: string | null
+          clicked_at: string
+          country: string | null
+          id: number
+          ip_address: unknown | null
+          link_id: number
+          profile_id: string
+          referrer: string | null
+          user_agent: string | null
+        }
+        Insert: {
+          city?: string | null
+          clicked_at?: string
+          country?: string | null
+          id?: number
+          ip_address?: unknown | null
+          link_id: number
+          profile_id: string
+          referrer?: string | null
+          user_agent?: string | null
+        }
+        Update: {
+          city?: string | null
+          clicked_at?: string
+          country?: string | null
+          id?: number
+          ip_address?: unknown | null
+          link_id?: number
+          profile_id?: string
+          referrer?: string | null
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
       links: {
         Row: {
           clicks: number
@@ -54,6 +90,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      profile_views: {
+        Row: {
+          city: string | null
+          country: string | null
+          id: number
+          ip_address: unknown | null
+          profile_id: string
+          referrer: string | null
+          user_agent: string | null
+          viewed_at: string
+        }
+        Insert: {
+          city?: string | null
+          country?: string | null
+          id?: number
+          ip_address?: unknown | null
+          profile_id: string
+          referrer?: string | null
+          user_agent?: string | null
+          viewed_at?: string
+        }
+        Update: {
+          city?: string | null
+          country?: string | null
+          id?: number
+          ip_address?: unknown | null
+          profile_id?: string
+          referrer?: string | null
+          user_agent?: string | null
+          viewed_at?: string
+        }
+        Relationships: []
       }
       profiles: {
         Row: {

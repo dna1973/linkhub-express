@@ -7,6 +7,7 @@ import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { LinksTab } from '@/components/dashboard/LinksTab';
 import { DesignTab } from '@/components/dashboard/DesignTab';
 import { SettingsTab } from '@/components/dashboard/SettingsTab';
+import { AnalyticsTab } from '@/components/dashboard/AnalyticsTab';
 import { ProfilePreview } from '@/components/dashboard/ProfilePreview';
 import { AppSidebar } from '@/components/dashboard/AppSidebar';
 import { supabase } from '@/integrations/supabase/client';
@@ -101,6 +102,10 @@ const Dashboard = () => {
                         
                         <TabsContent value="design" className="mt-0">
                           <DesignTab profile={profile} onProfileUpdate={loadProfile} />
+                        </TabsContent>
+                        
+                        <TabsContent value="analytics" className="mt-0">
+                          <AnalyticsTab profile={profile} onProfileUpdate={loadProfile} />
                         </TabsContent>
                         
                         <TabsContent value="settings" className="mt-0">
