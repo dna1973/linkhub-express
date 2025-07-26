@@ -69,8 +69,12 @@ export const ProfilePreview: React.FC<ProfilePreviewProps> = ({ profile }) => {
   };
 
   const getThemeStyles = () => {
-    // Se estivermos no modo preview (currentTheme é 'custom'), usar o store atual
-    if (currentTheme === 'custom') {
+    // Primeiro verificar se estamos em modo preview (currentTheme diferente do salvo)
+    const profileTheme = profile?.theme_options;
+    const isPreviewMode = currentTheme !== profileTheme?.themeId;
+    
+    // Se estamos em modo preview, sempre usar o store atual
+    if (isPreviewMode) {
       const custom = customTheme;
       return {
         background: custom.background?.type === 'gradient' 
@@ -83,10 +87,8 @@ export const ProfilePreview: React.FC<ProfilePreviewProps> = ({ profile }) => {
     }
     
     // Usar configurações salvas do perfil se disponível
-    const themeOptions = profile?.theme_options;
-    
-    if (themeOptions?.themeId === 'custom' && themeOptions?.custom) {
-      const custom = themeOptions.custom;
+    if (profileTheme?.themeId === 'custom' && profileTheme?.custom) {
+      const custom = profileTheme.custom;
       return {
         background: custom.background?.type === 'gradient' 
           ? `linear-gradient(135deg, ${custom.background.colors?.[0] || '#111827'}, ${custom.background.colors?.[1] || '#1f2937'})`
@@ -97,29 +99,16 @@ export const ProfilePreview: React.FC<ProfilePreviewProps> = ({ profile }) => {
       };
     }
 
-    // Temas predefinidos
-    const defaultThemes: Record<string, any> = {
-      'default': {
-        background: '#111827',
-        buttonStyle: 'glass',
-      },
-      'pebble-blue': {
-        background: 'linear-gradient(135deg, #1e3a8a, #3730a3)',
-        buttonStyle: 'solid',
-      },
-      'sunset': {
-        background: 'linear-gradient(135deg, #f59e0b, #dc2626)',
-        buttonStyle: 'outline',
-      },
-      'ocean': {
-        background: 'linear-gradient(135deg, #0891b2, #1e40af)',
-        buttonStyle: 'glass',
-      },
+    // Para temas predefinidos salvos, também usar o store atual que deve ter sido atualizado
+    const custom = customTheme;
+    return {
+      background: custom.background?.type === 'gradient' 
+        ? `linear-gradient(135deg, ${custom.background.colors?.[0] || '#111827'}, ${custom.background.colors?.[1] || '#1f2937'})`
+        : custom.background?.color || '#111827',
+      buttonStyle: custom.buttonStyle?.type || 'glass',
+      font: custom.font,
+      colors: custom.colors,
     };
-
-    const themeId = currentTheme !== 'custom' ? currentTheme : (themeOptions?.themeId || 'default');
-    const theme = defaultThemes[themeId];
-    return theme || defaultThemes.default;
   };
 
   const getButtonClassName = (buttonStyle: string) => {
