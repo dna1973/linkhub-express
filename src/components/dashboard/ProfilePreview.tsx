@@ -141,10 +141,10 @@ export const ProfilePreview: React.FC<ProfilePreviewProps> = ({ profile }) => {
       <div className="relative z-10 h-full flex flex-col items-center justify-start p-6 text-center">
         {/* Phone Frame Mockup */}
         <div className="w-full max-w-sm mx-auto bg-black/20 backdrop-blur-sm rounded-[2.5rem] p-2 border border-white/10">
-          <div className="bg-background/5 rounded-[2rem] p-6 h-[600px] overflow-y-auto">
+          <div className="bg-background/5 rounded-[2rem] p-4 h-full flex flex-col overflow-hidden">
             
             {/* Profile Section */}
-            <div className="mb-8">
+            <div className="mb-6 flex-shrink-0">
               <Avatar className="w-20 h-20 mx-auto mb-4 border-2 border-white/20">
                 <AvatarImage src={profile?.avatar_url} />
                 <AvatarFallback className="bg-white/10 text-white text-xl">
@@ -168,7 +168,7 @@ export const ProfilePreview: React.FC<ProfilePreviewProps> = ({ profile }) => {
             </div>
 
             {/* Links Section */}
-            <div className="space-y-4">
+            <div className="space-y-3 flex-1 min-h-0 overflow-y-auto">
               {links.length === 0 ? (
                 <div className="text-center py-8">
                   <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center mx-auto mb-4">
