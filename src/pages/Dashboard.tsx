@@ -90,11 +90,11 @@ const Dashboard = () => {
             </header>
 
             <div className="p-6">
-              <div className="lg:grid lg:grid-cols-2 lg:gap-6">
+              <div className={activeTab === 'analytics' ? 'w-full' : 'lg:grid lg:grid-cols-2 lg:gap-6'}>
                 {/* Left Panel - Dashboard */}
-                <div className="space-y-6 lg:pr-6">
+                <div className={activeTab === 'analytics' ? 'w-full' : 'space-y-6 lg:pr-6'}>
                   <Card className="bg-card/50 backdrop-blur-sm border-border/50">
-                    <CardContent className="p-6">
+                    <CardContent className={activeTab === 'analytics' ? 'p-0' : 'p-6'}>
                       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                         <TabsContent value="links" className="mt-0">
                           <LinksTab profile={profile} onProfileUpdate={loadProfile} />
@@ -116,12 +116,14 @@ const Dashboard = () => {
                   </Card>
                 </div>
 
-                {/* Right Panel - Device Preview */}
-                <div className="hidden lg:block">
-                  <div className="sticky top-6">
-                    <ProfilePreview profile={profile} />
+                {/* Right Panel - Device Preview - Hidden when Analytics is active */}
+                {activeTab !== 'analytics' && (
+                  <div className="hidden lg:block">
+                    <div className="sticky top-6">
+                      <ProfilePreview profile={profile} />
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             </div>
           </div>
