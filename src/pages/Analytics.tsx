@@ -91,13 +91,12 @@ const Analytics = () => {
         .lte('clicked_at', endDate.toISOString())
         .order('clicked_at', { ascending: true });
 
-      setProfileViews(views || []);
-      setLinkClicks(clicks || []);
       setTotalViews(views?.length || 0);
       setTotalClicks(clicks?.length || 0);
 
       // Processar dados para gráficos
-      processChartData(views || [], clicks || []);
+      const chartData = processChartData(views || [], clicks || []);
+      setProfileViews(chartData);
       processTopLinks(clicks || []);
       processDeviceData(views || [], clicks || []);
       processCountryData(views || [], clicks || []);
@@ -133,7 +132,7 @@ const Analytics = () => {
       };
     });
 
-    setProfileViews(chartData);
+    return chartData;
   };
 
   const processTopLinks = (clicks: any[]) => {
