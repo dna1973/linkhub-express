@@ -2,41 +2,56 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
+/* LinkHub Design System - Dark mode with vibrant gradients and glassmorphism */
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-
-    --primary: 222.2 47.4% 11.2%;
+    /* Dark theme base */
+    --background: 224 23% 9%;  /* #111827 */
+    --foreground: 210 40% 98%;
+    
+    --card: 224 23% 12%;  /* Slightly lighter than bg */
+    --card-foreground: 210 40% 98%;
+    
+    --popover: 224 23% 15%;
+    --popover-foreground: 210 40% 98%;
+    
+    /* Primary - Vibrant purple */
+    --primary: 259 93% 68%;  /* #8b5cf6 */
     --primary-foreground: 210 40% 98%;
-
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-
+    
+    /* Secondary - Dark slate */
+    --secondary: 217 19% 20%;
+    --secondary-foreground: 210 40% 98%;
+    
+    --muted: 217 19% 20%;
+    --muted-foreground: 215 20.2% 65.1%;
+    
+    --accent: 217 19% 25%;
+    --accent-foreground: 210 40% 98%;
+    
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
-
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
-
-    --radius: 0.5rem;
+    
+    --border: 217 19% 25%;
+    --input: 217 19% 20%;
+    --ring: 259 93% 68%;
+    
+    --radius: 0.75rem;
+    
+    /* Custom LinkHub tokens */
+    --gradient-primary: linear-gradient(135deg, #8b5cf6 0%, #3b82f6 100%);
+    --gradient-secondary: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    --gradient-accent: linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%);
+    
+    --glass-bg: rgba(255, 255, 255, 0.1);
+    --glass-border: rgba(255, 255, 255, 0.2);
+    
+    --shadow-glow: 0 0 30px rgba(139, 92, 246, 0.3);
+    --shadow-glass: 0 8px 32px rgba(31, 38, 135, 0.37);
+    
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-bounce: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
 
     --sidebar-background: 0 0% 98%;
 
@@ -101,5 +116,57 @@ All colors MUST be HSL.
 
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+@layer components {
+  /* Glass morphism button */
+  .btn-glass {
+    @apply relative overflow-hidden backdrop-blur-md border;
+    background: var(--glass-bg);
+    border-color: var(--glass-border);
+    box-shadow: var(--shadow-glass);
+    transition: var(--transition-smooth);
+  }
+  
+  .btn-glass:hover {
+    background: rgba(255, 255, 255, 0.15);
+    transform: translateY(-1px);
+  }
+  
+  /* Gradient buttons */
+  .btn-gradient-primary {
+    background: var(--gradient-primary);
+    transition: var(--transition-smooth);
+  }
+  
+  .btn-gradient-primary:hover {
+    filter: brightness(1.1);
+    box-shadow: var(--shadow-glow);
+  }
+  
+  /* Animated fade in */
+  .animate-fade-in {
+    animation: fadeIn 0.6s ease-out forwards;
+  }
+  
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  /* Bounce hover effect */
+  .hover-bounce {
+    transition: var(--transition-bounce);
+  }
+  
+  .hover-bounce:hover {
+    transform: translateY(-2px) scale(1.02);
   }
 }
