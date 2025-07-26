@@ -7,14 +7,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { Link, Eye, EyeOff } from 'lucide-react';
+import { Link, Eye, EyeOff, Github } from 'lucide-react';
+import { GoogleIcon } from '@/components/ui/google-icon';
 
 const Auth = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const { signIn, signUp, user } = useAuth();
+  const { signIn, signUp, signInWithProvider, user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -72,6 +73,22 @@ const Auth = () => {
     setLoading(false);
   };
 
+  const handleSocialLogin = async (provider: 'github' | 'google') => {
+    setLoading(true);
+    
+    const { error } = await signInWithProvider(provider);
+    
+    if (error) {
+      toast({
+        title: "Erro no login",
+        description: `Erro ao fazer login com ${provider === 'github' ? 'GitHub' : 'Google'}: ${error.message}`,
+        variant: "destructive",
+      });
+      setLoading(false);
+    }
+    // Se não houver erro, o usuário será redirecionado automaticamente
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-md space-y-6 animate-fade-in">
@@ -99,109 +116,189 @@ const Auth = () => {
               </TabsList>
               
               <TabsContent value="signin">
-                <form onSubmit={handleSignIn} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="seu@email.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      required
-                      className="bg-background/50"
-                    />
+                <div className="space-y-4">
+                  {/* Social Login Buttons */}
+                  <div className="space-y-3">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full bg-background/50 hover:bg-background/80"
+                      onClick={() => handleSocialLogin('google')}
+                      disabled={loading}
+                    >
+                      <GoogleIcon className="w-5 h-5 mr-2" />
+                      Continuar com Google
+                    </Button>
+                    
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full bg-background/50 hover:bg-background/80"
+                      onClick={() => handleSocialLogin('github')}
+                      disabled={loading}
+                    >
+                      <Github className="w-5 h-5 mr-2" />
+                      Continuar com GitHub
+                    </Button>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="password">Senha</Label>
-                    <div className="relative">
-                      <Input
-                        id="password"
-                        type={showPassword ? "text" : "password"}
-                        placeholder="••••••••"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        required
-                        className="bg-background/50 pr-10"
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                        onClick={() => setShowPassword(!showPassword)}
-                      >
-                        {showPassword ? (
-                          <EyeOff className="h-4 w-4" />
-                        ) : (
-                          <Eye className="h-4 w-4" />
-                        )}
-                      </Button>
+
+                  {/* Divider */}
+                  <div className="relative">
+                    <div className="absolute inset-0 flex items-center">
+                      <span className="w-full border-t border-border/50" />
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                      <span className="bg-card px-2 text-muted-foreground">
+                        Ou continue com email
+                      </span>
                     </div>
                   </div>
-                  <Button 
-                    type="submit" 
-                    className="w-full btn-gradient-primary hover-bounce"
-                    disabled={loading}
-                  >
-                    {loading ? "Entrando..." : "Entrar"}
-                  </Button>
-                </form>
+
+                  {/* Email/Password Form */}
+                  <form onSubmit={handleSignIn} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="email">Email</Label>
+                      <Input
+                        id="email"
+                        type="email"
+                        placeholder="seu@email.com"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        required
+                        className="bg-background/50"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="password">Senha</Label>
+                      <div className="relative">
+                        <Input
+                          id="password"
+                          type={showPassword ? "text" : "password"}
+                          placeholder="••••••••"
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          required
+                          className="bg-background/50 pr-10"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                          onClick={() => setShowPassword(!showPassword)}
+                        >
+                          {showPassword ? (
+                            <EyeOff className="h-4 w-4" />
+                          ) : (
+                            <Eye className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                    <Button 
+                      type="submit" 
+                      className="w-full btn-gradient-primary hover-bounce"
+                      disabled={loading}
+                    >
+                      {loading ? "Entrando..." : "Entrar"}
+                    </Button>
+                  </form>
+                </div>
               </TabsContent>
               
               <TabsContent value="signup">
-                <form onSubmit={handleSignUp} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-email">Email</Label>
-                    <Input
-                      id="signup-email"
-                      type="email"
-                      placeholder="seu@email.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      required
-                      className="bg-background/50"
-                    />
+                <div className="space-y-4">
+                  {/* Social Login Buttons */}
+                  <div className="space-y-3">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full bg-background/50 hover:bg-background/80"
+                      onClick={() => handleSocialLogin('google')}
+                      disabled={loading}
+                    >
+                      <GoogleIcon className="w-5 h-5 mr-2" />
+                      Cadastrar com Google
+                    </Button>
+                    
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full bg-background/50 hover:bg-background/80"
+                      onClick={() => handleSocialLogin('github')}
+                      disabled={loading}
+                    >
+                      <Github className="w-5 h-5 mr-2" />
+                      Cadastrar com GitHub
+                    </Button>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-password">Senha</Label>
-                    <div className="relative">
-                      <Input
-                        id="signup-password"
-                        type={showPassword ? "text" : "password"}
-                        placeholder="••••••••"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        required
-                        minLength={6}
-                        className="bg-background/50 pr-10"
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                        onClick={() => setShowPassword(!showPassword)}
-                      >
-                        {showPassword ? (
-                          <EyeOff className="h-4 w-4" />
-                        ) : (
-                          <Eye className="h-4 w-4" />
-                        )}
-                      </Button>
+
+                  {/* Divider */}
+                  <div className="relative">
+                    <div className="absolute inset-0 flex items-center">
+                      <span className="w-full border-t border-border/50" />
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      Mínimo de 6 caracteres
-                    </p>
+                    <div className="relative flex justify-center text-xs uppercase">
+                      <span className="bg-card px-2 text-muted-foreground">
+                        Ou cadastre-se com email
+                      </span>
+                    </div>
                   </div>
-                  <Button 
-                    type="submit" 
-                    className="w-full btn-gradient-primary hover-bounce"
-                    disabled={loading}
-                  >
-                    {loading ? "Criando conta..." : "Criar conta"}
-                  </Button>
-                </form>
+
+                  {/* Email/Password Form */}
+                  <form onSubmit={handleSignUp} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="signup-email">Email</Label>
+                      <Input
+                        id="signup-email"
+                        type="email"
+                        placeholder="seu@email.com"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        required
+                        className="bg-background/50"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="signup-password">Senha</Label>
+                      <div className="relative">
+                        <Input
+                          id="signup-password"
+                          type={showPassword ? "text" : "password"}
+                          placeholder="••••••••"
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          required
+                          minLength={6}
+                          className="bg-background/50 pr-10"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                          onClick={() => setShowPassword(!showPassword)}
+                        >
+                          {showPassword ? (
+                            <EyeOff className="h-4 w-4" />
+                          ) : (
+                            <Eye className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Mínimo de 6 caracteres
+                      </p>
+                    </div>
+                    <Button 
+                      type="submit" 
+                      className="w-full btn-gradient-primary hover-bounce"
+                      disabled={loading}
+                    >
+                      {loading ? "Criando conta..." : "Criar conta"}
+                    </Button>
+                  </form>
+                </div>
               </TabsContent>
             </Tabs>
           </CardContent>

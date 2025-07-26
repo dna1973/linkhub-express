@@ -10,6 +10,7 @@ import { Copy, Check, Upload, ExternalLink, Trash2, Globe } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { AuthProviderInfo } from './AuthProviderInfo';
 
 interface SettingsTabProps {
   profile: any;
@@ -329,7 +330,10 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
       {/* Profile Settings */}
       <Card className="bg-card/50 backdrop-blur-sm border-border/50">
         <CardHeader>
-          <CardTitle>Configurações do Perfil</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>Configurações do Perfil</CardTitle>
+            <AuthProviderInfo />
+          </div>
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Avatar Section */}

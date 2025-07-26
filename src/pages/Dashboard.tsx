@@ -43,12 +43,20 @@ const Dashboard = () => {
       setProfile(data);
     } else {
       // Create profile if it doesn't exist
+      const displayName = user.user_metadata?.full_name || 
+                          user.user_metadata?.name || 
+                          user.email?.split('@')[0] || 
+                          'Usuario';
+      
+      const avatarUrl = user.user_metadata?.avatar_url || null;
+
       const { data: newProfile, error: createError } = await supabase
         .from('profiles')
         .insert([{
           id: user.id,
           username: null,
-          full_name: user.email?.split('@')[0] || 'Usuario',
+          full_name: displayName,
+          avatar_url: avatarUrl,
         }])
         .select()
         .single();
