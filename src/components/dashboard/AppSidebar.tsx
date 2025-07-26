@@ -1,4 +1,4 @@
-import { Link as LinkIcon, Palette, User, Sun, Moon, LogOut } from 'lucide-react';
+import { Link as LinkIcon, Palette, User, Sun, Moon, LogOut, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useTheme } from 'next-themes';
 import { useAuth } from '@/contexts/AuthContext';
@@ -39,6 +39,12 @@ export function AppSidebar({ activeTab, onTabChange, profile }: AppSidebarProps)
   const handleSignOut = async () => {
     await signOut();
     navigate('/');
+  };
+
+  const handleViewProfile = () => {
+    if (profile?.username) {
+      window.open(`/${profile.username}`, '_blank');
+    }
   };
 
   return (
@@ -84,6 +90,17 @@ export function AppSidebar({ activeTab, onTabChange, profile }: AppSidebarProps)
       </SidebarContent>
 
       <SidebarFooter className="p-4 space-y-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleViewProfile}
+          className="w-full justify-start"
+          disabled={!profile?.username}
+        >
+          <Eye className="h-4 w-4" />
+          {!isCollapsed && <span className="ml-2">Ver Perfil</span>}
+        </Button>
+        
         <Button
           variant="ghost"
           size="sm"
