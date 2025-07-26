@@ -37,11 +37,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         if (event === 'SIGNED_IN') {
           console.log('✅ Usuário logado:', session?.user?.email);
-          
-          // Se estamos na página de auth e o usuário fez login, redirecionar
-          if (window.location.pathname === '/auth' || window.location.pathname === '/') {
-            window.location.href = '/dashboard';
-          }
         }
         
         if (event === 'SIGNED_OUT') {
@@ -93,7 +88,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signInWithProvider = async (provider: 'github' | 'google') => {
     try {
       // Usar sempre o domínio correto para redirect
-      const redirectUrl = window.location.origin + '/dashboard';
+      const redirectUrl = window.location.origin + '/auth/callback';
       
       console.log('🔐 Iniciando login social:', { provider, redirectUrl, origin: window.location.origin });
       
