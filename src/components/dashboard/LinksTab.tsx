@@ -8,6 +8,25 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import {
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 interface Link {
   id: number;
@@ -34,6 +53,69 @@ const LINK_TYPES = [
   { id: 'website', label: 'Website', icon: Globe, placeholder: 'https://seusite.com' },
   { id: 'email', label: 'Email', icon: Mail, placeholder: 'mailto:seu@email.com' },
 ];
+
+interface SortableLinkProps {
+  link: Link;
+  onDelete: (id: number) => void;
+}
+
+const SortableLink: React.FC<SortableLinkProps> = ({ link, onDelete }) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+  } = useSortable({ id: link.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} {...attributes}>
+      <Card className="bg-card/30 border-border/50 hover-bounce">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div {...listeners} className="cursor-move">
+                <GripVertical className="h-4 w-4 text-muted-foreground" />
+              </div>
+              <div>
+                <h4 className="font-medium">{link.title}</h4>
+                <p className="text-sm text-muted-foreground truncate max-w-[200px]">
+                  {link.url}
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex items-center space-x-2">
+              <Badge variant="secondary" className="text-xs">
+                {link.clicks} cliques
+              </Badge>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => window.open(link.url, '_blank')}
+              >
+                <ExternalLink className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onDelete(link.id)}
+                className="text-destructive hover:text-destructive"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
 
 export const LinksTab: React.FC<LinksTabProps> = ({ profile, onProfileUpdate }) => {
   const { user } = useAuth();
@@ -130,6 +212,43 @@ export const LinksTab: React.FC<LinksTabProps> = ({ profile, onProfileUpdate }) 
       title: linkType.label,
       url: '',
     });
+  };
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (active.id !== over?.id) {
+      const oldIndex = links.findIndex((link) => link.id === active.id);
+      const newIndex = links.findIndex((link) => link.id === over?.id);
+
+      const newLinks = arrayMove(links, oldIndex, newIndex);
+      setLinks(newLinks);
+
+      // Update positions in database
+      const updates = newLinks.map((link, index) => ({
+        id: link.id,
+        position: index,
+      }));
+
+      for (const update of updates) {
+        await supabase
+          .from('links')
+          .update({ position: update.position })
+          .eq('id', update.id);
+      }
+
+      toast({
+        title: "Ordem atualizada",
+        description: "A ordem dos links foi salva com sucesso.",
+      });
+    }
   };
 
   return (
@@ -238,46 +357,19 @@ export const LinksTab: React.FC<LinksTabProps> = ({ profile, onProfileUpdate }) 
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-3">
-          {links.map((link) => (
-            <Card key={link.id} className="bg-card/30 border-border/50 hover-bounce">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <GripVertical className="h-4 w-4 text-muted-foreground cursor-move" />
-                    <div>
-                      <h4 className="font-medium">{link.title}</h4>
-                      <p className="text-sm text-muted-foreground truncate max-w-[200px]">
-                        {link.url}
-                      </p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center space-x-2">
-                    <Badge variant="secondary" className="text-xs">
-                      {link.clicks} cliques
-                    </Badge>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => window.open(link.url, '_blank')}
-                    >
-                      <ExternalLink className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleDeleteLink(link.id)}
-                      className="text-destructive hover:text-destructive"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext items={links.map(link => link.id)} strategy={verticalListSortingStrategy}>
+            <div className="space-y-3">
+              {links.map((link) => (
+                <SortableLink key={link.id} link={link} onDelete={handleDeleteLink} />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
       )}
     </div>
   );

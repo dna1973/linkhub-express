@@ -2,12 +2,27 @@ import { create } from 'zustand';
 
 export interface ThemeConfig {
   background: {
-    type: 'solid' | 'gradient';
+    type: 'solid' | 'gradient' | 'pattern';
     color?: string;
     colors?: string[];
+    pattern?: string;
   };
-  buttonStyle: 'solid' | 'outline' | 'glass';
-  font: 'system' | 'serif' | 'mono';
+  buttonStyle: {
+    type: 'solid' | 'outline' | 'glass' | 'modern' | 'rounded';
+    color?: string;
+    borderRadius?: 'none' | 'sm' | 'md' | 'lg' | 'full';
+  };
+  font: {
+    family: 'system' | 'serif' | 'mono' | 'display' | 'handwriting';
+    size: 'sm' | 'md' | 'lg';
+    weight: 'light' | 'normal' | 'medium' | 'bold';
+  };
+  colors: {
+    primary?: string;
+    secondary?: string;
+    accent?: string;
+    text?: string;
+  };
 }
 
 interface DesignState {
@@ -23,8 +38,14 @@ export const useDesignStore = create<DesignState>((set) => ({
   currentTheme: 'default',
   customTheme: {
     background: { type: 'solid', color: '#111827' },
-    buttonStyle: 'glass',
-    font: 'system',
+    buttonStyle: { type: 'glass', color: '#3b82f6', borderRadius: 'md' },
+    font: { family: 'system', size: 'md', weight: 'normal' },
+    colors: {
+      primary: '#3b82f6',
+      secondary: '#6b7280',
+      accent: '#8b5cf6',
+      text: '#ffffff'
+    },
   },
   isPreviewMode: false,
   setCurrentTheme: (theme) => set({ currentTheme: theme }),
