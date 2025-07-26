@@ -101,7 +101,7 @@ const Dashboard = () => {
       </header>
 
       <div className="container mx-auto px-4 py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[calc(100vh-120px)]">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Left Panel - Dashboard */}
           <div className="space-y-6">
             <Card className="bg-card/50 backdrop-blur-sm border-border/50">
@@ -148,16 +148,18 @@ const Dashboard = () => {
             </Card>
           </div>
 
-          {/* Right Panel - Preview */}
+          {/* Right Panel - Floating Preview */}
           <div className="lg:block">
-            <Card className="bg-card/50 backdrop-blur-sm border-border/50 h-full">
-              <CardHeader>
-                <CardTitle className="text-center">Pré-visualização</CardTitle>
-              </CardHeader>
-              <CardContent className="p-6 h-[calc(100%-80px)]">
-                <ProfilePreview profile={profile} />
-              </CardContent>
-            </Card>
+            <div className="sticky top-6">
+              <Card className="bg-card/50 backdrop-blur-sm border-border/50 h-[calc(100vh-140px)]">
+                <CardHeader>
+                  <CardTitle className="text-center">Pré-visualização</CardTitle>
+                </CardHeader>
+                <CardContent className="p-6 h-[calc(100%-80px)]">
+                  <ProfilePreview profile={profile} />
+                </CardContent>
+              </Card>
+            </div>
           </div>
         </div>
       </div>
