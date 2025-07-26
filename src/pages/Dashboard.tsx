@@ -101,9 +101,9 @@ const Dashboard = () => {
       </header>
 
       <div className="container mx-auto px-4 py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="lg:grid lg:grid-cols-2 lg:gap-6">
           {/* Left Panel - Dashboard */}
-          <div className="space-y-6">
+          <div className="space-y-6 lg:pr-6">
             <Card className="bg-card/50 backdrop-blur-sm border-border/50">
               <CardHeader>
                 <CardTitle className="flex items-center space-x-2">
@@ -149,14 +149,16 @@ const Dashboard = () => {
           </div>
 
           {/* Right Panel - Floating Preview */}
-          <div className="lg:block">
-            <div className="sticky top-6">
-              <Card className="bg-card/50 backdrop-blur-sm border-border/50 h-[calc(100vh-140px)]">
-                <CardHeader>
-                  <CardTitle className="text-center">Pré-visualização</CardTitle>
+          <div className="hidden lg:block">
+            <div className="fixed top-24 right-8 w-[400px] max-w-[calc(50vw-2rem)] z-10">
+              <Card className="bg-card/50 backdrop-blur-sm border-border/50 shadow-lg">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-center text-sm">Pré-visualização</CardTitle>
                 </CardHeader>
-                <CardContent className="p-6 h-[calc(100%-80px)]">
-                  <ProfilePreview profile={profile} />
+                <CardContent className="p-4">
+                  <div className="max-h-[80vh] overflow-y-auto">
+                    <ProfilePreview profile={profile} />
+                  </div>
                 </CardContent>
               </Card>
             </div>
