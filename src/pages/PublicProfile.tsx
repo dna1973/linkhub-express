@@ -141,27 +141,37 @@ const PublicProfile = () => {
       };
     }
 
-    // Temas predefinidos
+    // Temas predefinidos com cores de texto adequadas
     const defaultThemes: Record<string, any> = {
       'default': {
         background: '#111827',
         buttonStyle: 'glass',
+        colors: { text: '#ffffff' },
       },
       'pebble-blue': {
         background: 'linear-gradient(135deg, #1e3a8a, #3730a3)',
         buttonStyle: 'solid',
+        colors: { text: '#ffffff' },
       },
       'sunset': {
         background: 'linear-gradient(135deg, #f59e0b, #dc2626)',
         buttonStyle: 'outline',
+        colors: { text: '#ffffff' },
       },
       'ocean': {
         background: 'linear-gradient(135deg, #0891b2, #1e40af)',
         buttonStyle: 'glass',
+        colors: { text: '#ffffff' },
       },
       'forest': {
         background: 'linear-gradient(135deg, #065f46, #064e3b)',
         buttonStyle: 'glass',
+        colors: { text: '#ffffff' },
+      },
+      'midnight': {
+        background: 'linear-gradient(135deg, #0f172a, #1e293b)',
+        buttonStyle: 'glass',
+        colors: { text: '#ffffff' },
       },
     };
 
@@ -290,19 +300,33 @@ const PublicProfile = () => {
           <div className="text-center mb-8">
             <Avatar className="w-24 h-24 mx-auto mb-6 border-4 border-white/20">
               <AvatarImage src={profile?.avatar_url} />
-              <AvatarFallback className="bg-white/10 text-white text-2xl">
+              <AvatarFallback 
+                className="bg-white/10 text-2xl"
+                style={{ color: themeStyles.colors?.text || '#ffffff' }}
+              >
                 {profile?.full_name?.[0]?.toUpperCase() || 'U'}
               </AvatarFallback>
             </Avatar>
             
-            <h1 className="text-2xl font-bold text-white mb-2">
+            <h1 
+              className="text-2xl font-bold mb-2"
+              style={{ color: themeStyles.colors?.text || '#ffffff' }}
+            >
               {profile?.full_name || 'Usuário'}
             </h1>
             
-            <p className="text-white/80 text-sm mb-4">@{profile.username}</p>
+            <p 
+              className="text-sm mb-4 opacity-80"
+              style={{ color: themeStyles.colors?.text || '#ffffff' }}
+            >
+              @{profile.username}
+            </p>
             
             {profile?.bio && (
-              <p className="text-white/90 text-base leading-relaxed max-w-sm mx-auto">
+              <p 
+                className="text-base leading-relaxed max-w-sm mx-auto opacity-90"
+                style={{ color: themeStyles.colors?.text || '#ffffff' }}
+              >
                 {profile.bio}
               </p>
             )}
@@ -313,9 +337,15 @@ const PublicProfile = () => {
             {links.length === 0 ? (
               <div className="text-center py-8">
                 <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center mx-auto mb-4">
-                  <ExternalLink className="h-8 w-8 text-white/60" />
+                  <ExternalLink 
+                    className="h-8 w-8 opacity-60"
+                    style={{ color: themeStyles.colors?.text || '#ffffff' }}
+                  />
                 </div>
-                <p className="text-white/60 text-lg">
+                <p 
+                  className="text-lg opacity-60"
+                  style={{ color: themeStyles.colors?.text || '#ffffff' }}
+                >
                   Nenhum link disponível
                 </p>
               </div>
@@ -338,14 +368,18 @@ const PublicProfile = () => {
 
           {/* Footer */}
           <div className="text-center">
-            <p className="text-white/40 text-sm mb-4">
+            <p 
+              className="text-sm mb-4 opacity-40"
+              style={{ color: themeStyles.colors?.text || '#ffffff' }}
+            >
               Powered by LinkHub
             </p>
             <Button
               variant="ghost"
               size="sm"
               onClick={() => window.location.href = '/'}
-              className="text-white/60 hover:text-white"
+              className="opacity-60 hover:opacity-100"
+              style={{ color: themeStyles.colors?.text || '#ffffff' }}
             >
               Crie o seu LinkHub
             </Button>

@@ -238,21 +238,35 @@ export const ProfilePreview: React.FC<ProfilePreviewProps> = ({ profile }) => {
             <div className="text-center mb-4 flex-shrink-0">
               <Avatar className="w-16 h-16 mx-auto mb-3 border-2 border-white/20">
                 <AvatarImage src={profile?.avatar_url} />
-                <AvatarFallback className="bg-white/10 text-white text-lg">
+                <AvatarFallback 
+                  className="bg-white/10 text-lg"
+                  style={{ color: themeStyles.colors?.text || '#ffffff' }}
+                >
                   {profile?.full_name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U'}
                 </AvatarFallback>
               </Avatar>
               
-              <h2 className="text-xl font-bold text-white mb-2">
+              <h2 
+                className="text-xl font-bold mb-2"
+                style={{ color: themeStyles.colors?.text || '#ffffff' }}
+              >
                 {profile?.full_name || user?.email?.split('@')[0] || 'Usuário'}
               </h2>
               
               {profile?.username && (
-                <p className="text-white/80 text-sm mb-2">@{profile.username}</p>
+                <p 
+                  className="text-sm mb-2 opacity-80"
+                  style={{ color: themeStyles.colors?.text || '#ffffff' }}
+                >
+                  @{profile.username}
+                </p>
               )}
               
               {profile?.bio && (
-                <p className="text-white/90 text-sm leading-relaxed">
+                <p 
+                  className="text-sm leading-relaxed opacity-90"
+                  style={{ color: themeStyles.colors?.text || '#ffffff' }}
+                >
                   {profile.bio}
                 </p>
               )}
@@ -263,9 +277,15 @@ export const ProfilePreview: React.FC<ProfilePreviewProps> = ({ profile }) => {
               {links.length === 0 ? (
                 <div className="text-center py-8">
                   <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center mx-auto mb-4">
-                    <ExternalLink className="h-6 w-6 text-white/60" />
+                    <ExternalLink 
+                      className="h-6 w-6 opacity-60"
+                      style={{ color: themeStyles.colors?.text || '#ffffff' }}
+                    />
                   </div>
-                  <p className="text-white/60 text-sm">
+                  <p 
+                    className="text-sm opacity-60"
+                    style={{ color: themeStyles.colors?.text || '#ffffff' }}
+                  >
                     Seus links aparecerão aqui
                   </p>
                 </div>
@@ -288,7 +308,10 @@ export const ProfilePreview: React.FC<ProfilePreviewProps> = ({ profile }) => {
 
             {/* Footer */}
             <div className="mt-6 pt-4 border-t border-white/10 text-center">
-              <p className="text-white/40 text-xs">
+              <p 
+                className="text-xs opacity-40"
+                style={{ color: themeStyles.colors?.text || '#ffffff' }}
+              >
                 Powered by LinkHub
               </p>
             </div>
