@@ -79,7 +79,13 @@ const Analytics = () => {
         .lte('viewed_at', endDate.toISOString())
         .order('viewed_at', { ascending: true });
 
-      // Buscar cliques nos links
+      // Buscar links do usuário para obter total de cliques
+      const { data: userLinks } = await supabase
+        .from('links')
+        .select('id, title, clicks')
+        .eq('user_id', user.id);
+
+      // Buscar cliques nos links para análise temporal
       const { data: clicks, error: clicksError } = await supabase
         .from('link_clicks')
         .select(`
@@ -102,12 +108,16 @@ const Analytics = () => {
         console.error('❌ Erro ao buscar cliques:', clicksError);
       }
 
+      // Calcular total de cliques somando os cliques de cada link
+      const totalClicksSum = userLinks?.reduce((sum, link) => sum + (link.clicks || 0), 0) || 0;
+
       console.log('📊 Analytics - Views encontradas:', views?.length);
-      console.log('📊 Analytics - Cliques encontrados:', clicks?.length);
-      console.log('📊 Analytics - Dados dos cliques:', clicks);
+      console.log('📊 Analytics - Links encontrados:', userLinks?.length);
+      console.log('📊 Analytics - Total de cliques (soma):', totalClicksSum);
+      console.log('📊 Analytics - Cliques no período:', clicks?.length);
 
       setTotalViews(views?.length || 0);
-      setTotalClicks(clicks?.length || 0);
+      setTotalClicks(totalClicksSum);
 
       // Processar dados para gráficos
       const chartData = processChartData(views || [], clicks || []);
