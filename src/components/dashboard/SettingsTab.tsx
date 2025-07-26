@@ -235,98 +235,6 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Public Link Section */}
-      <Card className="bg-card/50 backdrop-blur-sm border-border/50">
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <ExternalLink className="h-5 w-5" />
-            <span>Link Público</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Domain Configuration */}
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="custom_domain">Domínio Personalizado (opcional)</Label>
-              <Input
-                id="custom_domain"
-                placeholder="meusite.com"
-                value={formData.custom_domain}
-                onChange={(e) => handleInputChange('custom_domain', e.target.value)}
-                className="mt-1"
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                Adicione seu domínio personalizado (ex: meusite.com)
-              </p>
-            </div>
-
-            <div>
-              <Label htmlFor="preferred_domain">Domínio Preferido</Label>
-              <Select
-                value={formData.preferred_domain}
-                onValueChange={(value) => handleInputChange('preferred_domain', value)}
-              >
-                <SelectTrigger className="mt-1">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="lovable">
-                    <div className="flex items-center space-x-2">
-                      <Globe className="h-4 w-4" />
-                      <span>Lovable (linkhub-express.lovable.app)</span>
-                    </div>
-                  </SelectItem>
-                  {formData.custom_domain && (
-                    <SelectItem value="custom">
-                      <div className="flex items-center space-x-2">
-                        <Globe className="h-4 w-4" />
-                        <span>Personalizado ({formData.custom_domain})</span>
-                      </div>
-                    </SelectItem>
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div>
-            <Label>Seu link para compartilhar</Label>
-            <div className="flex mt-2">
-              <Input
-                value={publicUrl}
-                readOnly
-                className="rounded-r-none"
-                disabled={!profile?.username}
-              />
-              <Button
-                onClick={copyToClipboard}
-                variant="outline"
-                size="sm"
-                className="rounded-l-none px-3"
-                disabled={!profile?.username}
-              >
-                {isCopied ? (
-                  <Check className="h-4 w-4" />
-                ) : (
-                  <Copy className="h-4 w-4" />
-                )}
-              </Button>
-            </div>
-            {profile?.username && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="mt-2"
-                onClick={() => window.open(publicUrl, '_blank')}
-              >
-                <ExternalLink className="h-4 w-4 mr-2" />
-                Visualizar página pública
-              </Button>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Profile Settings */}
       <Card className="bg-card/50 backdrop-blur-sm border-border/50">
         <CardHeader>
@@ -457,6 +365,98 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
           >
             {isLoading ? 'Salvando...' : 'Salvar Configurações'}
           </Button>
+        </CardContent>
+      </Card>
+
+      {/* Public Link Section */}
+      <Card className="bg-card/50 backdrop-blur-sm border-border/50">
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <ExternalLink className="h-5 w-5" />
+            <span>Link Público</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Domain Configuration */}
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="custom_domain">Domínio Personalizado (opcional)</Label>
+              <Input
+                id="custom_domain"
+                placeholder="meusite.com"
+                value={formData.custom_domain}
+                onChange={(e) => handleInputChange('custom_domain', e.target.value)}
+                className="mt-1"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Adicione seu domínio personalizado (ex: meusite.com)
+              </p>
+            </div>
+
+            <div>
+              <Label htmlFor="preferred_domain">Domínio Preferido</Label>
+              <Select
+                value={formData.preferred_domain}
+                onValueChange={(value) => handleInputChange('preferred_domain', value)}
+              >
+                <SelectTrigger className="mt-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="lovable">
+                    <div className="flex items-center space-x-2">
+                      <Globe className="h-4 w-4" />
+                      <span>Lovable (linkhub-express.lovable.app)</span>
+                    </div>
+                  </SelectItem>
+                  {formData.custom_domain && (
+                    <SelectItem value="custom">
+                      <div className="flex items-center space-x-2">
+                        <Globe className="h-4 w-4" />
+                        <span>Personalizado ({formData.custom_domain})</span>
+                      </div>
+                    </SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div>
+            <Label>Seu link para compartilhar</Label>
+            <div className="flex mt-2">
+              <Input
+                value={publicUrl}
+                readOnly
+                className="rounded-r-none"
+                disabled={!profile?.username}
+              />
+              <Button
+                onClick={copyToClipboard}
+                variant="outline"
+                size="sm"
+                className="rounded-l-none px-3"
+                disabled={!profile?.username}
+              >
+                {isCopied ? (
+                  <Check className="h-4 w-4" />
+                ) : (
+                  <Copy className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
+            {profile?.username && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="mt-2"
+                onClick={() => window.open(publicUrl, '_blank')}
+              >
+                <ExternalLink className="h-4 w-4 mr-2" />
+                Visualizar página pública
+              </Button>
+            )}
+          </div>
         </CardContent>
       </Card>
     </div>
