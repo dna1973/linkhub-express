@@ -122,7 +122,7 @@ const Analytics = () => {
       // Processar dados para gráficos
       const chartData = processChartData(views || [], clicks || []);
       setProfileViews(chartData);
-      processTopLinks(clicks || []);
+      processTopLinks(userLinks || []);
       processDeviceData(views || [], clicks || []);
       processCountryData(views || [], clicks || []);
 
@@ -160,27 +160,20 @@ const Analytics = () => {
     return chartData;
   };
 
-  const processTopLinks = (clicks: any[]) => {
-    console.log('🔍 Processing top links:', clicks);
-    const linkStats: Record<string, { title: string; clicks: number }> = {};
+  const processTopLinks = (userLinks: any[]) => {
+    console.log('🔍 Processing top links from userLinks:', userLinks);
     
-    clicks.forEach(click => {
-      const linkId = click.link_id;
-      // A estrutura dos links agora é um objeto, não array
-      const linkTitle = click.links?.title || 'Link sem título';
-      
-      if (!linkStats[linkId]) {
-        linkStats[linkId] = { title: linkTitle, clicks: 0 };
-      }
-      linkStats[linkId].clicks++;
-    });
-
-    const sorted = Object.values(linkStats)
+    const sorted = userLinks
+      .filter(link => link.clicks > 0)
       .sort((a, b) => b.clicks - a.clicks)
-      .slice(0, 5);
+      .slice(0, 5)
+      .map(link => ({
+        title: link.title,
+        clicks: link.clicks
+      }));
 
     console.log('📈 Top links processados:', sorted);
-    setTopLinks(sorted as any);
+    setTopLinks(sorted);
   };
 
   const processDeviceData = (views: any[], clicks: any[]) => {
