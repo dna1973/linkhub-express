@@ -76,11 +76,13 @@ const PublicProfile = () => {
         background: custom.background?.type === 'gradient' 
           ? `linear-gradient(135deg, ${custom.background.colors?.[0] || '#111827'}, ${custom.background.colors?.[1] || '#1f2937'})`
           : custom.background?.color || '#111827',
-        buttonStyle: custom.buttonStyle || 'glass',
+        buttonStyle: custom.buttonStyle?.type || 'glass',
+        font: custom.font,
+        colors: custom.colors,
       };
     }
 
-    // Default themes
+    // Temas predefinidos
     const defaultThemes: Record<string, any> = {
       'default': {
         background: '#111827',
@@ -98,6 +100,10 @@ const PublicProfile = () => {
         background: 'linear-gradient(135deg, #0891b2, #1e40af)',
         buttonStyle: 'glass',
       },
+      'forest': {
+        background: 'linear-gradient(135deg, #065f46, #064e3b)',
+        buttonStyle: 'glass',
+      },
     };
 
     const theme = defaultThemes[themeOptions?.themeId || 'default'];
@@ -110,6 +116,10 @@ const PublicProfile = () => {
         return 'bg-white/90 text-gray-900 hover:bg-white border-0';
       case 'outline':
         return 'bg-transparent text-white border-2 border-white/50 hover:bg-white/10';
+      case 'modern':
+        return 'bg-white/20 text-white border border-white/30 hover:bg-white/30 backdrop-blur-sm';
+      case 'rounded':
+        return 'bg-white/20 text-white border border-white/30 hover:bg-white/30 backdrop-blur-sm rounded-full';
       case 'glass':
       default:
         return 'btn-glass text-white';
