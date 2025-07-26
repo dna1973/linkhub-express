@@ -94,23 +94,39 @@ const PublicProfile = () => {
       const userAgent = navigator.userAgent;
       const referrer = document.referrer || null;
       
-      // Obter dados de geolocalização
-      let country = null;
-      let city = null;
+      // Obter dados de geolocalização melhorados
+      let geoData = { country: null, countryCode: null, city: null };
+      let deviceType = 'desktop';
+      let sessionId = null;
       
       try {
-        // Usar ipapi.co para obter localização
-        const geoResponse = await fetch('https://ipapi.co/json/');
-        if (geoResponse.ok) {
-          const geoData = await geoResponse.json();
-          country = geoData.country_name || null;
-          city = geoData.city || null;
+        const geoModule = await import('@/utils/geolocation');
+        geoData = await geoModule.getGeolocationData();
+        deviceType = geoModule.getDeviceType();
+        sessionId = geoModule.getOrCreateSessionId();
+        
+        console.log('🌍 Profile View - Geo data:', geoData);
+        console.log('📱 Profile View - Device:', deviceType);
+      } catch (error) {
+        console.error('❌ Profile View - Geo error:', error);
+        // Fallback para método antigo
+        try {
+          const geoResponse = await fetch('https://ipapi.co/json/');
+          if (geoResponse.ok) {
+            const geoDataFallback = await geoResponse.json();
+            geoData = {
+              country: geoDataFallback.country_name || null,
+              countryCode: geoDataFallback.country_code || null,
+              city: geoDataFallback.city || null
+            };
+            console.log('🔄 Profile View - Fallback geo:', geoData);
+          }
+        } catch (fallbackError) {
+          console.error('❌ Profile View - Fallback failed:', fallbackError);
         }
-      } catch (geoError) {
-        console.warn('Erro ao obter geolocalização:', geoError);
       }
       
-      // Registrar visualização
+      // Registrar visualização com dados melhorados
       await supabase
         .from('profile_views')
         .insert({
@@ -118,8 +134,11 @@ const PublicProfile = () => {
           ip_address: null, // Será preenchido pelo servidor se necessário
           user_agent: userAgent,
           referrer: referrer,
-          country: country,
-          city: city
+          country: geoData.country,
+          country_code: geoData.countryCode,
+          city: geoData.city,
+          session_id: sessionId,
+          device_type: deviceType
         });
     } catch (error) {
       console.error('Erro ao registrar visualização:', error);
@@ -230,23 +249,39 @@ const PublicProfile = () => {
 
   const handleLinkClick = async (linkId: number, url: string) => {
     try {
-      // Obter dados de geolocalização
-      let country = null;
-      let city = null;
+      // Obter dados de geolocalização melhorados
+      let geoData = { country: null, countryCode: null, city: null };
+      let deviceType = 'desktop';
+      let sessionId = null;
       
       try {
-        // Usar ipapi.co para obter localização
-        const geoResponse = await fetch('https://ipapi.co/json/');
-        if (geoResponse.ok) {
-          const geoData = await geoResponse.json();
-          country = geoData.country_name || null;
-          city = geoData.city || null;
+        const geoModule = await import('@/utils/geolocation');
+        geoData = await geoModule.getGeolocationData();
+        deviceType = geoModule.getDeviceType();
+        sessionId = geoModule.getOrCreateSessionId();
+        
+        console.log('🔗 Link Click - Geo data:', geoData);
+        console.log('📱 Link Click - Device:', deviceType);
+      } catch (error) {
+        console.error('❌ Link Click - Geo error:', error);
+        // Fallback para método antigo
+        try {
+          const geoResponse = await fetch('https://ipapi.co/json/');
+          if (geoResponse.ok) {
+            const geoDataFallback = await geoResponse.json();
+            geoData = {
+              country: geoDataFallback.country_name || null,
+              countryCode: geoDataFallback.country_code || null,
+              city: geoDataFallback.city || null
+            };
+            console.log('🔄 Link Click - Fallback geo:', geoData);
+          }
+        } catch (fallbackError) {
+          console.error('❌ Link Click - Fallback failed:', fallbackError);
         }
-      } catch (geoError) {
-        console.warn('Erro ao obter geolocalização:', geoError);
       }
 
-      // Registrar clique na tabela de analytics
+      // Registrar clique na tabela de analytics com dados melhorados
       await supabase
         .from('link_clicks')
         .insert({
@@ -255,8 +290,11 @@ const PublicProfile = () => {
           ip_address: null,
           user_agent: navigator.userAgent,
           referrer: document.referrer || null,
-          country: country,
-          city: city
+          country: geoData.country,
+          country_code: geoData.countryCode,
+          city: geoData.city,
+          session_id: sessionId,
+          device_type: deviceType
         });
 
       // Increment click count na tabela links

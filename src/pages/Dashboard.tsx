@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { LinksTab } from '@/components/dashboard/LinksTab';
 import { DesignTab } from '@/components/dashboard/DesignTab';
+import { DesignSystemTab } from '@/components/dashboard/DesignSystemTab';
 import { SettingsTab } from '@/components/dashboard/SettingsTab';
 import { AnalyticsTab } from '@/components/dashboard/AnalyticsTab';
 import { ProfilePreview } from '@/components/dashboard/ProfilePreview';
@@ -90,11 +91,11 @@ const Dashboard = () => {
             </header>
 
             <div className="p-6">
-              <div className={activeTab === 'analytics' ? 'w-full' : 'lg:grid lg:grid-cols-2 lg:gap-6'}>
+              <div className={activeTab === 'analytics' || activeTab === 'design-v2' ? 'w-full' : 'lg:grid lg:grid-cols-2 lg:gap-6'}>
                 {/* Left Panel - Dashboard */}
-                <div className={activeTab === 'analytics' ? 'w-full' : 'space-y-6 lg:pr-6'}>
+                <div className={activeTab === 'analytics' || activeTab === 'design-v2' ? 'w-full' : 'space-y-6 lg:pr-6'}>
                   <Card className="bg-card/50 backdrop-blur-sm border-border/50">
-                    <CardContent className={activeTab === 'analytics' ? 'p-0' : 'p-6'}>
+                    <CardContent className={activeTab === 'analytics' || activeTab === 'design-v2' ? 'p-0' : 'p-6'}>
                       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                         <TabsContent value="links" className="mt-0">
                           <LinksTab profile={profile} onProfileUpdate={loadProfile} />
@@ -102,6 +103,10 @@ const Dashboard = () => {
                         
                         <TabsContent value="design" className="mt-0">
                           <DesignTab profile={profile} onProfileUpdate={loadProfile} />
+                        </TabsContent>
+                        
+                        <TabsContent value="design-v2" className="mt-0 p-0">
+                          <DesignSystemTab profile={profile} onProfileUpdate={loadProfile} />
                         </TabsContent>
                         
                         <TabsContent value="analytics" className="mt-0">
@@ -116,8 +121,8 @@ const Dashboard = () => {
                   </Card>
                 </div>
 
-                {/* Right Panel - Device Preview - Hidden when Analytics is active */}
-                {activeTab !== 'analytics' && (
+                {/* Right Panel - Device Preview - Hidden when Analytics or Design 2.0 is active */}
+                {activeTab !== 'analytics' && activeTab !== 'design-v2' && (
                   <div className="hidden lg:block">
                     <div className="sticky top-6">
                       <ProfilePreview profile={profile} />

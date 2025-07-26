@@ -6,10 +6,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { UsernameInput } from '@/components/ui/username-input';
 import { Copy, Check, Upload, ExternalLink, Trash2, Globe } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { useUsernameValidation } from '@/hooks/useUsernameValidation';
 import { AuthProviderInfo } from './AuthProviderInfo';
 
 interface SettingsTabProps {
@@ -35,6 +37,9 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
     custom_domain: profile?.custom_domain || '',
     preferred_domain: profile?.preferred_domain || 'lovable',
   });
+
+  // Username validation
+  const usernameValidation = useUsernameValidation(formData.username);
 
   // Atualizar formData quando profile muda
   React.useEffect(() => {
@@ -72,6 +77,16 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   const handleSave = async () => {
     if (!user) return;
     
+    // Validate username before saving
+    if (formData.username && (!usernameValidation.isValid || !usernameValidation.isAvailable)) {
+      toast({
+        title: "Username inválido",
+        description: "Por favor, escolha um username válido e disponível.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     setIsLoading(true);
     
     try {
@@ -87,7 +102,18 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
         })
         .eq('id', user.id);
 
-      if (error) throw error;
+      if (error) {
+        // Handle specific username constraint error
+        if (error.code === '23505' && error.message.includes('username')) {
+          toast({
+            title: "Username já existe",
+            description: "Este username já está sendo usado por outro usuário.",
+            variant: "destructive",
+          });
+          return;
+        }
+        throw error;
+      }
 
       toast({
         title: "Perfil atualizado!",
@@ -96,6 +122,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
       
       onProfileUpdate();
     } catch (error) {
+      console.error('Error updating profile:', error);
       toast({
         title: "Erro",
         description: "Não foi possível atualizar o perfil.",
@@ -310,24 +337,12 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
           </div>
 
           {/* Username */}
-          <div>
-            <Label htmlFor="username">Username (slug único)</Label>
-            <div className="relative mt-1">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
-                @
-              </span>
-              <Input
-                id="username"
-                placeholder="seuusername"
-                value={formData.username}
-                onChange={(e) => handleInputChange('username', e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
-                className="pl-8"
-              />
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Apenas letras minúsculas, números e underscore
-            </p>
-          </div>
+          <UsernameInput
+            value={formData.username}
+            onChange={(value) => handleInputChange('username', value)}
+            label="Username (slug único)"
+            placeholder="seuusername"
+          />
 
           {/* Full Name */}
           <div>
@@ -360,7 +375,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
           {/* Save Button */}
           <Button
             onClick={handleSave}
-            disabled={isLoading}
+            disabled={isLoading || (formData.username && (!usernameValidation.isValid || !usernameValidation.isAvailable))}
             className="w-full btn-gradient-primary"
           >
             {isLoading ? 'Salvando...' : 'Salvar Configurações'}

@@ -35,6 +35,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { format, subDays, startOfDay, endOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import WorldHeatmap from '@/components/analytics/WorldHeatmap';
+import { MetricCard } from '@/components/analytics/MetricCard';
+import { ActivityHeatmap } from '@/components/analytics/ActivityHeatmap';
+import { InsightsPanel, useAnalyticsInsights } from '@/components/analytics/InsightsPanel';
 
 const Analytics = () => {
   const { user } = useAuth();
@@ -48,6 +51,11 @@ const Analytics = () => {
   const [topLinks, setTopLinks] = useState([]);
   const [deviceData, setDeviceData] = useState([]);
   const [countryData, setCountryData] = useState([]);
+  const [activityHeatmapData, setActivityHeatmapData] = useState([]);
+  const [previousPeriodData, setPreviousPeriodData] = useState({
+    views: 0,
+    clicks: 0
+  });
 
   useEffect(() => {
     if (!user) {
@@ -69,9 +77,14 @@ const Analytics = () => {
     setLoading(true);
 
     const { startDate, endDate } = getDateRange();
+    
+    // Calculate previous period for comparison
+    const periodLength = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+    const previousEndDate = startOfDay(subDays(startDate, 1));
+    const previousStartDate = startOfDay(subDays(previousEndDate, periodLength - 1));
 
     try {
-      // Buscar visualizações do perfil
+      // Buscar visualizações do perfil (período atual)
       const { data: views } = await supabase
         .from('profile_views')
         .select('*')
@@ -80,13 +93,21 @@ const Analytics = () => {
         .lte('viewed_at', endDate.toISOString())
         .order('viewed_at', { ascending: true });
 
+      // Buscar visualizações do período anterior para comparação
+      const { data: previousViews } = await supabase
+        .from('profile_views')
+        .select('*')
+        .eq('profile_id', user.id)
+        .gte('viewed_at', previousStartDate.toISOString())
+        .lte('viewed_at', previousEndDate.toISOString());
+
       // Buscar links do usuário para obter total de cliques
       const { data: userLinks } = await supabase
         .from('links')
         .select('id, title, clicks')
         .eq('user_id', user.id);
 
-      // Buscar cliques nos links para análise temporal
+      // Buscar cliques nos links para análise temporal (período atual)
       const { data: clicks, error: clicksError } = await supabase
         .from('link_clicks')
         .select(`
@@ -105,6 +126,14 @@ const Analytics = () => {
         .lte('clicked_at', endDate.toISOString())
         .order('clicked_at', { ascending: true });
 
+      // Buscar cliques do período anterior
+      const { data: previousClicks } = await supabase
+        .from('link_clicks')
+        .select('id')
+        .eq('profile_id', user.id)
+        .gte('clicked_at', previousStartDate.toISOString())
+        .lte('clicked_at', previousEndDate.toISOString());
+
       if (clicksError) {
         console.error('❌ Erro ao buscar cliques:', clicksError);
       }
@@ -120,12 +149,19 @@ const Analytics = () => {
       setTotalViews(views?.length || 0);
       setTotalClicks(totalClicksSum);
 
+      // Set previous period data for comparison
+      setPreviousPeriodData({
+        views: previousViews?.length || 0,
+        clicks: previousClicks?.length || 0
+      });
+
       // Processar dados para gráficos
       const chartData = processChartData(views || [], clicks || []);
       setProfileViews(chartData);
       processTopLinks(userLinks || []);
       processDeviceData(views || [], clicks || []);
       processCountryData(views || [], clicks || []);
+      processActivityHeatmap(views || [], clicks || []);
 
     } catch (error) {
       console.error('Erro ao carregar analytics:', error);
@@ -202,27 +238,146 @@ const Analytics = () => {
     setDeviceData(deviceArray);
   };
 
-  const processCountryData = (views: any[], clicks: any[]) => {
-    console.log('🌍 Processing country data:', { views, clicks });
-    const countryStats: Record<string, number> = {};
+  // Função para normalizar e consolidar países
+  const normalizeCountryData = (items: any[]) => {
+    const countryMap = new Map<string, { name: string; value: number; code?: string }>();
     
-    [...views, ...clicks].forEach(item => {
-      if (item.country && item.country !== 'null') {
-        countryStats[item.country] = (countryStats[item.country] || 0) + 1;
-        console.log('📍 País encontrado:', item.country);
+    items.forEach((item, index) => {
+      const countryCode = item.country_code;
+      const countryName = item.country;
+      
+      if (!countryCode && (!countryName || countryName === 'null')) {
+        return;
       }
+      
+      // Estratégia de consolidação:
+      // 1. Se tem código, usar código como chave
+      // 2. Se não tem código, normalizar nome
+      let key: string;
+      let displayName: string;
+      let code: string | undefined;
+      
+      if (countryCode) {
+        key = countryCode.toUpperCase();
+        displayName = countryName || countryCode;
+        code = countryCode.toUpperCase();
+      } else {
+        // Normalizar nomes comuns
+        const normalizedName = countryName.toLowerCase();
+        if (normalizedName === 'brazil' || normalizedName === 'brasil') {
+          key = 'BR';
+          displayName = 'Brazil';
+          code = 'BR';
+        } else if (normalizedName === 'united states' || normalizedName === 'usa') {
+          key = 'US';
+          displayName = 'United States';
+          code = 'US';
+        } else {
+          key = countryName;
+          displayName = countryName;
+          code = undefined;
+        }
+      }
+      
+      if (countryMap.has(key)) {
+        const existing = countryMap.get(key)!;
+        existing.value++;
+        // Atualizar nome se o atual for melhor (mais completo)
+        if (countryName && countryName.length > existing.name.length) {
+          existing.name = countryName;
+        }
+      } else {
+        countryMap.set(key, {
+          name: displayName,
+          value: 1,
+          code: code
+        });
+      }
+      
+      console.log('📍 País processado:', { key, displayName, code, total: countryMap.get(key)!.value });
     });
+    
+    return Array.from(countryMap.values());
+  };
 
-    const sorted = Object.entries(countryStats)
-      .map(([name, value]) => ({ name, value }))
+  const processCountryData = (views: any[], clicks: any[]) => {
+    console.log('🌍 Processing country data:', { 
+      viewsCount: views.length, 
+      clicksCount: clicks.length,
+      sampleView: views[0],
+      sampleClick: clicks[0]
+    });
+    
+    // Consolidar dados de ambas as fontes
+    const allItems = [...views, ...clicks];
+    const normalizedCountries = normalizeCountryData(allItems);
+    
+    const sorted = normalizedCountries
       .sort((a, b) => b.value - a.value)
-      .slice(0, 10); // Aumentar para 10 países para melhor visualização
+      .slice(0, 15);
 
-    console.log('🌍 Countries processados:', sorted);
+    console.log('🌍 Countries consolidados final:', sorted);
+    console.log('🗺️ Enviando para WorldHeatmap:', { 
+      dataLength: sorted.length, 
+      maxValue: sorted.length > 0 ? Math.max(...sorted.map(d => d.value)) : 0 
+    });
+    
     setCountryData(sorted);
   };
 
+  const processActivityHeatmap = (views: any[], clicks: any[]) => {
+    const activityMap: Record<string, number> = {};
+    
+    [...views, ...clicks].forEach(item => {
+      const date = new Date(item.viewed_at || item.clicked_at);
+      const hour = date.getHours();
+      const day = date.getDay();
+      const key = `${day}-${hour}`;
+      
+      activityMap[key] = (activityMap[key] || 0) + 1;
+    });
+
+    const heatmapData = Object.entries(activityMap).map(([key, count]) => {
+      const [day, hour] = key.split('-').map(Number);
+      return {
+        day,
+        hour,
+        count
+      };
+    });
+
+    setActivityHeatmapData(heatmapData);
+  };
+
   const COLORS = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444'];
+
+  // Calculate percentage changes
+  const viewsChange = previousPeriodData.views > 0 
+    ? ((totalViews - previousPeriodData.views) / previousPeriodData.views) * 100 
+    : totalViews > 0 ? 100 : 0;
+    
+  const clicksChange = previousPeriodData.clicks > 0 
+    ? ((totalClicks - previousPeriodData.clicks) / previousPeriodData.clicks) * 100 
+    : totalClicks > 0 ? 100 : 0;
+
+  const conversionRate = totalViews > 0 ? (totalClicks / totalViews) * 100 : 0;
+  const previousConversionRate = previousPeriodData.views > 0 
+    ? (previousPeriodData.clicks / previousPeriodData.views) * 100 
+    : 0;
+  const conversionChange = previousConversionRate > 0 
+    ? ((conversionRate - previousConversionRate) / previousConversionRate) * 100 
+    : conversionRate > 0 ? 100 : 0;
+
+  // Generate insights
+  const analyticsData = {
+    totalViews,
+    totalClicks,
+    topLinks,
+    deviceData,
+    timeRange,
+    conversionRate
+  };
+  const insights = useAnalyticsInsights(analyticsData);
 
   if (loading) {
     return (
@@ -256,70 +411,60 @@ const Analytics = () => {
 
       {/* Overview Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
-        <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 border-blue-200 dark:border-blue-800">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-blue-700 dark:text-blue-300">
-              Total de Visualizações
-            </CardTitle>
-            <Eye className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-800 dark:text-blue-200">{totalViews}</div>
-            <p className="text-xs text-blue-600 dark:text-blue-400">
-              Visualizações no período selecionado
-            </p>
-          </CardContent>
-        </Card>
+        <MetricCard
+          title="Total de Visualizações"
+          value={totalViews}
+          previousValue={previousPeriodData.views}
+          change={viewsChange}
+          changeType={viewsChange > 0 ? 'increase' : viewsChange < 0 ? 'decrease' : 'neutral'}
+          icon={Eye}
+          description="Visualizações no período selecionado"
+          gradient="from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900"
+        />
 
-        <Card className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900 border-purple-200 dark:border-purple-800">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-purple-700 dark:text-purple-300">
-              Total de Cliques
-            </CardTitle>
-            <MousePointer className="h-4 w-4 text-purple-600 dark:text-purple-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-purple-800 dark:text-purple-200">{totalClicks}</div>
-            <p className="text-xs text-purple-600 dark:text-purple-400">
-              Cliques no período selecionado
-            </p>
-          </CardContent>
-        </Card>
+        <MetricCard
+          title="Total de Cliques"
+          value={totalClicks}
+          previousValue={previousPeriodData.clicks}
+          change={clicksChange}
+          changeType={clicksChange > 0 ? 'increase' : clicksChange < 0 ? 'decrease' : 'neutral'}
+          icon={MousePointer}
+          description="Cliques no período selecionado"
+          gradient="from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900"
+        />
 
-        <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900 border-green-200 dark:border-green-800">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-green-700 dark:text-green-300">
-              Taxa de Cliques
-            </CardTitle>
-            <TrendingUp className="h-4 w-4 text-green-600 dark:text-green-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-800 dark:text-green-200">
-              {totalViews > 0 ? ((totalClicks / totalViews) * 100).toFixed(1) : 0}%
-            </div>
-            <p className="text-xs text-green-600 dark:text-green-400">
-              Percentual de cliques por visualização
-            </p>
-          </CardContent>
-        </Card>
+        <MetricCard
+          title="Taxa de Conversão"
+          value={conversionRate}
+          previousValue={previousConversionRate}
+          change={conversionChange}
+          changeType={conversionChange > 0 ? 'increase' : conversionChange < 0 ? 'decrease' : 'neutral'}
+          icon={TrendingUp}
+          description="Percentual de cliques por visualização"
+          format="percentage"
+          gradient="from-green-50 to-green-100 dark:from-green-950 dark:to-green-900"
+        />
 
-        <Card className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950 dark:to-orange-900 border-orange-200 dark:border-orange-800">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-orange-700 dark:text-orange-300">
-              Visitantes Únicos
-            </CardTitle>
-            <Users className="h-4 w-4 text-orange-600 dark:text-orange-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-orange-800 dark:text-orange-200">
-              {Math.floor(totalViews * 0.85)}
-            </div>
-            <p className="text-xs text-orange-600 dark:text-orange-400">
-              Estimativa de visitantes únicos
-            </p>
-          </CardContent>
-        </Card>
+        <MetricCard
+          title="Visitantes Únicos"
+          value={Math.floor(totalViews * 0.85)}
+          previousValue={Math.floor(previousPeriodData.views * 0.85)}
+          change={viewsChange} // Same as views change since it's estimated
+          changeType={viewsChange > 0 ? 'increase' : viewsChange < 0 ? 'decrease' : 'neutral'}
+          icon={Users}
+          description="Estimativa de visitantes únicos"
+          gradient="from-orange-50 to-orange-100 dark:from-orange-950 dark:to-orange-900"
+        />
       </div>
+
+      {/* Insights Panel */}
+      <InsightsPanel insights={insights} loading={loading} />
+
+      {/* Activity Heatmap */}
+      <ActivityHeatmap 
+        data={activityHeatmapData} 
+        title="Padrão de Atividade por Hora e Dia"
+      />
 
       {/* Charts */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
@@ -435,10 +580,18 @@ const Analytics = () => {
           </CardHeader>
           <CardContent>
             <div className="h-80">
-              <WorldHeatmap 
-                data={countryData} 
-                maxValue={countryData.length > 0 ? Math.max(...countryData.map(d => d.value)) : 0}
-              />
+              {/* Usar mapa real quando tiver dados consolidados */}
+              {countryData.length > 0 ? (
+                <WorldHeatmap 
+                  data={countryData} 
+                  maxValue={Math.max(...countryData.map(d => d.value))}
+                />
+              ) : (
+                <SimpleWorldMap 
+                  data={countryData} 
+                  maxValue={0}
+                />
+              )}
             </div>
           </CardContent>
         </Card>

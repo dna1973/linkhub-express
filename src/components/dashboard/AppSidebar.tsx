@@ -1,4 +1,4 @@
-import { Link as LinkIcon, Palette, User, Sun, Moon, LogOut, Eye, BarChart3 } from 'lucide-react';
+import { Link as LinkIcon, Palette, User, Sun, Moon, LogOut, Eye, BarChart3, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useTheme } from 'next-themes';
 import { useAuth } from '@/contexts/AuthContext';
@@ -26,6 +26,7 @@ interface AppSidebarProps {
 const menuItems = [
   { id: 'links', title: 'Links', icon: LinkIcon },
   { id: 'design', title: 'Design', icon: Palette },
+  { id: 'design-v2', title: 'Design 2.0', icon: Sparkles },
   { id: 'settings', title: 'Perfil', icon: User },
 ];
 
