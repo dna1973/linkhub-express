@@ -41,6 +41,18 @@ export const ProfilePreview: React.FC<ProfilePreviewProps> = ({ profile }) => {
     }
   }, [currentTheme, customTheme, user]);
 
+  // Escutar mudanças nos links
+  useEffect(() => {
+    const handleLinksUpdate = () => {
+      if (user) {
+        loadLinks();
+      }
+    };
+
+    window.addEventListener('linksUpdated', handleLinksUpdate);
+    return () => window.removeEventListener('linksUpdated', handleLinksUpdate);
+  }, [user]);
+
   const loadLinks = async () => {
     if (!user) return;
 

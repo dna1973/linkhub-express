@@ -186,6 +186,8 @@ export const LinksTab: React.FC<LinksTabProps> = ({ profile, onProfileUpdate }) 
       setSelectedLinkType(null);
       setNewLinkData({ title: '', url: '' });
       loadLinks();
+      // Notificar outros componentes da mudança
+      window.dispatchEvent(new CustomEvent('linksUpdated'));
     }
 
     setLoading(false);
@@ -203,6 +205,8 @@ export const LinksTab: React.FC<LinksTabProps> = ({ profile, onProfileUpdate }) 
         description: "O link foi excluído com sucesso.",
       });
       loadLinks();
+      // Notificar outros componentes da mudança
+      window.dispatchEvent(new CustomEvent('linksUpdated'));
     }
   };
 
@@ -243,6 +247,9 @@ export const LinksTab: React.FC<LinksTabProps> = ({ profile, onProfileUpdate }) 
           .update({ position: update.position })
           .eq('id', update.id);
       }
+
+      // Notificar outros componentes da mudança
+      window.dispatchEvent(new CustomEvent('linksUpdated'));
 
       toast({
         title: "Ordem atualizada",

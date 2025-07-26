@@ -31,6 +31,18 @@ const PublicProfile = () => {
     }
   }, [username]);
 
+  // Escutar mudanças nos links para atualização em tempo real
+  useEffect(() => {
+    const handleLinksUpdate = () => {
+      if (username && profile) {
+        loadProfileData();
+      }
+    };
+
+    window.addEventListener('linksUpdated', handleLinksUpdate);
+    return () => window.removeEventListener('linksUpdated', handleLinksUpdate);
+  }, [username, profile]);
+
   const loadProfileData = async () => {
     try {
       // Load profile by username
