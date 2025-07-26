@@ -94,6 +94,22 @@ const PublicProfile = () => {
       const userAgent = navigator.userAgent;
       const referrer = document.referrer || null;
       
+      // Obter dados de geolocalização
+      let country = null;
+      let city = null;
+      
+      try {
+        // Usar ipapi.co para obter localização
+        const geoResponse = await fetch('https://ipapi.co/json/');
+        if (geoResponse.ok) {
+          const geoData = await geoResponse.json();
+          country = geoData.country_name || null;
+          city = geoData.city || null;
+        }
+      } catch (geoError) {
+        console.warn('Erro ao obter geolocalização:', geoError);
+      }
+      
       // Registrar visualização
       await supabase
         .from('profile_views')
@@ -102,8 +118,8 @@ const PublicProfile = () => {
           ip_address: null, // Será preenchido pelo servidor se necessário
           user_agent: userAgent,
           referrer: referrer,
-          country: null, // Pode ser implementado com API de geolocalização
-          city: null
+          country: country,
+          city: city
         });
     } catch (error) {
       console.error('Erro ao registrar visualização:', error);

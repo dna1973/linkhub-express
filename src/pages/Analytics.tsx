@@ -34,6 +34,7 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { format, subDays, startOfDay, endOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import WorldHeatmap from '@/components/analytics/WorldHeatmap';
 
 const Analytics = () => {
   const { user } = useAuth();
@@ -215,7 +216,7 @@ const Analytics = () => {
     const sorted = Object.entries(countryStats)
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value)
-      .slice(0, 5);
+      .slice(0, 10); // Aumentar para 10 países para melhor visualização
 
     console.log('🌍 Countries processados:', sorted);
     setCountryData(sorted);
@@ -424,24 +425,21 @@ const Analytics = () => {
           </CardContent>
         </Card>
 
-        {/* Top Countries */}
+        {/* World Heatmap */}
         <Card className="col-span-1">
           <CardHeader>
             <CardTitle className="flex items-center text-lg">
-              <MapPin className="h-5 w-5 mr-2" />
-              Países com Mais Acessos
+              <Globe className="h-5 w-5 mr-2" />
+              Mapa de Calor Mundial - Acessos por País
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={250}>
-              <BarChart data={countryData} layout="horizontal">
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis type="number" />
-                <YAxis dataKey="name" type="category" width={80} />
-                <Tooltip />
-                <Bar dataKey="value" fill="#3b82f6" />
-              </BarChart>
-            </ResponsiveContainer>
+            <div className="h-80">
+              <WorldHeatmap 
+                data={countryData} 
+                maxValue={countryData.length > 0 ? Math.max(...countryData.map(d => d.value)) : 0}
+              />
+            </div>
           </CardContent>
         </Card>
       </div>
