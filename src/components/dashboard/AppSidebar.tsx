@@ -26,8 +26,11 @@ interface AppSidebarProps {
 const menuItems = [
   { id: 'links', title: 'Links', icon: LinkIcon },
   { id: 'design', title: 'Design', icon: Palette },
-  { id: 'analytics', title: 'Analytics', icon: BarChart3 },
   { id: 'settings', title: 'Perfil', icon: User },
+];
+
+const analyticsItems = [
+  { id: 'analytics', title: 'Analytics', icon: BarChart3 },
 ];
 
 export function AppSidebar({ activeTab, onTabChange, profile }: AppSidebarProps) {
@@ -74,6 +77,28 @@ export function AppSidebar({ activeTab, onTabChange, profile }: AppSidebarProps)
           <SidebarGroupContent>
             <SidebarMenu>
               {menuItems.map((item) => (
+                <SidebarMenuItem key={item.id}>
+                  <SidebarMenuButton
+                    onClick={() => onTabChange(item.id)}
+                    isActive={activeTab === item.id}
+                    className="w-full justify-start"
+                  >
+                    <item.icon className="h-4 w-4" />
+                    {!isCollapsed && <span>{item.title}</span>}
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel className={isCollapsed ? 'sr-only' : ''}>
+            Relatórios
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {analyticsItems.map((item) => (
                 <SidebarMenuItem key={item.id}>
                   <SidebarMenuButton
                     onClick={() => onTabChange(item.id)}
