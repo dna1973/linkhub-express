@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Textarea } from '@/components/ui/textarea';
-import { Copy, Check, Upload, ExternalLink } from 'lucide-react';
+import { Copy, Check, Upload, ExternalLink, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -21,7 +21,9 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
 }) => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
   const [formData, setFormData] = useState({
     username: profile?.username || '',
@@ -70,6 +72,113 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
       });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !user) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: "Erro",
+        description: "Por favor, selecione apenas arquivos de imagem.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate file size (5MB max)
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: "Erro",
+        description: "O arquivo deve ter no máximo 5MB.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsUploadingImage(true);
+
+    try {
+      // Delete old avatar if exists
+      if (formData.avatar_url && formData.avatar_url.includes('supabase')) {
+        const oldFileName = formData.avatar_url.split('/').pop();
+        if (oldFileName) {
+          await supabase.storage
+            .from('avatars')
+            .remove([`${user.id}/${oldFileName}`]);
+        }
+      }
+
+      // Upload new file
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Date.now()}.${fileExt}`;
+      const filePath = `${user.id}/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(filePath);
+
+      setFormData(prev => ({ ...prev, avatar_url: data.publicUrl }));
+
+      toast({
+        title: "Sucesso!",
+        description: "Imagem carregada com sucesso.",
+      });
+
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível carregar a imagem.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploadingImage(false);
+      // Reset input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleDeleteImage = async () => {
+    if (!user || !formData.avatar_url) return;
+
+    try {
+      // Delete from storage if it's a supabase URL
+      if (formData.avatar_url.includes('supabase')) {
+        const fileName = formData.avatar_url.split('/').pop();
+        if (fileName) {
+          await supabase.storage
+            .from('avatars')
+            .remove([`${user.id}/${fileName}`]);
+        }
+      }
+
+      setFormData(prev => ({ ...prev, avatar_url: '' }));
+
+      toast({
+        title: "Imagem removida",
+        description: "A imagem foi removida com sucesso.",
+      });
+
+    } catch (error) {
+      console.error('Error deleting image:', error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível remover a imagem.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -149,16 +258,51 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Avatar Section */}
-          <div className="flex items-center space-x-4">
-            <Avatar className="w-16 h-16">
-              <AvatarImage src={formData.avatar_url} />
-              <AvatarFallback className="bg-gradient-primary text-white text-xl">
-                {formData.full_name?.[0]?.toUpperCase() || 
-                 user?.email?.[0]?.toUpperCase() || 'U'}
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex-1">
-              <Label htmlFor="avatar_url">URL da Foto de Perfil</Label>
+          <div className="space-y-4">
+            <Label>Foto de Perfil</Label>
+            <div className="flex items-center space-x-4">
+              <Avatar className="w-16 h-16">
+                <AvatarImage src={formData.avatar_url} />
+                <AvatarFallback className="bg-gradient-primary text-white text-xl">
+                  {formData.full_name?.[0]?.toUpperCase() || 
+                   user?.email?.[0]?.toUpperCase() || 'U'}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 space-y-2">
+                <div className="flex space-x-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploadingImage}
+                    className="flex items-center space-x-2"
+                  >
+                    <Upload className="h-4 w-4" />
+                    <span>{isUploadingImage ? 'Carregando...' : 'Upload'}</span>
+                  </Button>
+                  {formData.avatar_url && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleDeleteImage}
+                      className="flex items-center space-x-2 text-destructive hover:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      <span>Remover</span>
+                    </Button>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  JPG, PNG ou GIF. Máximo 5MB.
+                </p>
+              </div>
+            </div>
+            
+            {/* URL Input as alternative */}
+            <div>
+              <Label htmlFor="avatar_url">Ou cole uma URL da imagem</Label>
               <Input
                 id="avatar_url"
                 placeholder="https://exemplo.com/sua-foto.jpg"
@@ -167,6 +311,15 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                 className="mt-1"
               />
             </div>
+
+            {/* Hidden file input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleImageUpload}
+              className="hidden"
+            />
           </div>
 
           {/* Username */}
