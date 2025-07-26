@@ -6,67 +6,60 @@
 
 @layer base {
   :root {
-    /* Dark theme base */
-    --background: 224 23% 9%;  /* #111827 */
-    --foreground: 210 40% 98%;
+    /* Light theme - cores mais claras e suaves */
+    --background: 0 0% 98%;  /* #fafafa - quase branco */
+    --foreground: 224 23% 15%;  /* texto escuro suave */
     
-    --card: 224 23% 12%;  /* Slightly lighter than bg */
-    --card-foreground: 210 40% 98%;
+    --card: 0 0% 100%;  /* branco puro para cards */
+    --card-foreground: 224 23% 15%;
     
-    --popover: 224 23% 15%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 224 23% 15%;
     
-    /* Primary - Vibrant purple */
-    --primary: 259 93% 68%;  /* #8b5cf6 */
-    --primary-foreground: 210 40% 98%;
+    /* Primary - Mantém o roxo mas mais suave */
+    --primary: 259 85% 65%;  /* #9f7aea - roxo mais claro */
+    --primary-foreground: 0 0% 100%;
     
-    /* Secondary - Dark slate */
-    --secondary: 217 19% 20%;
-    --secondary-foreground: 210 40% 98%;
+    /* Secondary - cinza muito claro */
+    --secondary: 210 20% 95%;  /* cinza clarinho */
+    --secondary-foreground: 224 23% 25%;
     
-    --muted: 217 19% 20%;
-    --muted-foreground: 215 20.2% 65.1%;
+    --muted: 210 20% 92%;  /* cinza bem claro */
+    --muted-foreground: 215 15% 45%;
     
-    --accent: 217 19% 25%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 210 25% 90%;  /* accent bem claro */
+    --accent-foreground: 224 23% 25%;
     
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 84% 65%;  /* vermelho mais claro */
+    --destructive-foreground: 0 0% 100%;
     
-    --border: 217 19% 25%;
-    --input: 217 19% 20%;
-    --ring: 259 93% 68%;
+    --border: 220 15% 88%;  /* bordas bem claras */
+    --input: 0 0% 96%;  /* inputs com fundo bem claro */
+    --ring: 259 85% 65%;
     
     --radius: 0.75rem;
     
-    /* Custom LinkHub tokens */
-    --gradient-primary: linear-gradient(135deg, #8b5cf6 0%, #3b82f6 100%);
-    --gradient-secondary: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-    --gradient-accent: linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%);
+    /* Custom LinkHub tokens para tema claro */
+    --gradient-primary: linear-gradient(135deg, #9f7aea 0%, #60a5fa 100%);
+    --gradient-secondary: linear-gradient(135deg, #a78bfa 0%, #9f7aea 100%);
+    --gradient-accent: linear-gradient(135deg, #67e8f9 0%, #60a5fa 100%);
     
-    --glass-bg: rgba(255, 255, 255, 0.1);
-    --glass-border: rgba(255, 255, 255, 0.2);
+    --glass-bg: rgba(255, 255, 255, 0.8);
+    --glass-border: rgba(139, 92, 246, 0.2);
     
-    --shadow-glow: 0 0 30px rgba(139, 92, 246, 0.3);
-    --shadow-glass: 0 8px 32px rgba(31, 38, 135, 0.37);
+    --shadow-glow: 0 0 25px rgba(159, 122, 234, 0.25);
+    --shadow-glass: 0 4px 16px rgba(0, 0, 0, 0.1);
     
     --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     --transition-bounce: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
 
     --sidebar-background: 0 0% 98%;
-
     --sidebar-foreground: 240 5.3% 26.1%;
-
     --sidebar-primary: 240 5.9% 10%;
-
     --sidebar-primary-foreground: 0 0% 98%;
-
     --sidebar-accent: 240 4.8% 95.9%;
-
     --sidebar-accent-foreground: 240 5.9% 10%;
-
     --sidebar-border: 220 13% 91%;
-
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
 
