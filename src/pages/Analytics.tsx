@@ -35,6 +35,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { format, subDays, startOfDay, endOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import WorldHeatmap from '@/components/analytics/WorldHeatmap';
+import { SimpleWorldMap } from '@/components/analytics/SimpleWorldMap';
 import { MetricCard } from '@/components/analytics/MetricCard';
 import { ActivityHeatmap } from '@/components/analytics/ActivityHeatmap';
 import { InsightsPanel, useAnalyticsInsights } from '@/components/analytics/InsightsPanel';
