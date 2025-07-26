@@ -149,7 +149,9 @@ export const ProfilePreview: React.FC<ProfilePreviewProps> = ({ profile }) => {
   };
 
   const handleLinkClick = async (linkId: number, url: string) => {
-    // Increment click count
+    // Este é apenas um preview, não registrar analytics
+    
+    // Increment click count apenas para demonstração
     const { data: currentLink } = await supabase
       .from('links')
       .select('clicks')

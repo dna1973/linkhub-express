@@ -31,6 +31,13 @@ const PublicProfile = () => {
     }
   }, [username]);
 
+  // Registrar visualização do perfil
+  useEffect(() => {
+    if (profile?.id) {
+      registerProfileView();
+    }
+  }, [profile?.id]);
+
   // Escutar mudanças nos links para atualização em tempo real
   useEffect(() => {
     const handleLinksUpdate = () => {
@@ -76,6 +83,30 @@ const PublicProfile = () => {
       setNotFound(true);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const registerProfileView = async () => {
+    if (!profile?.id) return;
+
+    try {
+      // Obter informações do navegador
+      const userAgent = navigator.userAgent;
+      const referrer = document.referrer || null;
+      
+      // Registrar visualização
+      await supabase
+        .from('profile_views')
+        .insert({
+          profile_id: profile.id,
+          ip_address: null, // Será preenchido pelo servidor se necessário
+          user_agent: userAgent,
+          referrer: referrer,
+          country: null, // Pode ser implementado com API de geolocalização
+          city: null
+        });
+    } catch (error) {
+      console.error('Erro ao registrar visualização:', error);
     }
   };
 
@@ -149,18 +180,35 @@ const PublicProfile = () => {
   };
 
   const handleLinkClick = async (linkId: number, url: string) => {
-    // Increment click count
-    const { data: currentLink } = await supabase
-      .from('links')
-      .select('clicks')
-      .eq('id', linkId)
-      .single();
-    
-    if (currentLink) {
+    try {
+      // Registrar clique na tabela de analytics
       await supabase
+        .from('link_clicks')
+        .insert({
+          link_id: linkId,
+          profile_id: profile.id,
+          ip_address: null, // Será preenchido pelo servidor se necessário
+          user_agent: navigator.userAgent,
+          referrer: document.referrer || null,
+          country: null, // Pode ser implementado com API de geolocalização
+          city: null
+        });
+
+      // Increment click count na tabela links
+      const { data: currentLink } = await supabase
         .from('links')
-        .update({ clicks: currentLink.clicks + 1 })
-        .eq('id', linkId);
+        .select('clicks')
+        .eq('id', linkId)
+        .single();
+      
+      if (currentLink) {
+        await supabase
+          .from('links')
+          .update({ clicks: currentLink.clicks + 1 })
+          .eq('id', linkId);
+      }
+    } catch (error) {
+      console.error('Erro ao registrar clique:', error);
     }
 
     // Open link
