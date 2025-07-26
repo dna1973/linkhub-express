@@ -4,9 +4,10 @@ import { useNavigate } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { LogOut, Settings, Link as LinkIcon, Palette } from 'lucide-react';
+import { LogOut, Settings, Link as LinkIcon, Palette, User } from 'lucide-react';
 import { LinksTab } from '@/components/dashboard/LinksTab';
 import { DesignTab } from '@/components/dashboard/DesignTab';
+import { SettingsTab } from '@/components/dashboard/SettingsTab';
 import { ProfilePreview } from '@/components/dashboard/ProfilePreview';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -79,7 +80,11 @@ const Dashboard = () => {
           </div>
           
           <div className="flex items-center space-x-2">
-            <Button variant="ghost" size="sm">
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={() => setActiveTab('settings')}
+            >
               <Settings className="h-4 w-4 mr-2" />
               Configurações
             </Button>
@@ -112,7 +117,7 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                  <TabsList className="grid w-full grid-cols-2">
+                  <TabsList className="grid w-full grid-cols-3">
                     <TabsTrigger value="links" className="flex items-center space-x-2">
                       <LinkIcon className="h-4 w-4" />
                       <span>Links</span>
@@ -120,6 +125,10 @@ const Dashboard = () => {
                     <TabsTrigger value="design" className="flex items-center space-x-2">
                       <Palette className="h-4 w-4" />
                       <span>Design</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="settings" className="flex items-center space-x-2">
+                      <User className="h-4 w-4" />
+                      <span>Perfil</span>
                     </TabsTrigger>
                   </TabsList>
                   
@@ -129,6 +138,10 @@ const Dashboard = () => {
                   
                   <TabsContent value="design" className="mt-6">
                     <DesignTab profile={profile} onProfileUpdate={loadProfile} />
+                  </TabsContent>
+                  
+                  <TabsContent value="settings" className="mt-6">
+                    <SettingsTab profile={profile} onProfileUpdate={loadProfile} />
                   </TabsContent>
                 </Tabs>
               </CardContent>
