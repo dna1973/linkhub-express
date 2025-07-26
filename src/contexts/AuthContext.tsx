@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import { getRedirectUrl } from '@/lib/config';
 
 interface AuthContextType {
   user: User | null;
@@ -48,7 +49,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const signUp = async (email: string, password: string) => {
-    const redirectUrl = `${window.location.origin}/`;
+    const redirectUrl = getRedirectUrl('/');
     
     const { error } = await supabase.auth.signUp({
       email,
@@ -69,7 +70,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signInWithProvider = async (provider: 'github' | 'google') => {
-    const redirectUrl = `${window.location.origin}/dashboard`;
+    const redirectUrl = getRedirectUrl('/dashboard');
     
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
