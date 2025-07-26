@@ -156,9 +156,7 @@ const Dashboard = () => {
                   <CardTitle className="text-center text-sm">Pré-visualização</CardTitle>
                 </CardHeader>
                 <CardContent className="p-4">
-                  <div className="max-h-[80vh] overflow-y-auto">
-                    <ProfilePreview profile={profile} />
-                  </div>
+                  <ProfilePreview profile={profile} />
                 </CardContent>
               </Card>
             </div>
