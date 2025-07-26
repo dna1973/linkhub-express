@@ -11,16 +11,21 @@ const AuthCallback = () => {
   useEffect(() => {
     console.log('🔄 AuthCallback - Estado:', { user: !!user, loading });
     
-    if (!loading) {
-      if (user) {
-        console.log('✅ Usuário autenticado, redirecionando para dashboard');
-        navigate('/dashboard', { replace: true });
-      } else {
-        console.log('❌ Usuário não autenticado, redirecionando para auth');
-        navigate('/auth', { replace: true });
+    // Aguardar um momento para garantir que o auth state foi processado
+    const timer = setTimeout(() => {
+      if (!loading) {
+        if (user) {
+          console.log('✅ Usuário autenticado, redirecionando para dashboard');
+          window.location.href = '/dashboard';
+        } else {
+          console.log('❌ Usuário não autenticado, redirecionando para auth');
+          window.location.href = '/auth';
+        }
       }
-    }
-  }, [user, loading, navigate]);
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [user, loading]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
