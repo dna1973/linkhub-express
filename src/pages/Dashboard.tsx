@@ -157,13 +157,13 @@ const Dashboard = () => {
 
           {/* Right Panel - Floating Preview */}
           <div className="hidden lg:block">
-            <div className="fixed top-20 right-8 w-[400px] max-w-[calc(50vw-2rem)] z-10">
+            <div className="fixed top-16 right-8 w-[420px] max-w-[calc(50vw-2rem)] z-10">
               <Card className="bg-card/50 backdrop-blur-sm border-border/50 shadow-lg">
-                <CardHeader className="pb-2">
+                <CardHeader className="pb-1">
                   <CardTitle className="text-center text-sm">Pré-visualização</CardTitle>
                 </CardHeader>
-                <CardContent className="p-2">
-                  <div className="h-[calc(100vh-120px)]">
+                <CardContent className="p-1">
+                  <div className="h-[calc(100vh-80px)]">
                     <ProfilePreview profile={profile} />
                   </div>
                 </CardContent>

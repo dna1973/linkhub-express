@@ -157,8 +157,60 @@ export const ProfilePreview: React.FC<ProfilePreviewProps> = ({ profile }) => {
 
   const themeStyles = getThemeStyles();
 
+  const getFontClasses = () => {
+    const font = themeStyles.font;
+    if (!font) return '';
+    
+    let fontFamily = '';
+    switch (font.family) {
+      case 'serif':
+        fontFamily = 'font-serif';
+        break;
+      case 'mono':
+        fontFamily = 'font-mono';
+        break;
+      case 'display':
+        fontFamily = 'font-sans font-bold';
+        break;
+      case 'handwriting':
+        fontFamily = 'font-serif italic';
+        break;
+      default:
+        fontFamily = 'font-sans';
+    }
+    
+    let fontSize = '';
+    switch (font.size) {
+      case 'sm':
+        fontSize = 'text-sm';
+        break;
+      case 'lg':
+        fontSize = 'text-lg';
+        break;
+      default:
+        fontSize = 'text-base';
+    }
+    
+    let fontWeight = '';
+    switch (font.weight) {
+      case 'light':
+        fontWeight = 'font-light';
+        break;
+      case 'medium':
+        fontWeight = 'font-medium';
+        break;
+      case 'bold':
+        fontWeight = 'font-bold';
+        break;
+      default:
+        fontWeight = 'font-normal';
+    }
+    
+    return `${fontFamily} ${fontSize} ${fontWeight}`;
+  };
+
   return (
-    <div className="w-full h-full relative overflow-hidden rounded-lg">
+    <div className={`w-full h-full relative overflow-hidden rounded-lg ${getFontClasses()}`}>
       {/* Background */}
       <div 
         className="absolute inset-0"
@@ -166,10 +218,10 @@ export const ProfilePreview: React.FC<ProfilePreviewProps> = ({ profile }) => {
       />
       
       {/* Content */}
-      <div className="relative z-10 h-full flex flex-col items-center justify-start p-6 text-center">
+      <div className="relative z-10 h-full flex flex-col items-center justify-start p-2 text-center">
         {/* Phone Frame Mockup */}
-        <div className="w-full max-w-sm mx-auto bg-black/20 backdrop-blur-sm rounded-[2.5rem] p-2 border border-white/10">
-          <div className="bg-background/5 rounded-[2rem] p-4 h-full flex flex-col overflow-hidden">
+        <div className="w-full max-w-sm mx-auto bg-black/20 backdrop-blur-sm rounded-[2.5rem] p-1 border border-white/10">
+          <div className="bg-background/5 rounded-[2rem] p-2 h-full flex flex-col overflow-hidden">
             
             {/* Profile Section */}
             <div className="mb-6 flex-shrink-0">
