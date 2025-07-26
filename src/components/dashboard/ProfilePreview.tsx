@@ -229,13 +229,13 @@ export const ProfilePreview: React.FC<ProfilePreviewProps> = ({ profile }) => {
             </div>
             
             {/* Content Area */}
-            <div className={`pt-12 pb-8 px-6 h-full flex flex-col ${getFontClasses()}`}>
+            <div className={`pt-8 pb-4 px-4 h-full flex flex-col overflow-hidden ${getFontClasses()}`}>
             
             {/* Profile Section */}
-            <div className="mb-6 flex-shrink-0">
-              <Avatar className="w-20 h-20 mx-auto mb-4 border-2 border-white/20">
+            <div className="text-center mb-4 flex-shrink-0">
+              <Avatar className="w-16 h-16 mx-auto mb-3 border-2 border-white/20">
                 <AvatarImage src={profile?.avatar_url} />
-                <AvatarFallback className="bg-white/10 text-white text-xl">
+                <AvatarFallback className="bg-white/10 text-white text-lg">
                   {profile?.full_name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U'}
                 </AvatarFallback>
               </Avatar>
@@ -256,7 +256,7 @@ export const ProfilePreview: React.FC<ProfilePreviewProps> = ({ profile }) => {
             </div>
 
             {/* Links Section */}
-            <div className="space-y-3 flex-1 min-h-0 overflow-y-auto">
+            <div className="space-y-2 flex-1 min-h-0 overflow-hidden">{/* Removido overflow-y-auto */}
               {links.length === 0 ? (
                 <div className="text-center py-8">
                   <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center mx-auto mb-4">
