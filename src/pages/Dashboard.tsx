@@ -1,22 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { LogOut, Link as LinkIcon, Palette, User, Sun, Moon } from 'lucide-react';
+import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { LinksTab } from '@/components/dashboard/LinksTab';
 import { DesignTab } from '@/components/dashboard/DesignTab';
 import { SettingsTab } from '@/components/dashboard/SettingsTab';
 import { ProfilePreview } from '@/components/dashboard/ProfilePreview';
+import { AppSidebar } from '@/components/dashboard/AppSidebar';
 import { supabase } from '@/integrations/supabase/client';
-import { useTheme } from 'next-themes';
 
 const Dashboard = () => {
   console.log('Dashboard component loading...'); // Debug log
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
-  const { theme, setTheme } = useTheme();
   const [profile, setProfile] = useState<any>(null);
   const [activeTab, setActiveTab] = useState('links');
 
@@ -61,111 +59,62 @@ const Dashboard = () => {
     }
   };
 
-  const handleSignOut = async () => {
-    await signOut();
-    navigate('/');
-  };
 
   if (!user) {
     return null;
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b border-border/50 bg-card/30 backdrop-blur-sm">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 rounded-full btn-gradient-primary flex items-center justify-center">
-              <LinkIcon className="h-4 w-4 text-white" />
-            </div>
-            <h1 className="text-xl font-bold">LinkHub</h1>
-          </div>
-          
-          <div className="flex items-center space-x-2">
-            <Button 
-              variant="ghost" 
-              size="sm"
-              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-            >
-              {theme === 'dark' ? (
-                <Sun className="h-4 w-4 mr-2" />
-              ) : (
-                <Moon className="h-4 w-4 mr-2" />
-              )}
-              {theme === 'dark' ? 'Claro' : 'Escuro'}
-            </Button>
-            <Button 
-              variant="ghost" 
-              size="sm"
-              onClick={handleSignOut}
-            >
-              <LogOut className="h-4 w-4 mr-2" />
-              Sair
-            </Button>
-          </div>
-        </div>
-      </header>
+    <SidebarProvider>
+      <div className="min-h-screen flex w-full bg-background">
+        <AppSidebar 
+          activeTab={activeTab} 
+          onTabChange={setActiveTab} 
+          profile={profile} 
+        />
+        
+        <main className="flex-1 flex">
+          {/* Header with trigger */}
+          <div className="flex-1">
+            <header className="h-12 flex items-center border-b bg-card/30 backdrop-blur-sm px-4">
+              <SidebarTrigger />
+            </header>
 
-      <div className="container mx-auto px-4 py-6">
-        <div className="lg:grid lg:grid-cols-2 lg:gap-6">
-          {/* Left Panel - Dashboard */}
-          <div className="space-y-6 lg:pr-6">
-            <Card className="bg-card/50 backdrop-blur-sm border-border/50">
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <span>Painel de Controle</span>
-                  {profile?.username && (
-                    <span className="text-sm text-muted-foreground">
-                      @{profile.username}
-                    </span>
-                  )}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                  <TabsList className="grid w-full grid-cols-3">
-                    <TabsTrigger value="links" className="flex items-center space-x-2">
-                      <LinkIcon className="h-4 w-4" />
-                      <span>Links</span>
-                    </TabsTrigger>
-                    <TabsTrigger value="design" className="flex items-center space-x-2">
-                      <Palette className="h-4 w-4" />
-                      <span>Design</span>
-                    </TabsTrigger>
-                    <TabsTrigger value="settings" className="flex items-center space-x-2">
-                      <User className="h-4 w-4" />
-                      <span>Perfil</span>
-                    </TabsTrigger>
-                  </TabsList>
-                  
-                  <TabsContent value="links" className="mt-6">
-                    <LinksTab profile={profile} onProfileUpdate={loadProfile} />
-                  </TabsContent>
-                  
-                  <TabsContent value="design" className="mt-6">
-                    <DesignTab profile={profile} onProfileUpdate={loadProfile} />
-                  </TabsContent>
-                  
-                  <TabsContent value="settings" className="mt-6">
-                    <SettingsTab profile={profile} onProfileUpdate={loadProfile} />
-                  </TabsContent>
-                </Tabs>
-              </CardContent>
-            </Card>
-          </div>
+            <div className="p-6">
+              <div className="lg:grid lg:grid-cols-2 lg:gap-6">
+                {/* Left Panel - Dashboard */}
+                <div className="space-y-6 lg:pr-6">
+                  <Card className="bg-card/50 backdrop-blur-sm border-border/50">
+                    <CardContent className="p-6">
+                      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                        <TabsContent value="links" className="mt-0">
+                          <LinksTab profile={profile} onProfileUpdate={loadProfile} />
+                        </TabsContent>
+                        
+                        <TabsContent value="design" className="mt-0">
+                          <DesignTab profile={profile} onProfileUpdate={loadProfile} />
+                        </TabsContent>
+                        
+                        <TabsContent value="settings" className="mt-0">
+                          <SettingsTab profile={profile} onProfileUpdate={loadProfile} />
+                        </TabsContent>
+                      </Tabs>
+                    </CardContent>
+                  </Card>
+                </div>
 
-          {/* Right Panel - Device Preview */}
-          <div className="hidden lg:block">
-            <div className="fixed top-12 right-32 w-[380px] z-10">
-              <div className="h-[calc(100vh-60px)] overflow-hidden">
-                <ProfilePreview profile={profile} />
+                {/* Right Panel - Device Preview */}
+                <div className="hidden lg:block">
+                  <div className="sticky top-6">
+                    <ProfilePreview profile={profile} />
+                  </div>
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        </main>
       </div>
-    </div>
+    </SidebarProvider>
   );
 };
 
