@@ -34,6 +34,13 @@ export const ProfilePreview: React.FC<ProfilePreviewProps> = ({ profile }) => {
     }
   }, [user]);
 
+  // Recarregar quando o tema mudar
+  useEffect(() => {
+    if (user) {
+      loadLinks();
+    }
+  }, [currentTheme, customTheme, user]);
+
   const loadLinks = async () => {
     if (!user) return;
 
@@ -50,6 +57,20 @@ export const ProfilePreview: React.FC<ProfilePreviewProps> = ({ profile }) => {
   };
 
   const getThemeStyles = () => {
+    // Se estivermos no modo preview (currentTheme é 'custom'), usar o store atual
+    if (currentTheme === 'custom') {
+      const custom = customTheme;
+      return {
+        background: custom.background?.type === 'gradient' 
+          ? `linear-gradient(135deg, ${custom.background.colors?.[0] || '#111827'}, ${custom.background.colors?.[1] || '#1f2937'})`
+          : custom.background?.color || '#111827',
+        buttonStyle: custom.buttonStyle?.type || 'glass',
+        font: custom.font,
+        colors: custom.colors,
+      };
+    }
+    
+    // Usar configurações salvas do perfil se disponível
     const themeOptions = profile?.theme_options;
     
     if (themeOptions?.themeId === 'custom' && themeOptions?.custom) {
@@ -58,11 +79,13 @@ export const ProfilePreview: React.FC<ProfilePreviewProps> = ({ profile }) => {
         background: custom.background?.type === 'gradient' 
           ? `linear-gradient(135deg, ${custom.background.colors?.[0] || '#111827'}, ${custom.background.colors?.[1] || '#1f2937'})`
           : custom.background?.color || '#111827',
-        buttonStyle: custom.buttonStyle || 'glass',
+        buttonStyle: custom.buttonStyle?.type || 'glass',
+        font: custom.font,
+        colors: custom.colors,
       };
     }
 
-    // Default themes
+    // Temas predefinidos
     const defaultThemes: Record<string, any> = {
       'default': {
         background: '#111827',
@@ -82,7 +105,8 @@ export const ProfilePreview: React.FC<ProfilePreviewProps> = ({ profile }) => {
       },
     };
 
-    const theme = defaultThemes[themeOptions?.themeId || 'default'];
+    const themeId = currentTheme !== 'custom' ? currentTheme : (themeOptions?.themeId || 'default');
+    const theme = defaultThemes[themeId];
     return theme || defaultThemes.default;
   };
 
@@ -92,6 +116,10 @@ export const ProfilePreview: React.FC<ProfilePreviewProps> = ({ profile }) => {
         return 'bg-white/90 text-gray-900 hover:bg-white border-0';
       case 'outline':
         return 'bg-transparent text-white border-2 border-white/50 hover:bg-white/10';
+      case 'modern':
+        return 'bg-white/20 text-white border border-white/30 hover:bg-white/30 backdrop-blur-sm';
+      case 'rounded':
+        return 'bg-white/20 text-white border border-white/30 hover:bg-white/30 backdrop-blur-sm rounded-full';
       case 'glass':
       default:
         return 'btn-glass text-white';
