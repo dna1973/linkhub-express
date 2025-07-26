@@ -5,7 +5,8 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Textarea } from '@/components/ui/textarea';
-import { Copy, Check, Upload, ExternalLink, Trash2 } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Copy, Check, Upload, ExternalLink, Trash2, Globe } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -30,12 +31,37 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
     full_name: profile?.full_name || '',
     bio: profile?.bio || '',
     avatar_url: profile?.avatar_url || '',
+    custom_domain: profile?.custom_domain || '',
+    preferred_domain: profile?.preferred_domain || 'lovable',
   });
 
-  // Usar o domínio da aplicação publicada
-  const publishedDomain = 'https://linkhub-express.lovable.app';
+  // Atualizar formData quando profile muda
+  React.useEffect(() => {
+    if (profile) {
+      setFormData({
+        username: profile.username || '',
+        full_name: profile.full_name || '',
+        bio: profile.bio || '',
+        avatar_url: profile.avatar_url || '',
+        custom_domain: profile.custom_domain || '',
+        preferred_domain: profile.preferred_domain || 'lovable',
+      });
+    }
+  }, [profile]);
+
+  // Determinar o domínio baseado na preferência do usuário
+  const getSelectedDomain = () => {
+    if (formData.preferred_domain === 'custom' && formData.custom_domain) {
+      const domain = formData.custom_domain.startsWith('http') 
+        ? formData.custom_domain 
+        : `https://${formData.custom_domain}`;
+      return domain;
+    }
+    return 'https://linkhub-express.lovable.app';
+  };
+  
   const publicUrl = profile?.username 
-    ? `${publishedDomain}/${profile.username}`
+    ? `${getSelectedDomain()}/${profile.username}`
     : 'Configure seu @username primeiro';
 
   const handleInputChange = (field: string, value: string) => {
@@ -55,6 +81,8 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
           full_name: formData.full_name || null,
           bio: formData.bio || null,
           avatar_url: formData.avatar_url || null,
+          custom_domain: formData.custom_domain || null,
+          preferred_domain: formData.preferred_domain,
         })
         .eq('id', user.id);
 
@@ -215,6 +243,51 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Domain Configuration */}
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="custom_domain">Domínio Personalizado (opcional)</Label>
+              <Input
+                id="custom_domain"
+                placeholder="meusite.com"
+                value={formData.custom_domain}
+                onChange={(e) => handleInputChange('custom_domain', e.target.value)}
+                className="mt-1"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Adicione seu domínio personalizado (ex: meusite.com)
+              </p>
+            </div>
+
+            <div>
+              <Label htmlFor="preferred_domain">Domínio Preferido</Label>
+              <Select
+                value={formData.preferred_domain}
+                onValueChange={(value) => handleInputChange('preferred_domain', value)}
+              >
+                <SelectTrigger className="mt-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="lovable">
+                    <div className="flex items-center space-x-2">
+                      <Globe className="h-4 w-4" />
+                      <span>Lovable (linkhub-express.lovable.app)</span>
+                    </div>
+                  </SelectItem>
+                  {formData.custom_domain && (
+                    <SelectItem value="custom">
+                      <div className="flex items-center space-x-2">
+                        <Globe className="h-4 w-4" />
+                        <span>Personalizado ({formData.custom_domain})</span>
+                      </div>
+                    </SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
           <div>
             <Label>Seu link para compartilhar</Label>
             <div className="flex mt-2">
