@@ -157,8 +157,8 @@ const Dashboard = () => {
 
           {/* Right Panel - Device Preview */}
           <div className="hidden lg:block">
-            <div className="fixed top-24 right-32 w-[380px] z-10">
-              <div className="h-[calc(100vh-120px)] overflow-hidden">
+            <div className="fixed top-20 right-6 w-[320px] z-10">
+              <div className="h-[calc(100vh-100px)] overflow-auto">
                 <ProfilePreview profile={profile} />
               </div>
             </div>
