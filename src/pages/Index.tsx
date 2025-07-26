@@ -94,6 +94,7 @@ const Index = () => {
               <Button 
                 variant="outline" 
                 size="lg"
+                onClick={() => navigate('/exemplo')}
                 className="text-lg px-8 py-6 hover-bounce"
               >
                 Ver Exemplo
