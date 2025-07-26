@@ -160,7 +160,7 @@ const PublicProfile = () => {
       },
       'ocean': {
         background: 'linear-gradient(135deg, #0891b2, #1e40af)',
-        buttonStyle: 'glass',
+        buttonStyle: 'modern',
         colors: { text: '#ffffff' },
       },
       'forest': {
@@ -168,9 +168,29 @@ const PublicProfile = () => {
         buttonStyle: 'glass',
         colors: { text: '#ffffff' },
       },
+      'purple-rain': {
+        background: 'linear-gradient(135deg, #7c3aed, #c026d3)',
+        buttonStyle: 'solid',
+        colors: { text: '#ffffff' },
+      },
       'midnight': {
         background: 'linear-gradient(135deg, #0f172a, #1e293b)',
         buttonStyle: 'glass',
+        colors: { text: '#ffffff' },
+      },
+      'rose-gold': {
+        background: 'linear-gradient(135deg, #fbbf24, #f59e0b)',
+        buttonStyle: 'modern',
+        colors: { text: '#92400e' },
+      },
+      'cyber-neon': {
+        background: 'linear-gradient(135deg, #0c0c0c, #1a1a1a)',
+        buttonStyle: 'outline',
+        colors: { text: '#ffffff' },
+      },
+      'coral-reef': {
+        background: 'linear-gradient(135deg, #ff6b6b, #4ecdc4)',
+        buttonStyle: 'solid',
         colors: { text: '#ffffff' },
       },
     };
@@ -179,19 +199,22 @@ const PublicProfile = () => {
     return theme || defaultThemes.default;
   };
 
-  const getButtonClassName = (buttonStyle: string) => {
+  const getButtonClassName = (buttonStyle: string, themeColors?: any) => {
+    const textColor = themeColors?.text || '#ffffff';
+    const isLightText = textColor === '#ffffff' || textColor.startsWith('#fff');
+    
     switch (buttonStyle) {
       case 'solid':
-        return 'bg-white/90 text-gray-900 hover:bg-white border-0';
+        return `bg-white/90 ${isLightText ? 'text-gray-900' : 'text-white'} hover:bg-white border-0`;
       case 'outline':
-        return 'bg-transparent text-white border-2 border-white/50 hover:bg-white/10';
+        return `bg-transparent border-2 border-white/50 hover:bg-white/10 ${isLightText ? 'text-white' : 'text-gray-900'}`;
       case 'modern':
-        return 'bg-white/20 text-white border border-white/30 hover:bg-white/30 backdrop-blur-sm';
+        return `bg-white/20 border border-white/30 hover:bg-white/30 backdrop-blur-sm ${isLightText ? 'text-white' : 'text-gray-900'}`;
       case 'rounded':
-        return 'bg-white/20 text-white border border-white/30 hover:bg-white/30 backdrop-blur-sm rounded-full';
+        return `bg-white/20 border border-white/30 hover:bg-white/30 backdrop-blur-sm rounded-full ${isLightText ? 'text-white' : 'text-gray-900'}`;
       case 'glass':
       default:
-        return 'btn-glass text-white';
+        return `btn-glass ${isLightText ? 'text-white' : 'text-gray-900'}`;
     }
   };
 
@@ -356,7 +379,7 @@ const PublicProfile = () => {
                   <Button
                     key={link.id}
                     onClick={() => handleLinkClick(link.id, link.url)}
-                    className={`w-full h-14 ${getButtonClassName(themeStyles.buttonStyle)} hover-bounce flex items-center justify-center space-x-3 transition-all duration-200 text-lg`}
+                    className={`w-full h-14 ${getButtonClassName(themeStyles.buttonStyle, themeStyles.colors)} hover-bounce flex items-center justify-center space-x-3 transition-all duration-200 text-lg`}
                   >
                     <IconComponent className="h-6 w-6" />
                     <span className="font-medium">{link.title}</span>
