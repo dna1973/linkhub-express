@@ -13,6 +13,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useTheme } from 'next-themes';
 
 const Dashboard = () => {
+  console.log('Dashboard component loading...'); // Debug log
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const { theme, setTheme } = useTheme();
