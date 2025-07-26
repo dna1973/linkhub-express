@@ -80,16 +80,27 @@ const Analytics = () => {
         .order('viewed_at', { ascending: true });
 
       // Buscar cliques nos links
-      const { data: clicks } = await supabase
+      const { data: clicks, error: clicksError } = await supabase
         .from('link_clicks')
         .select(`
-          *,
-          links!inner(title, url)
+          id,
+          link_id,
+          profile_id,
+          clicked_at,
+          country,
+          city,
+          user_agent,
+          referrer,
+          links(title, url)
         `)
         .eq('profile_id', user.id)
         .gte('clicked_at', startDate.toISOString())
         .lte('clicked_at', endDate.toISOString())
         .order('clicked_at', { ascending: true });
+
+      if (clicksError) {
+        console.error('❌ Erro ao buscar cliques:', clicksError);
+      }
 
       console.log('📊 Analytics - Views encontradas:', views?.length);
       console.log('📊 Analytics - Cliques encontrados:', clicks?.length);
@@ -140,9 +151,12 @@ const Analytics = () => {
   };
 
   const processTopLinks = (clicks: any[]) => {
+    console.log('🔍 Processing top links:', clicks);
     const linkStats: Record<string, { title: string; clicks: number }> = {};
+    
     clicks.forEach(click => {
       const linkId = click.link_id;
+      // A estrutura dos links agora é um objeto, não array
       const linkTitle = click.links?.title || 'Link sem título';
       
       if (!linkStats[linkId]) {
@@ -155,6 +169,7 @@ const Analytics = () => {
       .sort((a, b) => b.clicks - a.clicks)
       .slice(0, 5);
 
+    console.log('📈 Top links processados:', sorted);
     setTopLinks(sorted as any);
   };
 
