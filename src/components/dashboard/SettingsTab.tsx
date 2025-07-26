@@ -32,8 +32,10 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
     avatar_url: profile?.avatar_url || '',
   });
 
+  // Usar o domínio da aplicação publicada
+  const publishedDomain = 'https://linkhub-express.lovable.app';
   const publicUrl = profile?.username 
-    ? `${window.location.origin}/${profile.username}`
+    ? `${publishedDomain}/${profile.username}`
     : 'Configure seu @username primeiro';
 
   const handleInputChange = (field: string, value: string) => {
