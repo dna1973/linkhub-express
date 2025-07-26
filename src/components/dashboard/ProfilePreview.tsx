@@ -210,26 +210,26 @@ export const ProfilePreview: React.FC<ProfilePreviewProps> = ({ profile }) => {
   };
 
   return (
-    <div className="w-full h-full flex items-center justify-center p-4">
+    <div className="w-full h-full flex items-center justify-center p-2">
       {/* Mobile Device Frame */}
       <div className="relative">
         {/* Device Shadow */}
         <div className="absolute inset-0 rounded-[3rem] bg-black/20 blur-lg transform translate-y-2"></div>
         
         {/* Device Frame */}
-        <div className="relative w-[280px] h-[580px] bg-black rounded-[3rem] p-2 shadow-2xl">
+        <div className="relative w-[320px] h-[640px] bg-black rounded-[3rem] p-3 shadow-2xl">
           {/* Screen */}
           <div 
             className="w-full h-full rounded-[2.5rem] overflow-hidden relative"
             style={{ background: themeStyles.background }}
           >
             {/* Status Bar */}
-            <div className="absolute top-0 left-0 right-0 h-8 bg-black/20 backdrop-blur-sm flex items-center justify-center">
-              <div className="w-16 h-1 bg-white/30 rounded-full"></div>
+            <div className="absolute top-0 left-0 right-0 h-6 bg-black/10 backdrop-blur-sm flex items-center justify-center">
+              <div className="w-12 h-1 bg-white/30 rounded-full"></div>
             </div>
             
             {/* Content Area */}
-            <div className={`pt-8 pb-4 px-4 h-full flex flex-col overflow-hidden ${getFontClasses()}`}>
+            <div className={`pt-6 pb-4 px-5 h-full flex flex-col justify-between ${getFontClasses()}`}>
             
             {/* Profile Section */}
             <div className="text-center mb-4 flex-shrink-0">
