@@ -35,15 +35,15 @@ interface DesignState {
 }
 
 export const useDesignStore = create<DesignState>((set) => ({
-  currentTheme: 'default',
+  currentTheme: 'pebble-blue',
   customTheme: {
-    background: { type: 'solid', color: '#111827' },
-    buttonStyle: { type: 'glass', color: '#3b82f6', borderRadius: 'md' },
-    font: { family: 'system', size: 'md', weight: 'normal' },
+    background: { type: 'gradient', colors: ['#1e3a8a', '#3730a3'] },
+    buttonStyle: { type: 'solid', color: '#ffffff', borderRadius: 'lg' },
+    font: { family: 'system', size: 'md', weight: 'medium' },
     colors: {
-      primary: '#3b82f6',
-      secondary: '#6b7280',
-      accent: '#8b5cf6',
+      primary: '#ffffff',
+      secondary: '#cbd5e1',
+      accent: '#60a5fa',
       text: '#ffffff'
     },
   },

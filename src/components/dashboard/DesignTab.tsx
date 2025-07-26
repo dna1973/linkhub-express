@@ -19,17 +19,6 @@ interface DesignTabProps {
 
 const PREDEFINED_THEMES = [
   {
-    id: 'default',
-    name: 'Default Dark',
-    preview: 'linear-gradient(135deg, #111827 0%, #1f2937 100%)',
-    config: {
-      background: { type: 'solid', color: '#111827' },
-      buttonStyle: { type: 'glass', color: '#3b82f6', borderRadius: 'md' },
-      font: { family: 'system', size: 'md', weight: 'normal' },
-      colors: { primary: '#3b82f6', secondary: '#6b7280', accent: '#8b5cf6', text: '#ffffff' },
-    },
-  },
-  {
     id: 'pebble-blue',
     name: 'Pebble Blue',
     preview: 'linear-gradient(135deg, #1e3a8a 0%, #3730a3 100%)',
@@ -73,6 +62,61 @@ const PREDEFINED_THEMES = [
       colors: { primary: '#10b981', secondary: '#6ee7b7', accent: '#34d399', text: '#ffffff' },
     },
   },
+  {
+    id: 'purple-rain',
+    name: 'Purple Rain',
+    preview: 'linear-gradient(135deg, #7c3aed 0%, #c026d3 100%)',
+    config: {
+      background: { type: 'gradient', colors: ['#7c3aed', '#c026d3'] },
+      buttonStyle: { type: 'solid', color: '#ffffff', borderRadius: 'md' },
+      font: { family: 'display', size: 'md', weight: 'bold' },
+      colors: { primary: '#ffffff', secondary: '#e9d5ff', accent: '#d946ef', text: '#ffffff' },
+    },
+  },
+  {
+    id: 'midnight',
+    name: 'Midnight Blue',
+    preview: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+    config: {
+      background: { type: 'gradient', colors: ['#0f172a', '#1e293b'] },
+      buttonStyle: { type: 'glass', color: '#3b82f6', borderRadius: 'lg' },
+      font: { family: 'system', size: 'md', weight: 'normal' },
+      colors: { primary: '#3b82f6', secondary: '#64748b', accent: '#06b6d4', text: '#ffffff' },
+    },
+  },
+  {
+    id: 'rose-gold',
+    name: 'Rose Gold',
+    preview: 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)',
+    config: {
+      background: { type: 'gradient', colors: ['#fbbf24', '#f59e0b'] },
+      buttonStyle: { type: 'modern', color: '#92400e', borderRadius: 'full' },
+      font: { family: 'serif', size: 'md', weight: 'medium' },
+      colors: { primary: '#92400e', secondary: '#fcd34d', accent: '#d97706', text: '#92400e' },
+    },
+  },
+  {
+    id: 'cyber-neon',
+    name: 'Cyber Neon',
+    preview: 'linear-gradient(135deg, #0c0c0c 0%, #1a1a1a 100%)',
+    config: {
+      background: { type: 'gradient', colors: ['#0c0c0c', '#1a1a1a'] },
+      buttonStyle: { type: 'outline', color: '#00ff88', borderRadius: 'none' },
+      font: { family: 'mono', size: 'md', weight: 'bold' },
+      colors: { primary: '#00ff88', secondary: '#00ccff', accent: '#ff0066', text: '#ffffff' },
+    },
+  },
+  {
+    id: 'coral-reef',
+    name: 'Coral Reef',
+    preview: 'linear-gradient(135deg, #ff6b6b 0%, #4ecdc4 100%)',
+    config: {
+      background: { type: 'gradient', colors: ['#ff6b6b', '#4ecdc4'] },
+      buttonStyle: { type: 'solid', color: '#ffffff', borderRadius: 'lg' },
+      font: { family: 'display', size: 'md', weight: 'medium' },
+      colors: { primary: '#ffffff', secondary: '#ffe0e0', accent: '#45b7aa', text: '#ffffff' },
+    },
+  },
 ];
 
 const FONT_FAMILIES = [
@@ -102,7 +146,7 @@ export const DesignTab: React.FC<DesignTabProps> = ({ profile, onProfileUpdate }
   const { user } = useAuth();
   const { toast } = useToast();
   const { currentTheme, customTheme, setCurrentTheme, setCustomTheme } = useDesignStore();
-  const [selectedTheme, setSelectedTheme] = useState('default');
+  const [selectedTheme, setSelectedTheme] = useState('pebble-blue');
   const [customConfig, setCustomConfig] = useState<ThemeConfig>(customTheme);
   const [loading, setLoading] = useState(false);
 
