@@ -152,7 +152,7 @@ const Index = () => {
               <Button 
                 size="lg"
                 onClick={() => navigate('/auth')}
-                className="btn-gradient-primary hover-bounce text-lg px-8 py-6"
+                className="btn-gradient-primary hover-bounce text-lg px-8 py-6 w-full"
               >
                 <Sparkles className="h-5 w-5 mr-2" />
                 Começar Agora - É Grátis
