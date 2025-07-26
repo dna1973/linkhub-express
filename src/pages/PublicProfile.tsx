@@ -2,12 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { ExternalLink, Instagram, Twitter, Youtube, Github, Globe, Mail } from 'lucide-react';
+import { ExternalLink, Instagram, Youtube, Github, Globe, Mail, Facebook, Linkedin } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
 const ICON_MAP: Record<string, any> = {
   instagram: Instagram,
-  twitter: Twitter,
+  x: ExternalLink,
+  tiktok: ExternalLink,
+  facebook: Facebook,
+  linkedin: Linkedin,
   youtube: Youtube,
   github: Github,
   website: Globe,

@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Plus, GripVertical, Trash2, ExternalLink, Instagram, Twitter, Youtube, Github, Globe, Mail } from 'lucide-react';
+import { Plus, GripVertical, Trash2, ExternalLink, Instagram, Youtube, Github, Globe, Mail, Facebook, Linkedin } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -25,7 +25,10 @@ interface LinksTabProps {
 
 const LINK_TYPES = [
   { id: 'instagram', label: 'Instagram', icon: Instagram, placeholder: 'https://instagram.com/seuusuario' },
-  { id: 'twitter', label: 'Twitter', icon: Twitter, placeholder: 'https://twitter.com/seuusuario' },
+  { id: 'x', label: 'X', icon: ExternalLink, placeholder: 'https://x.com/seuusuario' },
+  { id: 'tiktok', label: 'TikTok', icon: ExternalLink, placeholder: 'https://tiktok.com/@seuusuario' },
+  { id: 'facebook', label: 'Facebook', icon: Facebook, placeholder: 'https://facebook.com/seuusuario' },
+  { id: 'linkedin', label: 'LinkedIn', icon: Linkedin, placeholder: 'https://linkedin.com/in/seuusuario' },
   { id: 'youtube', label: 'YouTube', icon: Youtube, placeholder: 'https://youtube.com/@seucanal' },
   { id: 'github', label: 'GitHub', icon: Github, placeholder: 'https://github.com/seuusuario' },
   { id: 'website', label: 'Website', icon: Globe, placeholder: 'https://seusite.com' },
@@ -150,7 +153,7 @@ export const LinksTab: React.FC<LinksTabProps> = ({ profile, onProfileUpdate }) 
                 <p className="text-sm text-muted-foreground">
                   Escolha o tipo de link que deseja adicionar:
                 </p>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-3 gap-3">
                   {LINK_TYPES.map((linkType) => (
                     <Button
                       key={linkType.id}
