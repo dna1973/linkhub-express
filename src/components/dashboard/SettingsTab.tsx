@@ -32,8 +32,8 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
     avatar_url: profile?.avatar_url || '',
   });
 
-  // Usar seu domínio personalizado
-  const publishedDomain = 'https://linkhub.estudioai.site';
+  // Usar o domínio da aplicação publicada
+  const publishedDomain = 'https://linkhub-express.lovable.app';
   const publicUrl = profile?.username 
     ? `${publishedDomain}/${profile.username}`
     : 'Configure seu @username primeiro';
