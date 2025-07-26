@@ -155,19 +155,22 @@ const Dashboard = () => {
             </Card>
           </div>
 
-          {/* Right Panel - Floating Preview */}
+          {/* Right Panel - Device Preview */}
           <div className="hidden lg:block">
-            <div className="fixed top-16 right-8 w-[420px] max-w-[calc(50vw-2rem)] z-10">
-              <Card className="bg-card/50 backdrop-blur-sm border-border/50 shadow-lg">
-                <CardHeader className="pb-1">
-                  <CardTitle className="text-center text-sm">Pré-visualização</CardTitle>
-                </CardHeader>
-                <CardContent className="p-1">
-                  <div className="h-[calc(100vh-80px)]">
-                    <ProfilePreview profile={profile} />
+            <div className="fixed top-16 right-6 w-[360px] z-10">
+              <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-2xl p-6 shadow-2xl border border-gray-200 dark:border-gray-700">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-medium text-gray-600 dark:text-gray-300">Pré-visualização</h3>
+                  <div className="flex space-x-1">
+                    <div className="w-2 h-2 rounded-full bg-red-400"></div>
+                    <div className="w-2 h-2 rounded-full bg-yellow-400"></div>
+                    <div className="w-2 h-2 rounded-full bg-green-400"></div>
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+                <div className="h-[calc(100vh-180px)]">
+                  <ProfilePreview profile={profile} />
+                </div>
+              </div>
             </div>
           </div>
         </div>

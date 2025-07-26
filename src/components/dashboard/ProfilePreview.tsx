@@ -210,18 +210,26 @@ export const ProfilePreview: React.FC<ProfilePreviewProps> = ({ profile }) => {
   };
 
   return (
-    <div className={`w-full h-full relative overflow-hidden rounded-lg ${getFontClasses()}`}>
-      {/* Background */}
-      <div 
-        className="absolute inset-0"
-        style={{ background: themeStyles.background }}
-      />
-      
-      {/* Content */}
-      <div className="relative z-10 h-full flex flex-col items-center justify-start p-2 text-center">
-        {/* Phone Frame Mockup */}
-        <div className="w-full max-w-sm mx-auto bg-black/20 backdrop-blur-sm rounded-[2.5rem] p-1 border border-white/10">
-          <div className="bg-background/5 rounded-[2rem] p-2 h-full flex flex-col overflow-hidden">
+    <div className="w-full h-full flex items-center justify-center p-4">
+      {/* Mobile Device Frame */}
+      <div className="relative">
+        {/* Device Shadow */}
+        <div className="absolute inset-0 rounded-[3rem] bg-black/20 blur-lg transform translate-y-2"></div>
+        
+        {/* Device Frame */}
+        <div className="relative w-[280px] h-[580px] bg-black rounded-[3rem] p-2 shadow-2xl">
+          {/* Screen */}
+          <div 
+            className="w-full h-full rounded-[2.5rem] overflow-hidden relative"
+            style={{ background: themeStyles.background }}
+          >
+            {/* Status Bar */}
+            <div className="absolute top-0 left-0 right-0 h-8 bg-black/20 backdrop-blur-sm flex items-center justify-center">
+              <div className="w-16 h-1 bg-white/30 rounded-full"></div>
+            </div>
+            
+            {/* Content Area */}
+            <div className={`pt-12 pb-8 px-6 h-full flex flex-col ${getFontClasses()}`}>
             
             {/* Profile Section */}
             <div className="mb-6 flex-shrink-0">
@@ -276,10 +284,11 @@ export const ProfilePreview: React.FC<ProfilePreviewProps> = ({ profile }) => {
             </div>
 
             {/* Footer */}
-            <div className="mt-8 pt-6 border-t border-white/10">
+            <div className="mt-6 pt-4 border-t border-white/10 text-center">
               <p className="text-white/40 text-xs">
                 Powered by LinkHub
               </p>
+            </div>
             </div>
           </div>
         </div>
