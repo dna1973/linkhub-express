@@ -202,11 +202,14 @@ const Analytics = () => {
   };
 
   const processCountryData = (views: any[], clicks: any[]) => {
+    console.log('🌍 Processing country data:', { views, clicks });
     const countryStats: Record<string, number> = {};
     
     [...views, ...clicks].forEach(item => {
-      const country = item.country || 'Desconhecido';
-      countryStats[country] = (countryStats[country] || 0) + 1;
+      if (item.country && item.country !== 'null') {
+        countryStats[item.country] = (countryStats[item.country] || 0) + 1;
+        console.log('📍 País encontrado:', item.country);
+      }
     });
 
     const sorted = Object.entries(countryStats)
@@ -214,6 +217,7 @@ const Analytics = () => {
       .sort((a, b) => b.value - a.value)
       .slice(0, 5);
 
+    console.log('🌍 Countries processados:', sorted);
     setCountryData(sorted);
   };
 
