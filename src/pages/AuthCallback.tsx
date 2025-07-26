@@ -1,0 +1,40 @@
+import React, { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
+import { Card, CardContent } from '@/components/ui/card';
+import { Loader2 } from 'lucide-react';
+
+const AuthCallback = () => {
+  const navigate = useNavigate();
+  const { user, loading } = useAuth();
+
+  useEffect(() => {
+    console.log('🔄 AuthCallback - Estado:', { user: !!user, loading });
+    
+    if (!loading) {
+      if (user) {
+        console.log('✅ Usuário autenticado, redirecionando para dashboard');
+        navigate('/dashboard', { replace: true });
+      } else {
+        console.log('❌ Usuário não autenticado, redirecionando para auth');
+        navigate('/auth', { replace: true });
+      }
+    }
+  }, [user, loading, navigate]);
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <Card className="w-full max-w-md">
+        <CardContent className="flex flex-col items-center justify-center p-8">
+          <Loader2 className="h-8 w-8 animate-spin mb-4" />
+          <h2 className="text-lg font-semibold mb-2">Finalizando login...</h2>
+          <p className="text-sm text-muted-foreground text-center">
+            Aguarde enquanto processamos sua autenticação.
+          </p>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
+export default AuthCallback;

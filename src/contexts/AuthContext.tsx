@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { getRedirectUrl } from '@/lib/config';
+import '@/lib/debug'; // Importar debug em desenvolvimento
 
 interface AuthContextType {
   user: User | null;
@@ -32,6 +33,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
+        console.log('🔄 Auth state changed:', { event, session: !!session });
+        
+        if (event === 'SIGNED_IN') {
+          console.log('✅ Usuário logado:', session?.user?.email);
+          
+          // Se estamos na página de auth e o usuário fez login, redirecionar
+          if (window.location.pathname === '/auth' || window.location.pathname === '/') {
+            window.location.href = '/dashboard';
+          }
+        }
+        
+        if (event === 'SIGNED_OUT') {
+          console.log('👋 Usuário deslogado');
+        }
+        
+        if (event === 'TOKEN_REFRESHED') {
+          console.log('🔄 Token renovado');
+        }
+        
         setSession(session);
         setUser(session?.user ?? null);
         setLoading(false);
@@ -40,6 +60,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log('🔍 Sessão inicial:', !!session);
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
@@ -70,15 +91,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signInWithProvider = async (provider: 'github' | 'google') => {
-    const redirectUrl = getRedirectUrl('/dashboard');
-    
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider,
-      options: {
-        redirectTo: redirectUrl
+    try {
+      // Usar sempre o domínio correto para redirect
+      const redirectUrl = window.location.origin + '/dashboard';
+      
+      console.log('🔐 Iniciando login social:', { provider, redirectUrl, origin: window.location.origin });
+      
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: {
+          redirectTo: redirectUrl,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          }
+        }
+      });
+      
+      if (error) {
+        console.error('❌ Erro no login social:', error);
+        return { error };
       }
-    });
-    return { error };
+      
+      console.log('✅ Login social iniciado com sucesso:', data);
+      return { error: null };
+      
+    } catch (err) {
+      console.error('❌ Erro inesperado no login social:', err);
+      return { error: err };
+    }
   };
 
   const signOut = async () => {

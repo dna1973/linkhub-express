@@ -76,17 +76,48 @@ const Auth = () => {
   const handleSocialLogin = async (provider: 'github' | 'google') => {
     setLoading(true);
     
-    const { error } = await signInWithProvider(provider);
-    
-    if (error) {
+    try {
+      console.log(`🚀 Tentando login com ${provider}`);
+      
+      const { error } = await signInWithProvider(provider);
+      
+      if (error) {
+        console.error(`❌ Erro no login ${provider}:`, error);
+        
+        let errorMessage = `Erro ao fazer login com ${provider === 'github' ? 'GitHub' : 'Google'}`;
+        
+        // Mensagens de erro mais específicas
+        if (error.message?.includes('popup')) {
+          errorMessage = 'Popup foi bloqueado. Permita popups para este site e tente novamente.';
+        } else if (error.message?.includes('network')) {
+          errorMessage = 'Erro de conexão. Verifique sua internet e tente novamente.';
+        } else if (error.message?.includes('redirect')) {
+          errorMessage = 'Erro de redirecionamento. Tente novamente.';
+        }
+        
+        toast({
+          title: "Erro no login",
+          description: errorMessage,
+          variant: "destructive",
+        });
+        setLoading(false);
+      } else {
+        console.log(`✅ Login ${provider} iniciado com sucesso`);
+        // Não definir loading como false aqui, pois o usuário será redirecionado
+        toast({
+          title: "Redirecionando...",
+          description: `Autenticando com ${provider === 'github' ? 'GitHub' : 'Google'}`,
+        });
+      }
+    } catch (err) {
+      console.error(`❌ Erro inesperado no login ${provider}:`, err);
       toast({
-        title: "Erro no login",
-        description: `Erro ao fazer login com ${provider === 'github' ? 'GitHub' : 'Google'}: ${error.message}`,
+        title: "Erro inesperado",
+        description: "Ocorreu um erro inesperado. Tente novamente.",
         variant: "destructive",
       });
       setLoading(false);
     }
-    // Se não houver erro, o usuário será redirecionado automaticamente
   };
 
   return (
