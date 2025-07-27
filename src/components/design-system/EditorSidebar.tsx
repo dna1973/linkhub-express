@@ -11,6 +11,10 @@ import {
   Settings
 } from 'lucide-react';
 import { useActivePanel, useDesignStore } from '@/stores/designStore';
+import { BackgroundPanel } from './background';
+import { TypographyPanel } from './typography';
+import { ButtonsPanel } from './buttons';
+import { LayoutPanel } from './layout';
 
 interface EditorSidebarProps {
   profileId: string;
@@ -45,72 +49,19 @@ export const EditorSidebar: React.FC<EditorSidebarProps> = ({ profileId }) => {
         <div className="flex-1 overflow-hidden">
           <ScrollArea className="h-full">
             <TabsContent value="background" className="p-4 space-y-6">
-              <div>
-                <h3 className="text-sm font-medium mb-3">Background</h3>
-                <div className="space-y-4">
-                  <div className="p-4 border rounded-lg">
-                    <p className="text-sm text-muted-foreground">
-                      Background customization panel will be implemented here.
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-2">
-                      Features: Solid colors, gradients, images, videos, patterns, filters
-                    </p>
-                    <div className="mt-4 p-2 bg-muted rounded text-xs">
-                      <strong>Debug Info:</strong><br/>
-                      Active Panel: {activePanel}<br/>
-                      Profile ID: {profileId}
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <BackgroundPanel profileId={profileId} />
             </TabsContent>
 
             <TabsContent value="typography" className="p-4 space-y-6">
-              <div>
-                <h3 className="text-sm font-medium mb-3">Typography</h3>
-                <div className="space-y-4">
-                  <div className="p-4 border rounded-lg">
-                    <p className="text-sm text-muted-foreground">
-                      Typography controls will be implemented here.
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-2">
-                      Features: Font selection, sizes, weights, effects, responsive controls
-                    </p>
-                  </div>
-                </div>
-              </div>
+              <TypographyPanel profileId={profileId} />
             </TabsContent>
 
-            <TabsContent value="buttons" className="p-4 space-y-6">
-              <div>
-                <h3 className="text-sm font-medium mb-3">Buttons & Links</h3>
-                <div className="space-y-4">
-                  <div className="p-4 border rounded-lg">
-                    <p className="text-sm text-muted-foreground">
-                      Button customization panel will be implemented here.
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-2">
-                      Features: Shapes, colors, effects, animations, glassmorphism, neumorphism
-                    </p>
-                  </div>
-                </div>
-              </div>
+            <TabsContent value="buttons" className="mt-0 h-full">
+              <ButtonsPanel />
             </TabsContent>
 
-            <TabsContent value="layout" className="p-4 space-y-6">
-              <div>
-                <h3 className="text-sm font-medium mb-3">Layout & Spacing</h3>
-                <div className="space-y-4">
-                  <div className="p-4 border rounded-lg">
-                    <p className="text-sm text-muted-foreground">
-                      Layout controls will be implemented here.
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-2">
-                      Features: Spacing, alignment, responsive breakpoints, grid system
-                    </p>
-                  </div>
-                </div>
-              </div>
+            <TabsContent value="layout" className="mt-0 h-full">
+              <LayoutPanel />
             </TabsContent>
           </ScrollArea>
         </div>

@@ -3,7 +3,8 @@ import type {
   DesignState, 
   DesignActions, 
   ThemeConfig, 
-  DeviceMode 
+  DeviceMode,
+  BackgroundConfig 
 } from '@/types/design-system';
 
 // Helper function to generate UUID
@@ -596,6 +597,42 @@ export const useDesignStore = create<DesignStore>((set, get) => ({
       // Apply updates
       const updatedTheme = { ...state.currentTheme, ...updates };
       updatedTheme.metadata.updatedAt = new Date();
+      
+      return {
+        ...state,
+        currentTheme: updatedTheme,
+        isDirty: true,
+      };
+    });
+  },
+
+  updateBackgroundConfig: (backgroundConfig: BackgroundConfig) => {
+    set((state) => {
+      // Save current state to history before making changes
+      if (state.historyIndex < state.history.length - 1) {
+        // Remove any future history if we're not at the end
+        state.history = state.history.slice(0, state.historyIndex + 1);
+      }
+      
+      // Add current theme to history
+      state.history.push(JSON.parse(JSON.stringify(state.currentTheme)));
+      state.historyIndex = state.history.length - 1;
+      
+      // Limit history to prevent memory issues
+      if (state.history.length > 50) {
+        state.history = state.history.slice(-50);
+        state.historyIndex = state.history.length - 1;
+      }
+
+      // Apply background config update
+      const updatedTheme = {
+        ...state.currentTheme,
+        background: backgroundConfig,
+        metadata: {
+          ...state.currentTheme.metadata,
+          updatedAt: new Date(),
+        },
+      };
       
       return {
         ...state,

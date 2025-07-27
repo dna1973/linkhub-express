@@ -205,7 +205,7 @@ const PublicProfile = () => {
       'cyber-neon': {
         background: 'linear-gradient(135deg, #0c0c0c, #1a1a1a)',
         buttonStyle: 'outline',
-        colors: { text: '#ffffff' },
+        colors: { primary: '#00ff88', secondary: '#00ccff', accent: '#ff0066', text: '#ffffff' },
       },
       'coral-reef': {
         background: 'linear-gradient(135deg, #ff6b6b, #4ecdc4)',
@@ -226,14 +226,50 @@ const PublicProfile = () => {
       case 'solid':
         return `bg-white/90 ${isLightText ? 'text-gray-900' : 'text-white'} hover:bg-white border-0`;
       case 'outline':
-        return `bg-transparent border-2 border-white/50 hover:bg-white/10 ${isLightText ? 'text-white' : 'text-gray-900'}`;
+        return `bg-transparent border-2 hover:bg-white/10 ${isLightText ? 'text-white' : 'text-gray-900'}`;
       case 'modern':
-        return `bg-white/20 border border-white/30 hover:bg-white/30 backdrop-blur-sm ${isLightText ? 'text-white' : 'text-gray-900'}`;
+        return `bg-white/20 border hover:bg-white/30 backdrop-blur-sm ${isLightText ? 'text-white' : 'text-gray-900'}`;
       case 'rounded':
-        return `bg-white/20 border border-white/30 hover:bg-white/30 backdrop-blur-sm rounded-full ${isLightText ? 'text-white' : 'text-gray-900'}`;
+        return `bg-white/20 border hover:bg-white/30 backdrop-blur-sm rounded-full ${isLightText ? 'text-white' : 'text-gray-900'}`;
       case 'glass':
       default:
-        return `btn-glass ${isLightText ? 'text-white' : 'text-gray-900'}`;
+        return `bg-white/10 backdrop-blur border border-white/20 hover:bg-white/20 ${isLightText ? 'text-white' : 'text-gray-900'}`;
+    }
+  };
+
+  const getButtonStyle = (buttonStyle: string, themeColors?: any) => {
+    const primaryColor = themeColors?.primary || '#ffffff';
+    const textColor = themeColors?.text || '#ffffff';
+    
+    switch (buttonStyle) {
+      case 'solid':
+        return {
+          backgroundColor: primaryColor,
+          color: primaryColor === '#ffffff' ? '#000000' : '#ffffff',
+          borderColor: primaryColor
+        };
+      case 'outline':
+        return {
+          borderColor: primaryColor,
+          color: primaryColor
+        };
+      case 'modern':
+        return {
+          background: `linear-gradient(135deg, ${primaryColor}20, ${primaryColor}40)`,
+          borderColor: `${primaryColor}50`,
+          color: textColor
+        };
+      case 'rounded':
+        return {
+          background: `linear-gradient(135deg, ${primaryColor}20, ${primaryColor}40)`,
+          borderColor: `${primaryColor}50`,
+          color: textColor
+        };
+      case 'glass':
+      default:
+        return {
+          color: textColor
+        };
     }
   };
 
@@ -418,6 +454,7 @@ const PublicProfile = () => {
                     key={link.id}
                     onClick={() => handleLinkClick(link.id, link.url)}
                     className={`w-full h-14 ${getButtonClassName(themeStyles.buttonStyle, themeStyles.colors)} hover-bounce flex items-center justify-center space-x-3 transition-all duration-200 text-lg`}
+                    style={getButtonStyle(themeStyles.buttonStyle, themeStyles.colors)}
                   >
                     <IconComponent className="h-6 w-6" />
                     <span className="font-medium">{link.title}</span>

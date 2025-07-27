@@ -26,7 +26,6 @@ interface AppSidebarProps {
 const menuItems = [
   { id: 'links', title: 'Links', icon: LinkIcon },
   { id: 'design', title: 'Design', icon: Palette },
-  { id: 'design-v2', title: 'Design 2.0', icon: Sparkles },
   { id: 'settings', title: 'Perfil', icon: User },
 ];
 

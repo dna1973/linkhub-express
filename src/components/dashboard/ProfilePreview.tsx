@@ -69,61 +69,71 @@ export const ProfilePreview: React.FC<ProfilePreviewProps> = ({ profile }) => {
   };
 
   const getThemeStyles = () => {
-    // Primeiro verificar se estamos em modo preview (currentTheme diferente do salvo)
-    const profileTheme = profile?.theme_options;
-    const isPreviewMode = currentTheme !== profileTheme?.themeId;
-    
-    // Se estamos em modo preview, sempre usar o store atual
-    if (isPreviewMode) {
-      const custom = customTheme;
-      return {
-        background: custom.background?.type === 'gradient' 
-          ? `linear-gradient(135deg, ${custom.background.colors?.[0] || '#111827'}, ${custom.background.colors?.[1] || '#1f2937'})`
-          : custom.background?.color || '#111827',
-        buttonStyle: custom.buttonStyle?.type || 'glass',
-        font: custom.font,
-        colors: custom.colors,
-      };
-    }
-    
-    // Usar configurações salvas do perfil se disponível
-    if (profileTheme?.themeId === 'custom' && profileTheme?.custom) {
-      const custom = profileTheme.custom;
-      return {
-        background: custom.background?.type === 'gradient' 
-          ? `linear-gradient(135deg, ${custom.background.colors?.[0] || '#111827'}, ${custom.background.colors?.[1] || '#1f2937'})`
-          : custom.background?.color || '#111827',
-        buttonStyle: custom.buttonStyle?.type || 'glass',
-        font: custom.font,
-        colors: custom.colors,
-      };
-    }
-
-    // Para temas predefinidos salvos, também usar o store atual que deve ter sido atualizado
+    // Sempre usar o customTheme do store para preview em tempo real
+    // Isso garante que todas as customizações sejam refletidas imediatamente
     const custom = customTheme;
+    
     return {
       background: custom.background?.type === 'gradient' 
         ? `linear-gradient(135deg, ${custom.background.colors?.[0] || '#111827'}, ${custom.background.colors?.[1] || '#1f2937'})`
         : custom.background?.color || '#111827',
       buttonStyle: custom.buttonStyle?.type || 'glass',
-      font: custom.font,
-      colors: custom.colors,
+      font: custom.font || { family: 'inter', size: 'md', weight: 'normal' },
+      colors: custom.colors || { primary: '#ffffff', secondary: '#f3f4f6', accent: '#3b82f6', text: '#ffffff' },
     };
   };
 
   const getButtonClassName = (buttonStyle: string) => {
+    const buttonColor = themeStyles.colors?.primary || '#ffffff';
+    const textColor = themeStyles.colors?.text || '#ffffff';
+    
     switch (buttonStyle) {
       case 'solid':
-        return 'bg-white/90 text-gray-900 hover:bg-white border-0';
+        return `border-0 hover:opacity-90`;
       case 'outline':
-        return 'bg-transparent text-white border-2 border-white/50 hover:bg-white/10';
+        return `bg-transparent border-2 hover:bg-white/10`;
       case 'modern':
-        return 'bg-white/20 text-white border border-white/30 hover:bg-white/30 backdrop-blur-sm';
+        return `border backdrop-blur-sm hover:opacity-90`;
       case 'rounded':
-        return 'bg-white/20 text-white border border-white/30 hover:bg-white/30 backdrop-blur-sm rounded-full';
+        return `border backdrop-blur-sm hover:opacity-90 rounded-full`;
       case 'glass':
       default:
-        return 'btn-glass text-white';
+        return `bg-white/10 backdrop-blur border border-white/20 hover:bg-white/20`;
+    }
+  };
+
+  const getButtonStyle = (buttonStyle: string) => {
+    const buttonColor = themeStyles.colors?.primary || '#ffffff';
+    const textColor = themeStyles.colors?.text || '#ffffff';
+    
+    switch (buttonStyle) {
+      case 'solid':
+        return {
+          backgroundColor: buttonColor,
+          color: buttonColor === '#ffffff' ? '#000000' : '#ffffff'
+        };
+      case 'outline':
+        return {
+          borderColor: buttonColor,
+          color: buttonColor
+        };
+      case 'modern':
+        return {
+          background: `linear-gradient(135deg, ${buttonColor}20, ${buttonColor}40)`,
+          borderColor: `${buttonColor}50`,
+          color: textColor
+        };
+      case 'rounded':
+        return {
+          background: `linear-gradient(135deg, ${buttonColor}20, ${buttonColor}40)`,
+          borderColor: `${buttonColor}50`,
+          color: textColor
+        };
+      case 'glass':
+      default:
+        return {
+          color: textColor
+        };
     }
   };
 
@@ -166,17 +176,29 @@ export const ProfilePreview: React.FC<ProfilePreviewProps> = ({ profile }) => {
     
     let fontFamily = '';
     switch (font.family) {
-      case 'serif':
+      case 'inter':
+        fontFamily = 'font-sans';
+        break;
+      case 'playfair':
         fontFamily = 'font-serif';
         break;
-      case 'mono':
+      case 'poppins':
+        fontFamily = 'font-sans';
+        break;
+      case 'roboto-mono':
         fontFamily = 'font-mono';
         break;
-      case 'display':
-        fontFamily = 'font-sans font-bold';
-        break;
-      case 'handwriting':
+      case 'dancing-script':
         fontFamily = 'font-serif italic';
+        break;
+      case 'montserrat':
+        fontFamily = 'font-sans';
+        break;
+      case 'lora':
+        fontFamily = 'font-serif';
+        break;
+      case 'source-code-pro':
+        fontFamily = 'font-mono';
         break;
       default:
         fontFamily = 'font-sans';
@@ -212,6 +234,43 @@ export const ProfilePreview: React.FC<ProfilePreviewProps> = ({ profile }) => {
     return `${fontFamily} ${fontSize} ${fontWeight}`;
   };
 
+  const getFontStyle = () => {
+    const font = themeStyles.font;
+    if (!font) return {};
+    
+    let fontFamily = '';
+    switch (font.family) {
+      case 'inter':
+        fontFamily = 'Inter, system-ui, sans-serif';
+        break;
+      case 'playfair':
+        fontFamily = 'Playfair Display, serif';
+        break;
+      case 'poppins':
+        fontFamily = 'Poppins, sans-serif';
+        break;
+      case 'roboto-mono':
+        fontFamily = 'Roboto Mono, monospace';
+        break;
+      case 'dancing-script':
+        fontFamily = 'Dancing Script, cursive';
+        break;
+      case 'montserrat':
+        fontFamily = 'Montserrat, sans-serif';
+        break;
+      case 'lora':
+        fontFamily = 'Lora, serif';
+        break;
+      case 'source-code-pro':
+        fontFamily = 'Source Code Pro, monospace';
+        break;
+      default:
+        fontFamily = 'system-ui, sans-serif';
+    }
+    
+    return { fontFamily };
+  };
+
   return (
     <div className="w-full h-full flex items-center justify-center p-2">
       {/* Mobile Device Frame */}
@@ -232,7 +291,10 @@ export const ProfilePreview: React.FC<ProfilePreviewProps> = ({ profile }) => {
             </div>
             
             {/* Content Area */}
-            <div className={`pt-6 pb-4 px-5 h-full flex flex-col justify-between ${getFontClasses()}`}>
+            <div 
+              className={`pt-6 pb-4 px-5 h-full flex flex-col justify-between ${getFontClasses()}`}
+              style={getFontStyle()}
+            >
             
             {/* Profile Section */}
             <div className="text-center mb-4 flex-shrink-0">
@@ -297,6 +359,7 @@ export const ProfilePreview: React.FC<ProfilePreviewProps> = ({ profile }) => {
                       key={link.id}
                       onClick={() => handleLinkClick(link.id, link.url)}
                       className={`w-full h-12 ${getButtonClassName(themeStyles.buttonStyle)} hover-bounce flex items-center justify-center space-x-3 transition-all duration-200`}
+                      style={getButtonStyle(themeStyles.buttonStyle)}
                     >
                       <IconComponent className="h-5 w-5" />
                       <span className="font-medium">{link.title}</span>

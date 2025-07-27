@@ -397,6 +397,7 @@ export interface DesignState {
 export interface DesignActions {
   // Theme management
   updateTheme: (updates: Partial<ThemeConfig>) => void;
+  updateBackgroundConfig: (backgroundConfig: BackgroundConfig) => void;
   loadTheme: (themeId: string) => Promise<void>;
   saveTheme: () => Promise<void>;
   resetTheme: () => void;

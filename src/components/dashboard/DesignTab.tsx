@@ -25,7 +25,7 @@ const PREDEFINED_THEMES = [
     config: {
       background: { type: 'gradient', colors: ['#1e3a8a', '#3730a3'] },
       buttonStyle: { type: 'solid', color: '#ffffff', borderRadius: 'lg' },
-      font: { family: 'system', size: 'md', weight: 'medium' },
+      font: { family: 'inter', size: 'md', weight: 'medium' },
       colors: { primary: '#ffffff', secondary: '#cbd5e1', accent: '#60a5fa', text: '#ffffff' },
     },
   },
@@ -36,7 +36,7 @@ const PREDEFINED_THEMES = [
     config: {
       background: { type: 'gradient', colors: ['#f59e0b', '#dc2626'] },
       buttonStyle: { type: 'outline', color: '#ffffff', borderRadius: 'full' },
-      font: { family: 'serif', size: 'lg', weight: 'bold' },
+      font: { family: 'playfair', size: 'lg', weight: 'bold' },
       colors: { primary: '#ffffff', secondary: '#fef3c7', accent: '#fbbf24', text: '#ffffff' },
     },
   },
@@ -47,7 +47,7 @@ const PREDEFINED_THEMES = [
     config: {
       background: { type: 'gradient', colors: ['#0891b2', '#1e40af'] },
       buttonStyle: { type: 'modern', color: '#22d3ee', borderRadius: 'md' },
-      font: { family: 'display', size: 'md', weight: 'medium' },
+      font: { family: 'montserrat', size: 'md', weight: 'medium' },
       colors: { primary: '#22d3ee', secondary: '#67e8f9', accent: '#0ea5e9', text: '#ffffff' },
     },
   },
@@ -58,7 +58,7 @@ const PREDEFINED_THEMES = [
     config: {
       background: { type: 'gradient', colors: ['#065f46', '#064e3b'] },
       buttonStyle: { type: 'glass', color: '#10b981', borderRadius: 'lg' },
-      font: { family: 'mono', size: 'md', weight: 'normal' },
+      font: { family: 'roboto-mono', size: 'md', weight: 'normal' },
       colors: { primary: '#10b981', secondary: '#6ee7b7', accent: '#34d399', text: '#ffffff' },
     },
   },
@@ -69,7 +69,7 @@ const PREDEFINED_THEMES = [
     config: {
       background: { type: 'gradient', colors: ['#7c3aed', '#c026d3'] },
       buttonStyle: { type: 'solid', color: '#ffffff', borderRadius: 'md' },
-      font: { family: 'display', size: 'md', weight: 'bold' },
+      font: { family: 'montserrat', size: 'md', weight: 'bold' },
       colors: { primary: '#ffffff', secondary: '#e9d5ff', accent: '#d946ef', text: '#ffffff' },
     },
   },
@@ -80,7 +80,7 @@ const PREDEFINED_THEMES = [
     config: {
       background: { type: 'gradient', colors: ['#0f172a', '#1e293b'] },
       buttonStyle: { type: 'glass', color: '#3b82f6', borderRadius: 'lg' },
-      font: { family: 'system', size: 'md', weight: 'normal' },
+      font: { family: 'inter', size: 'md', weight: 'normal' },
       colors: { primary: '#3b82f6', secondary: '#64748b', accent: '#06b6d4', text: '#ffffff' },
     },
   },
@@ -91,7 +91,7 @@ const PREDEFINED_THEMES = [
     config: {
       background: { type: 'gradient', colors: ['#fbbf24', '#f59e0b'] },
       buttonStyle: { type: 'modern', color: '#92400e', borderRadius: 'full' },
-      font: { family: 'serif', size: 'md', weight: 'medium' },
+      font: { family: 'lora', size: 'md', weight: 'medium' },
       colors: { primary: '#92400e', secondary: '#fcd34d', accent: '#d97706', text: '#92400e' },
     },
   },
@@ -102,7 +102,7 @@ const PREDEFINED_THEMES = [
     config: {
       background: { type: 'gradient', colors: ['#0c0c0c', '#1a1a1a'] },
       buttonStyle: { type: 'outline', color: '#00ff88', borderRadius: 'none' },
-      font: { family: 'mono', size: 'md', weight: 'bold' },
+      font: { family: 'source-code-pro', size: 'md', weight: 'bold' },
       colors: { primary: '#00ff88', secondary: '#00ccff', accent: '#ff0066', text: '#ffffff' },
     },
   },
@@ -113,18 +113,126 @@ const PREDEFINED_THEMES = [
     config: {
       background: { type: 'gradient', colors: ['#ff6b6b', '#4ecdc4'] },
       buttonStyle: { type: 'solid', color: '#ffffff', borderRadius: 'lg' },
-      font: { family: 'display', size: 'md', weight: 'medium' },
+      font: { family: 'poppins', size: 'md', weight: 'medium' },
       colors: { primary: '#ffffff', secondary: '#ffe0e0', accent: '#45b7aa', text: '#ffffff' },
+    },
+  },
+  {
+    id: 'arctic-ice',
+    name: 'Arctic Ice',
+    preview: 'linear-gradient(135deg, #e0f2fe 0%, #b3e5fc 100%)',
+    config: {
+      background: { type: 'gradient', colors: ['#e0f2fe', '#b3e5fc'] },
+      buttonStyle: { type: 'modern', color: '#0277bd', borderRadius: 'lg' },
+      font: { family: 'system', size: 'md', weight: 'medium' },
+      colors: { primary: '#0277bd', secondary: '#4fc3f7', accent: '#29b6f6', text: '#01579b' },
+    },
+  },
+  {
+    id: 'volcanic-ash',
+    name: 'Volcanic Ash',
+    preview: 'linear-gradient(135deg, #424242 0%, #212121 100%)',
+    config: {
+      background: { type: 'gradient', colors: ['#424242', '#212121'] },
+      buttonStyle: { type: 'glass', color: '#ff5722', borderRadius: 'md' },
+      font: { family: 'display', size: 'md', weight: 'bold' },
+      colors: { primary: '#ff5722', secondary: '#ffab91', accent: '#ff7043', text: '#ffffff' },
+    },
+  },
+  {
+    id: 'spring-meadow',
+    name: 'Spring Meadow',
+    preview: 'linear-gradient(135deg, #8bc34a 0%, #4caf50 100%)',
+    config: {
+      background: { type: 'gradient', colors: ['#8bc34a', '#4caf50'] },
+      buttonStyle: { type: 'solid', color: '#ffffff', borderRadius: 'full' },
+      font: { family: 'serif', size: 'md', weight: 'medium' },
+      colors: { primary: '#ffffff', secondary: '#c8e6c9', accent: '#66bb6a', text: '#ffffff' },
     },
   },
 ];
 
 const FONT_FAMILIES = [
-  { id: 'system', name: 'System Font', preview: 'Aa' },
-  { id: 'serif', name: 'Serif (Elegante)', preview: 'Aa', style: 'font-serif' },
-  { id: 'mono', name: 'Monospace (Código)', preview: 'Aa', style: 'font-mono' },
-  { id: 'display', name: 'Display (Títulos)', preview: 'Aa', style: 'font-bold' },
-  { id: 'handwriting', name: 'Handwriting', preview: 'Aa', style: 'italic' },
+  { 
+    id: 'inter', 
+    name: 'Inter', 
+    category: 'Sans-serif',
+    preview: 'Aa Bb Cc',
+    description: 'Moderna e legível',
+    style: 'font-sans',
+    weight: 'font-normal',
+    cssFamily: 'Inter, system-ui, sans-serif'
+  },
+  { 
+    id: 'playfair', 
+    name: 'Playfair Display', 
+    category: 'Serif',
+    preview: 'Aa Bb Cc',
+    description: 'Elegante e sofisticada',
+    style: 'font-serif',
+    weight: 'font-normal',
+    cssFamily: 'Playfair Display, serif'
+  },
+  { 
+    id: 'poppins', 
+    name: 'Poppins', 
+    category: 'Sans-serif',
+    preview: 'Aa Bb Cc',
+    description: 'Amigável e arredondada',
+    style: 'font-sans',
+    weight: 'font-medium',
+    cssFamily: 'Poppins, sans-serif'
+  },
+  { 
+    id: 'roboto-mono', 
+    name: 'Roboto Mono', 
+    category: 'Monospace',
+    preview: 'Aa Bb Cc',
+    description: 'Técnica e precisa',
+    style: 'font-mono',
+    weight: 'font-normal',
+    cssFamily: 'Roboto Mono, monospace'
+  },
+  { 
+    id: 'dancing-script', 
+    name: 'Dancing Script', 
+    category: 'Handwriting',
+    preview: 'Aa Bb Cc',
+    description: 'Casual e divertida',
+    style: 'font-serif italic',
+    weight: 'font-normal',
+    cssFamily: 'Dancing Script, cursive'
+  },
+  { 
+    id: 'montserrat', 
+    name: 'Montserrat', 
+    category: 'Sans-serif',
+    preview: 'Aa Bb Cc',
+    description: 'Forte e impactante',
+    style: 'font-sans',
+    weight: 'font-semibold',
+    cssFamily: 'Montserrat, sans-serif'
+  },
+  { 
+    id: 'lora', 
+    name: 'Lora', 
+    category: 'Serif',
+    preview: 'Aa Bb Cc',
+    description: 'Clássica e confortável',
+    style: 'font-serif',
+    weight: 'font-normal',
+    cssFamily: 'Lora, serif'
+  },
+  { 
+    id: 'source-code-pro', 
+    name: 'Source Code Pro', 
+    category: 'Monospace',
+    preview: 'Aa Bb Cc',
+    description: 'Profissional e limpa',
+    style: 'font-mono',
+    weight: 'font-normal',
+    cssFamily: 'Source Code Pro, monospace'
+  }
 ];
 
 const BUTTON_STYLES = [
@@ -149,6 +257,7 @@ export const DesignTab: React.FC<DesignTabProps> = ({ profile, onProfileUpdate }
   const [selectedTheme, setSelectedTheme] = useState('pebble-blue');
   const [customConfig, setCustomConfig] = useState<ThemeConfig>(customTheme);
   const [loading, setLoading] = useState(false);
+  const [activeCustomTab, setActiveCustomTab] = useState<'background' | 'typography' | 'buttons'>('background');
 
   useEffect(() => {
     if (profile?.theme_options) {
@@ -231,34 +340,41 @@ export const DesignTab: React.FC<DesignTabProps> = ({ profile, onProfileUpdate }
         </h3>
         
         <RadioGroup value={selectedTheme} onValueChange={handleThemeSelect}>
-          <div className="grid grid-cols-1 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {PREDEFINED_THEMES.map((theme) => (
               <Label
                 key={theme.id}
                 htmlFor={theme.id}
                 className="cursor-pointer"
               >
-                <Card className={`bg-card/30 border-border/50 hover-bounce transition-all ${
-                  selectedTheme === theme.id ? 'ring-2 ring-primary' : ''
+                <Card className={`bg-card/30 border-border/50 hover:shadow-lg hover:scale-105 transition-all duration-200 ${
+                  selectedTheme === theme.id ? 'ring-2 ring-primary shadow-lg' : ''
                 }`}>
                   <CardContent className="p-4">
-                    <div className="flex items-center space-x-3">
-                      <RadioGroupItem value={theme.id} id={theme.id} />
+                    <div className="space-y-3">
+                      {/* Header com radio e badge */}
+                      <div className="flex items-center justify-between">
+                        <RadioGroupItem value={theme.id} id={theme.id} />
+                        {selectedTheme === theme.id && (
+                          <Badge variant="secondary" className="text-xs">
+                            Selecionado
+                          </Badge>
+                        )}
+                      </div>
+                      
+                      {/* Preview do tema */}
                       <div
-                        className="w-8 h-8 rounded-full border-2 border-white/20"
+                        className="w-full h-11 rounded-lg border-2 border-white/20 shadow-sm"
                         style={{ background: theme.preview }}
                       />
-                      <div className="flex-1">
-                        <h4 className="font-medium">{theme.name}</h4>
-                        <p className="text-xs text-muted-foreground">
+                      
+                      {/* Informações do tema */}
+                      <div className="text-center">
+                        <h4 className="font-medium text-sm">{theme.name}</h4>
+                        <p className="text-xs text-muted-foreground mt-1">
                           {theme.config.buttonStyle.type} • {theme.config.background.type}
                         </p>
                       </div>
-                      {selectedTheme === theme.id && (
-                        <Badge variant="secondary" className="text-xs">
-                          Selecionado
-                        </Badge>
-                      )}
                     </div>
                   </CardContent>
                 </Card>
@@ -289,9 +405,43 @@ export const DesignTab: React.FC<DesignTabProps> = ({ profile, onProfileUpdate }
             </CardHeader>
             
             {selectedTheme === 'custom' && (
-              <CardContent className="pt-0 space-y-6">
-                {/* Background */}
-                <div className="space-y-4">
+              <CardContent className="pt-0">
+                {/* Menu de Navegação */}
+                <div className="flex space-x-1 bg-muted/50 p-1 rounded-lg mb-6">
+                  <Button
+                    variant={activeCustomTab === 'background' ? 'default' : 'ghost'}
+                    size="sm"
+                    onClick={() => setActiveCustomTab('background')}
+                    className="flex-1 h-8 text-xs"
+                  >
+                    <Image className="h-3 w-3 mr-1" />
+                    Fundo
+                  </Button>
+                  <Button
+                    variant={activeCustomTab === 'typography' ? 'default' : 'ghost'}
+                    size="sm"
+                    onClick={() => setActiveCustomTab('typography')}
+                    className="flex-1 h-8 text-xs"
+                  >
+                    <Type className="h-3 w-3 mr-1" />
+                    Tipografia
+                  </Button>
+                  <Button
+                    variant={activeCustomTab === 'buttons' ? 'default' : 'ghost'}
+                    size="sm"
+                    onClick={() => setActiveCustomTab('buttons')}
+                    className="flex-1 h-8 text-xs"
+                  >
+                    <Zap className="h-3 w-3 mr-1" />
+                    Botões
+                  </Button>
+                </div>
+
+                {/* Conteúdo das Tabs */}
+                <div className="space-y-6">
+                  {/* Tab: Background */}
+                  {activeCustomTab === 'background' && (
+                    <div className="space-y-4">
                   <h4 className="font-medium flex items-center">
                     <Image className="h-4 w-4 mr-2" />
                     Fundo
@@ -377,30 +527,49 @@ export const DesignTab: React.FC<DesignTabProps> = ({ profile, onProfileUpdate }
                       </div>
                     </div>
                   )}
-                </div>
+                    </div>
+                  )}
 
-                {/* Typography */}
-                <div className="space-y-4">
+                  {/* Tab: Typography */}
+                  {activeCustomTab === 'typography' && (
+                    <div className="space-y-4">
                   <h4 className="font-medium flex items-center">
                     <Type className="h-4 w-4 mr-2" />
                     Tipografia
                   </h4>
                   
                   <div>
-                    <Label className="text-sm">Família da Fonte</Label>
-                    <div className="grid grid-cols-2 gap-2 mt-2">
+                    <Label className="text-sm font-medium mb-3 block">Família da Fonte</Label>
+                    <div className="grid grid-cols-2 gap-3">
                       {FONT_FAMILIES.map((font) => (
-                        <Button
+                        <div
                           key={font.id}
-                          variant={customConfig.font.family === font.id ? "default" : "outline"}
-                          className={`h-12 text-xs ${font.style || ''}`}
+                          className={`p-4 rounded-lg border-2 cursor-pointer transition-all duration-200 hover:shadow-md ${
+                            customConfig.font.family === font.id 
+                              ? 'border-primary bg-primary/5 shadow-sm' 
+                              : 'border-border hover:border-primary/50 bg-card/50'
+                          }`}
                           onClick={() => updateCustomConfig('font', { family: font.id })}
                         >
-                          <div className="text-center">
-                            <div className="text-lg">{font.preview}</div>
-                            <div>{font.name}</div>
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center space-x-3">
+                              <div 
+                                className="text-2xl font-medium"
+                                style={{ fontFamily: font.cssFamily }}
+                              >
+                                {font.preview}
+                              </div>
+                              <div>
+                                <h4 className="font-medium text-sm">{font.name}</h4>
+                                <p className="text-xs text-muted-foreground">{font.category}</p>
+                              </div>
+                            </div>
+                            {customConfig.font.family === font.id && (
+                              <div className="w-2 h-2 bg-primary rounded-full"></div>
+                            )}
                           </div>
-                        </Button>
+                          <p className="text-xs text-muted-foreground">{font.description}</p>
+                        </div>
                       ))}
                     </div>
                   </div>
@@ -445,10 +614,12 @@ export const DesignTab: React.FC<DesignTabProps> = ({ profile, onProfileUpdate }
                       </Select>
                     </div>
                   </div>
-                </div>
+                    </div>
+                  )}
 
-                {/* Button Style */}
-                <div className="space-y-4">
+                  {/* Tab: Buttons */}
+                  {activeCustomTab === 'buttons' && (
+                    <div className="space-y-4">
                   <h4 className="font-medium flex items-center">
                     <Zap className="h-4 w-4 mr-2" />
                     Estilo dos Botões
@@ -511,64 +682,66 @@ export const DesignTab: React.FC<DesignTabProps> = ({ profile, onProfileUpdate }
                       </Select>
                     </div>
                   </div>
-                </div>
 
-                {/* Colors */}
-                <div className="space-y-4">
-                  <h4 className="font-medium flex items-center">
-                    <Palette className="h-4 w-4 mr-2" />
-                    Cores do Tema
-                  </h4>
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label className="text-sm">Cor Primária</Label>
-                      <div className="flex items-center space-x-2 mt-2">
-                        <Input
-                          type="color"
-                          value={customConfig.colors?.primary || '#3b82f6'}
-                          onChange={(e) => updateCustomConfig('colors', { 
-                            ...customConfig.colors, 
-                            primary: e.target.value 
-                          })}
-                          className="w-12 h-10 p-1 rounded"
-                        />
-                        <Input
-                          type="text"
-                          value={customConfig.colors?.primary || '#3b82f6'}
-                          onChange={(e) => updateCustomConfig('colors', { 
-                            ...customConfig.colors, 
-                            primary: e.target.value 
-                          })}
-                          className="flex-1"
-                        />
+                  {/* Colors */}
+                  <div className="space-y-4">
+                    <h4 className="font-medium flex items-center">
+                      <Palette className="h-4 w-4 mr-2" />
+                      Cores do Tema
+                    </h4>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label className="text-sm">Cor Primária</Label>
+                        <div className="flex items-center space-x-2 mt-2">
+                          <Input
+                            type="color"
+                            value={customConfig.colors?.primary || '#3b82f6'}
+                            onChange={(e) => updateCustomConfig('colors', { 
+                              ...customConfig.colors, 
+                              primary: e.target.value 
+                            })}
+                            className="w-12 h-10 p-1 rounded"
+                          />
+                          <Input
+                            type="text"
+                            value={customConfig.colors?.primary || '#3b82f6'}
+                            onChange={(e) => updateCustomConfig('colors', { 
+                              ...customConfig.colors, 
+                              primary: e.target.value 
+                            })}
+                            className="flex-1"
+                          />
+                        </div>
                       </div>
-                    </div>
 
-                    <div>
-                      <Label className="text-sm">Cor de Destaque</Label>
-                      <div className="flex items-center space-x-2 mt-2">
-                        <Input
-                          type="color"
-                          value={customConfig.colors?.accent || '#8b5cf6'}
-                          onChange={(e) => updateCustomConfig('colors', { 
-                            ...customConfig.colors, 
-                            accent: e.target.value 
-                          })}
-                          className="w-12 h-10 p-1 rounded"
-                        />
-                        <Input
-                          type="text"
-                          value={customConfig.colors?.accent || '#8b5cf6'}
-                          onChange={(e) => updateCustomConfig('colors', { 
-                            ...customConfig.colors, 
-                            accent: e.target.value 
-                          })}
-                          className="flex-1"
-                        />
+                      <div>
+                        <Label className="text-sm">Cor de Destaque</Label>
+                        <div className="flex items-center space-x-2 mt-2">
+                          <Input
+                            type="color"
+                            value={customConfig.colors?.accent || '#8b5cf6'}
+                            onChange={(e) => updateCustomConfig('colors', { 
+                              ...customConfig.colors, 
+                              accent: e.target.value 
+                            })}
+                            className="w-12 h-10 p-1 rounded"
+                          />
+                          <Input
+                            type="text"
+                            value={customConfig.colors?.accent || '#8b5cf6'}
+                            onChange={(e) => updateCustomConfig('colors', { 
+                              ...customConfig.colors, 
+                              accent: e.target.value 
+                            })}
+                            className="flex-1"
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             )}

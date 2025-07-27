@@ -247,13 +247,13 @@ export const DesignEditor: React.FC<DesignEditorProps> = ({
       <div className="flex-1 flex overflow-hidden">
         {/* Sidebar - Hidden in preview mode */}
         {!isPreviewMode && (
-          <div className="w-80 border-r bg-card overflow-y-auto">
+          <div className="w-96 border-r bg-card overflow-y-auto flex-shrink-0">
             <EditorSidebar profileId={profileId} />
           </div>
         )}
 
         {/* Preview Canvas */}
-        <div className="flex-1 bg-muted/30">
+        <div className="flex-1 bg-muted/30 min-w-0 overflow-hidden">
           <PreviewCanvas 
             profileId={profileId}
             deviceMode={deviceMode}

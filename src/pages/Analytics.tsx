@@ -580,7 +580,7 @@ const Analytics = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-80">
+            <div className="h-[32rem]">
               {/* Usar mapa real quando tiver dados consolidados */}
               {countryData.length > 0 ? (
                 <WorldHeatmap 

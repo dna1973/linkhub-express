@@ -13,7 +13,7 @@ export interface ThemeConfig {
     borderRadius?: 'none' | 'sm' | 'md' | 'lg' | 'full';
   };
   font: {
-    family: 'system' | 'serif' | 'mono' | 'display' | 'handwriting';
+    family: 'inter' | 'playfair' | 'poppins' | 'roboto-mono' | 'dancing-script' | 'montserrat' | 'lora' | 'source-code-pro';
     size: 'sm' | 'md' | 'lg';
     weight: 'light' | 'normal' | 'medium' | 'bold';
   };
@@ -39,7 +39,7 @@ export const useDesignStore = create<DesignState>((set) => ({
   customTheme: {
     background: { type: 'gradient', colors: ['#1e3a8a', '#3730a3'] },
     buttonStyle: { type: 'solid', color: '#ffffff', borderRadius: 'lg' },
-    font: { family: 'system', size: 'md', weight: 'medium' },
+    font: { family: 'inter', size: 'md', weight: 'medium' },
     colors: {
       primary: '#ffffff',
       secondary: '#cbd5e1',
