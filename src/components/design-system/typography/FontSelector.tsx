@@ -195,7 +195,7 @@ export const FontSelector: React.FC<FontSelectorProps> = ({
                     {font.category === 'system' && (
                       <Badge variant="secondary" className="text-xs">System</Badge>
                     )}
-                    {'popularity' in font && font.popularity > 80 && (
+                    {'popularity' in font && typeof font.popularity === 'number' && font.popularity > 80 && (
                       <Badge variant="secondary" className="text-xs">Popular</Badge>
                     )}
                   </div>
