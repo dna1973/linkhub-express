@@ -1,8 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
-import { supabase } from '@/integrations/supabase/client';
-import { getRedirectUrl } from '@/lib/config';
-import '@/lib/debug'; // Importar debug em desenvolvimento
+import { supabase } from '@/lib/supabase';
 
 interface AuthContextType {
   user: User | null;
@@ -10,7 +8,6 @@ interface AuthContextType {
   loading: boolean;
   signUp: (email: string, password: string) => Promise<{ error: any }>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
-  signInWithProvider: (provider: 'github' | 'google') => Promise<{ error: any }>;
   signOut: () => Promise<void>;
 }
 
@@ -30,32 +27,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        console.log('🔄 Auth state changed:', { event, session: !!session });
-        
-        if (event === 'SIGNED_IN') {
-          console.log('✅ Usuário logado:', session?.user?.email);
-        }
-        
-        if (event === 'SIGNED_OUT') {
-          console.log('👋 Usuário deslogado');
-        }
-        
-        if (event === 'TOKEN_REFRESHED') {
-          console.log('🔄 Token renovado');
-        }
-        
+      (_event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
         setLoading(false);
       }
     );
 
-    // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
-      console.log('🔍 Sessão inicial:', !!session);
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
@@ -65,54 +45,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const signUp = async (email: string, password: string) => {
-    const redirectUrl = getRedirectUrl('/');
-    
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: redirectUrl
-      }
-    });
-    return { error };
+    try {
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: window.location.origin,
+        },
+      });
+      return { error };
+    } catch (err) {
+      return { error: err };
+    }
   };
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    return { error };
-  };
-
-  const signInWithProvider = async (provider: 'github' | 'google') => {
     try {
-      // Usar sempre o domínio correto para redirect
-      const redirectUrl = window.location.origin + '/auth/callback';
-      
-      console.log('🔐 Iniciando login social:', { provider, redirectUrl, origin: window.location.origin });
-      
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider,
-        options: {
-          redirectTo: redirectUrl,
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'consent',
-          }
-        }
-      });
-      
-      if (error) {
-        console.error('❌ Erro no login social:', error);
-        return { error };
-      }
-      
-      console.log('✅ Login social iniciado com sucesso:', data);
-      return { error: null };
-      
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      return { error };
     } catch (err) {
-      console.error('❌ Erro inesperado no login social:', err);
       return { error: err };
     }
   };
@@ -121,18 +72,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await supabase.auth.signOut();
   };
 
-  const value = {
-    user,
-    session,
-    loading,
-    signUp,
-    signIn,
-    signInWithProvider,
-    signOut,
-  };
-
   return (
-    <AuthContext.Provider value={value}>
+    <AuthContext.Provider value={{ user, session, loading, signUp, signIn, signOut }}>
       {children}
     </AuthContext.Provider>
   );
