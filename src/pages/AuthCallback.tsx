@@ -1,31 +1,53 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabase';
 import { Card, CardContent } from '@/components/ui/card';
 import { Loader2 } from 'lucide-react';
 
 const AuthCallback = () => {
   const navigate = useNavigate();
   const { user, loading } = useAuth();
+  const [processed, setProcessed] = useState(false);
 
   useEffect(() => {
-    console.log('🔄 AuthCallback - Estado:', { user: !!user, loading });
+    // Process hash fragments from email confirmation links
+    const hashParams = new URLSearchParams(window.location.hash.substring(1));
+    const accessToken = hashParams.get('access_token');
+    const refreshToken = hashParams.get('refresh_token');
+
+    if (accessToken && refreshToken) {
+      supabase.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken,
+      }).then(({ error }) => {
+        if (error) {
+          console.error('Error setting session:', error);
+          navigate('/auth');
+        } else {
+          setProcessed(true);
+        }
+      });
+    } else {
+      setProcessed(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!processed) return;
     
-    // Aguardar um momento para garantir que o auth state foi processado
     const timer = setTimeout(() => {
       if (!loading) {
         if (user) {
-          console.log('✅ Usuário autenticado, redirecionando para dashboard');
-          window.location.href = '/dashboard';
+          navigate('/dashboard', { replace: true });
         } else {
-          console.log('❌ Usuário não autenticado, redirecionando para auth');
-          window.location.href = '/auth';
+          navigate('/auth', { replace: true });
         }
       }
-    }, 1000);
+    }, 500);
 
     return () => clearTimeout(timer);
-  }, [user, loading]);
+  }, [user, loading, processed, navigate]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
