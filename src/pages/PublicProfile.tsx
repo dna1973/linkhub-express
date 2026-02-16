@@ -333,19 +333,7 @@ const PublicProfile = () => {
           device_type: deviceType
         });
 
-      // Increment click count na tabela links
-      const { data: currentLink } = await supabase
-        .from('links')
-        .select('clicks')
-        .eq('id', linkId)
-        .single();
-      
-      if (currentLink) {
-        await supabase
-          .from('links')
-          .update({ clicks: currentLink.clicks + 1 })
-          .eq('id', linkId);
-      }
+      // Click count is automatically incremented by database trigger
     } catch (error) {
       console.error('Erro ao registrar clique:', error);
     }
