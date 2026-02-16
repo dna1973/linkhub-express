@@ -7,8 +7,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { Link, Eye, EyeOff, Github } from 'lucide-react';
+import { Link, Eye, EyeOff } from 'lucide-react';
 import { GoogleIcon } from '@/components/ui/google-icon';
+import { lovable } from '@/integrations/lovable/index';
 
 const Auth = () => {
   const [email, setEmail] = useState('');
@@ -73,44 +74,21 @@ const Auth = () => {
     setLoading(false);
   };
 
-  const handleSocialLogin = async (provider: 'github' | 'google') => {
+  const handleGoogleLogin = async () => {
     setLoading(true);
-    
     try {
-      console.log(`🚀 Tentando login com ${provider}`);
-      
-      const { error } = await signInWithProvider(provider);
-      
+      const { error } = await lovable.auth.signInWithOAuth("google", {
+        redirect_uri: window.location.origin,
+      });
       if (error) {
-        console.error(`❌ Erro no login ${provider}:`, error);
-        
-        let errorMessage = `Erro ao fazer login com ${provider === 'github' ? 'GitHub' : 'Google'}`;
-        
-        // Mensagens de erro mais específicas
-        if (error.message?.includes('popup')) {
-          errorMessage = 'Popup foi bloqueado. Permita popups para este site e tente novamente.';
-        } else if (error.message?.includes('network')) {
-          errorMessage = 'Erro de conexão. Verifique sua internet e tente novamente.';
-        } else if (error.message?.includes('redirect')) {
-          errorMessage = 'Erro de redirecionamento. Tente novamente.';
-        }
-        
         toast({
           title: "Erro no login",
-          description: errorMessage,
+          description: "Erro ao fazer login com Google. Tente novamente.",
           variant: "destructive",
         });
         setLoading(false);
-      } else {
-        console.log(`✅ Login ${provider} iniciado com sucesso`);
-        // Não definir loading como false aqui, pois o usuário será redirecionado
-        toast({
-          title: "Redirecionando...",
-          description: `Autenticando com ${provider === 'github' ? 'GitHub' : 'Google'}`,
-        });
       }
     } catch (err) {
-      console.error(`❌ Erro inesperado no login ${provider}:`, err);
       toast({
         title: "Erro inesperado",
         description: "Ocorreu um erro inesperado. Tente novamente.",
@@ -154,22 +132,11 @@ const Auth = () => {
                       type="button"
                       variant="outline"
                       className="w-full bg-background/50 hover:bg-background/80"
-                      onClick={() => handleSocialLogin('google')}
+                      onClick={handleGoogleLogin}
                       disabled={loading}
                     >
                       <GoogleIcon className="w-5 h-5 mr-2" />
                       Continuar com Google
-                    </Button>
-                    
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="w-full bg-background/50 hover:bg-background/80"
-                      onClick={() => handleSocialLogin('github')}
-                      disabled={loading}
-                    >
-                      <Github className="w-5 h-5 mr-2" />
-                      Continuar com GitHub
                     </Button>
                   </div>
 
@@ -245,22 +212,11 @@ const Auth = () => {
                       type="button"
                       variant="outline"
                       className="w-full bg-background/50 hover:bg-background/80"
-                      onClick={() => handleSocialLogin('google')}
+                      onClick={handleGoogleLogin}
                       disabled={loading}
                     >
                       <GoogleIcon className="w-5 h-5 mr-2" />
                       Cadastrar com Google
-                    </Button>
-                    
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="w-full bg-background/50 hover:bg-background/80"
-                      onClick={() => handleSocialLogin('github')}
-                      disabled={loading}
-                    >
-                      <Github className="w-5 h-5 mr-2" />
-                      Cadastrar com GitHub
                     </Button>
                   </div>
 
