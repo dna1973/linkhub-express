@@ -31,7 +31,7 @@ import {
   Monitor,
   MapPin
 } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/lib/supabase';
 import { format, subDays, startOfDay, endOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import WorldHeatmap from '@/components/analytics/WorldHeatmap';

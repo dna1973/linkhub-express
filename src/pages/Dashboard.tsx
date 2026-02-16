@@ -11,7 +11,7 @@ import { SettingsTab } from '@/components/dashboard/SettingsTab';
 import { AnalyticsTab } from '@/components/dashboard/AnalyticsTab';
 import { ProfilePreview } from '@/components/dashboard/ProfilePreview';
 import { AppSidebar } from '@/components/dashboard/AppSidebar';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/lib/supabase';
 
 const Dashboard = () => {
   console.log('Dashboard component loading...'); // Debug log
