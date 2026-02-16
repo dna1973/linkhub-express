@@ -9,7 +9,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { Link, Eye, EyeOff } from 'lucide-react';
 import { GoogleIcon } from '@/components/ui/google-icon';
-import { lovable } from '@/integrations/lovable/index';
+
 
 const Auth = () => {
   const [email, setEmail] = useState('');
@@ -77,6 +77,7 @@ const Auth = () => {
   const handleGoogleLogin = async () => {
     setLoading(true);
     try {
+      const { lovable } = await import('@/integrations/lovable/index');
       const { error } = await lovable.auth.signInWithOAuth("google", {
         redirect_uri: window.location.origin,
       });
