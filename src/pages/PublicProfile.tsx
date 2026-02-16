@@ -338,8 +338,13 @@ const PublicProfile = () => {
       console.error('Erro ao registrar clique:', error);
     }
 
-    // Open link
-    window.open(url, '_blank');
+    // Open link - detect email addresses and use mailto:
+    const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(url) || url.startsWith('mailto:');
+    if (isEmail) {
+      window.location.href = url.startsWith('mailto:') ? url : `mailto:${url}`;
+    } else {
+      window.open(url.startsWith('http') ? url : `https://${url}`, '_blank');
+    }
   };
 
   if (loading) {
