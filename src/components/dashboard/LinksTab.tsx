@@ -77,27 +77,31 @@ const SortableLink: React.FC<SortableLinkProps> = ({ link, onDelete }) => {
     <div ref={setNodeRef} style={style} {...attributes}>
       <Card className="bg-card/30 border-border/50 hover-bounce">
         <CardContent className="p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div {...listeners} className="cursor-move">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center space-x-2 sm:space-x-3 min-w-0 flex-1">
+              <div {...listeners} className="cursor-move flex-shrink-0">
                 <GripVertical className="h-4 w-4 text-muted-foreground" />
               </div>
-              <div>
-                <h4 className="font-medium">{link.title}</h4>
-                <p className="text-sm text-muted-foreground truncate max-w-[200px]">
+              <div className="min-w-0 flex-1">
+                <h4 className="font-medium text-sm sm:text-base truncate">{link.title}</h4>
+                <p className="text-xs sm:text-sm text-muted-foreground truncate">
                   {link.url}
                 </p>
               </div>
             </div>
             
-            <div className="flex items-center space-x-2">
-              <Badge variant="secondary" className="text-xs">
+            <div className="flex items-center space-x-1 sm:space-x-2 flex-shrink-0">
+              <Badge variant="secondary" className="text-xs hidden sm:inline-flex">
                 {link.clicks} cliques
+              </Badge>
+              <Badge variant="secondary" className="text-xs sm:hidden">
+                {link.clicks}
               </Badge>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => window.open(link.url, '_blank')}
+                className="h-8 w-8 p-0"
               >
                 <ExternalLink className="h-4 w-4" />
               </Button>
@@ -105,7 +109,7 @@ const SortableLink: React.FC<SortableLinkProps> = ({ link, onDelete }) => {
                 variant="ghost"
                 size="sm"
                 onClick={() => onDelete(link.id)}
-                className="text-destructive hover:text-destructive"
+                className="text-destructive hover:text-destructive h-8 w-8 p-0"
               >
                 <Trash2 className="h-4 w-4" />
               </Button>
@@ -279,7 +283,7 @@ export const LinksTab: React.FC<LinksTabProps> = ({ profile, onProfileUpdate }) 
                 <p className="text-sm text-muted-foreground">
                   Escolha o tipo de link que deseja adicionar:
                 </p>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-3 sm:grid-cols-3 gap-2 sm:gap-3">
                   {LINK_TYPES.map((linkType) => (
                     <Button
                       key={linkType.id}

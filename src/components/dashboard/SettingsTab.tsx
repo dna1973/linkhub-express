@@ -274,8 +274,8 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
           {/* Avatar Section */}
           <div className="space-y-4">
             <Label>Foto de Perfil</Label>
-            <div className="flex items-center space-x-4">
-              <Avatar className="w-16 h-16">
+            <div className="flex flex-col sm:flex-row items-center sm:items-start space-y-3 sm:space-y-0 sm:space-x-4">
+              <Avatar className="w-16 h-16 flex-shrink-0">
                 <AvatarImage src={formData.avatar_url} />
                 <AvatarFallback className="bg-gradient-primary text-white text-xl">
                   {formData.full_name?.[0]?.toUpperCase() || 
