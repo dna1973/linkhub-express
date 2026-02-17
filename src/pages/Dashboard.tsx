@@ -83,19 +83,22 @@ const Dashboard = () => {
           profile={profile} 
         />
         
-        <main className="flex-1 flex">
+        <main className="flex-1 flex min-w-0">
           {/* Header with trigger */}
-          <div className="flex-1">
-            <header className="h-12 flex items-center border-b bg-card/30 backdrop-blur-sm px-4">
+          <div className="flex-1 min-w-0">
+            <header className="h-12 flex items-center border-b bg-card/30 backdrop-blur-sm px-3 md:px-4">
               <SidebarTrigger />
+              <span className="ml-3 text-sm font-medium md:hidden truncate">
+                {activeTab === 'links' ? 'Links' : activeTab === 'design' ? 'Design' : activeTab === 'settings' ? 'Perfil' : activeTab === 'analytics' ? 'Analytics' : 'Dashboard'}
+              </span>
             </header>
 
-            <div className="p-6">
+            <div className="p-3 sm:p-4 md:p-6">
               <div className={activeTab === 'analytics' || activeTab === 'design-v2' ? 'w-full' : 'lg:grid lg:grid-cols-2 lg:gap-6'}>
                 {/* Left Panel - Dashboard */}
-                <div className={activeTab === 'analytics' || activeTab === 'design-v2' ? 'w-full' : 'space-y-6 lg:pr-6'}>
+                <div className={activeTab === 'analytics' || activeTab === 'design-v2' ? 'w-full' : 'space-y-4 md:space-y-6'}>
                   <Card className="bg-card/50 backdrop-blur-sm border-border/50">
-                    <CardContent className={activeTab === 'analytics' || activeTab === 'design-v2' ? 'p-0' : 'p-6'}>
+                    <CardContent className={activeTab === 'analytics' || activeTab === 'design-v2' ? 'p-0' : 'p-3 sm:p-4 md:p-6'}>
                       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                         <TabsContent value="links" className="mt-0">
                           <LinksTab profile={profile} onProfileUpdate={loadProfile} />
@@ -121,7 +124,7 @@ const Dashboard = () => {
                   </Card>
                 </div>
 
-                {/* Right Panel - Device Preview - Hidden when Analytics or Design 2.0 is active */}
+                {/* Right Panel - Device Preview - Hidden on mobile/tablet */}
                 {activeTab !== 'analytics' && activeTab !== 'design-v2' && (
                   <div className="hidden lg:block">
                     <div className="sticky top-6">
