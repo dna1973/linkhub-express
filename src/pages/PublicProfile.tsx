@@ -18,6 +18,7 @@ const ICON_MAP: Record<string, any> = {
   'google drive': ({ className }: { className?: string }) => <img src={googleDriveIcon} alt="Google Drive" className={className} />,
   drive: ({ className }: { className?: string }) => <img src={googleDriveIcon} alt="Google Drive" className={className} />,
   website: Globe,
+  web: Globe,
   email: Mail,
   default: ExternalLink,
 };
