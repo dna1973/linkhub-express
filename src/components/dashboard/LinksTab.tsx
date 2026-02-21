@@ -51,6 +51,7 @@ const LINK_TYPES = [
   { id: 'linkedin', label: 'LinkedIn', icon: Linkedin, placeholder: 'https://linkedin.com/in/seuusuario' },
   { id: 'youtube', label: 'YouTube', icon: Youtube, placeholder: 'https://youtube.com/@seucanal' },
   { id: 'github', label: 'GitHub', icon: Github, placeholder: 'https://github.com/seuusuario' },
+  { id: 'googledrive', label: 'Google Drive', icon: ExternalLink, placeholder: 'https://drive.google.com/...' },
   { id: 'website', label: 'Website', icon: Globe, placeholder: 'https://seusite.com' },
   { id: 'email', label: 'Email', icon: Mail, placeholder: 'mailto:seu@email.com' },
 ];
