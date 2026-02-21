@@ -36,7 +36,7 @@ const analyticsItems = [
 export function AppSidebar({ activeTab, onTabChange, profile }: AppSidebarProps) {
   const { state } = useSidebar();
   const { theme, setTheme } = useTheme();
-  const { signOut } = useAuth();
+  const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const isCollapsed = state === 'collapsed';
 
@@ -116,6 +116,9 @@ export function AppSidebar({ activeTab, onTabChange, profile }: AppSidebarProps)
       </SidebarContent>
 
       <SidebarFooter className="p-4 space-y-2">
+        {!isCollapsed && user?.email && (
+          <p className="text-xs text-muted-foreground truncate px-2 pb-1">{user.email}</p>
+        )}
         <Button
           variant="ghost"
           size="sm"
