@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ExternalLink, Instagram, Youtube, Github, Globe, Mail, Facebook, Linkedin } from 'lucide-react';
+import googleDriveIcon from '@/assets/google-drive.png';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDesignStore } from '@/stores/useDesignStore';
@@ -18,6 +19,9 @@ const ICON_MAP: Record<string, any> = {
   linkedin: Linkedin,
   youtube: Youtube,
   github: Github,
+  googledrive: ({ className }: { className?: string }) => <img src={googleDriveIcon} alt="Google Drive" className={className} />,
+  'google drive': ({ className }: { className?: string }) => <img src={googleDriveIcon} alt="Google Drive" className={className} />,
+  drive: ({ className }: { className?: string }) => <img src={googleDriveIcon} alt="Google Drive" className={className} />,
   website: Globe,
   email: Mail,
   default: ExternalLink,
