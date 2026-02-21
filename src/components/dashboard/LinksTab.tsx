@@ -80,8 +80,12 @@ const SortableLink: React.FC<SortableLinkProps> = ({ link, onDelete }) => {
         <CardContent className="p-4">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center space-x-2 sm:space-x-3 min-w-0 flex-1">
-              <div {...listeners} className="cursor-move flex-shrink-0">
-                <GripVertical className="h-4 w-4 text-muted-foreground" />
+              <div
+                {...listeners}
+                className="cursor-move flex-shrink-0 p-2 -m-2 rounded-md active:bg-muted/50"
+                style={{ touchAction: 'none' }}
+              >
+                <GripVertical className="h-5 w-5 text-muted-foreground" />
               </div>
               <div className="min-w-0 flex-1">
                 <h4 className="font-medium text-sm sm:text-base truncate">{link.title}</h4>
