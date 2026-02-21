@@ -142,14 +142,26 @@ export const ProfilePreview: React.FC<ProfilePreviewProps> = ({ profile }) => {
     }
   };
 
-  const getIconComponent = (title: string) => {
+  const getIconComponent = (title: string, url?: string) => {
     const lowerTitle = title.toLowerCase();
     for (const [key, Icon] of Object.entries(ICON_MAP)) {
-      if (lowerTitle.includes(key)) {
+      if (key !== 'default' && lowerTitle.includes(key)) {
         return Icon;
       }
     }
-    return ICON_MAP.default;
+    if (url) {
+      const lowerUrl = url.toLowerCase();
+      if (lowerUrl.includes('instagram.com')) return ICON_MAP.instagram;
+      if (lowerUrl.includes('youtube.com')) return ICON_MAP.youtube;
+      if (lowerUrl.includes('github.com')) return ICON_MAP.github;
+      if (lowerUrl.includes('facebook.com')) return ICON_MAP.facebook;
+      if (lowerUrl.includes('linkedin.com')) return ICON_MAP.linkedin;
+      if (lowerUrl.includes('x.com') || lowerUrl.includes('twitter.com')) return ICON_MAP.x;
+      if (lowerUrl.includes('tiktok.com')) return ICON_MAP.tiktok;
+      if (lowerUrl.includes('drive.google.com')) return ICON_MAP.drive;
+      if (lowerUrl.startsWith('mailto:')) return ICON_MAP.email;
+    }
+    return Globe;
   };
 
   const handleLinkClick = async (linkId: number, url: string) => {
@@ -363,7 +375,7 @@ export const ProfilePreview: React.FC<ProfilePreviewProps> = ({ profile }) => {
                 </div>
               ) : (
                 links.map((link) => {
-                  const IconComponent = getIconComponent(link.title);
+                  const IconComponent = getIconComponent(link.title, link.url);
                   return (
                     <Button
                       key={link.id}
