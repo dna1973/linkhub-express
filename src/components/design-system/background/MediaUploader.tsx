@@ -140,6 +140,7 @@ export const MediaUploader: React.FC<MediaUploaderProps> = ({
               ref={fileInputRef}
               type="file"
               accept={type === 'image' ? 'image/*' : 'video/*'}
+              capture="environment"
               onChange={handleFileUpload}
               className="hidden"
             />
