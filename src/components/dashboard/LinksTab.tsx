@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Plus, GripVertical, Trash2, ExternalLink, Instagram, Youtube, Github, Globe, Mail, Facebook, Linkedin } from 'lucide-react';
+import { Plus, GripVertical, Trash2, ExternalLink, Instagram, Youtube, Github, Globe, Mail, Facebook, Linkedin, Pencil } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -58,9 +58,10 @@ const LINK_TYPES = [
 interface SortableLinkProps {
   link: Link;
   onDelete: (id: number) => void;
+  onEdit: (link: Link) => void;
 }
 
-const SortableLink: React.FC<SortableLinkProps> = ({ link, onDelete }) => {
+const SortableLink: React.FC<SortableLinkProps> = ({ link, onDelete, onEdit }) => {
   const {
     attributes,
     listeners,
@@ -105,6 +106,14 @@ const SortableLink: React.FC<SortableLinkProps> = ({ link, onDelete }) => {
               <Button
                 variant="ghost"
                 size="sm"
+                onClick={() => onEdit(link)}
+                className="h-8 w-8 p-0"
+              >
+                <Pencil className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => window.open(link.url, '_blank')}
                 className="h-8 w-8 p-0"
               >
@@ -132,6 +141,9 @@ export const LinksTab: React.FC<LinksTabProps> = ({ profile, onProfileUpdate }) 
   const [links, setLinks] = useState<Link[]>([]);
   const [loading, setLoading] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [editingLink, setEditingLink] = useState<Link | null>(null);
+  const [editLinkData, setEditLinkData] = useState({ title: '', url: '' });
   const [selectedLinkType, setSelectedLinkType] = useState<any>(null);
   const [newLinkData, setNewLinkData] = useState({ title: '', url: '' });
 
@@ -217,6 +229,40 @@ export const LinksTab: React.FC<LinksTabProps> = ({ profile, onProfileUpdate }) 
       // Notificar outros componentes da mudança
       window.dispatchEvent(new CustomEvent('linksUpdated'));
     }
+  };
+
+  const handleEditLink = (link: Link) => {
+    setEditingLink(link);
+    setEditLinkData({ title: link.title, url: link.url });
+    setShowEditDialog(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingLink || !editLinkData.title || !editLinkData.url) {
+      toast({
+        title: "Erro",
+        description: "Preencha todos os campos.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setLoading(true);
+    const { error } = await supabase
+      .from('links')
+      .update({ title: editLinkData.title, url: editLinkData.url })
+      .eq('id', editingLink.id);
+
+    if (error) {
+      toast({ title: "Erro", description: "Erro ao salvar alterações.", variant: "destructive" });
+    } else {
+      toast({ title: "Link atualizado!", description: "As alterações foram salvas." });
+      setShowEditDialog(false);
+      setEditingLink(null);
+      loadLinks();
+      window.dispatchEvent(new CustomEvent('linksUpdated'));
+    }
+    setLoading(false);
   };
 
   const selectLinkType = (linkType: any) => {
@@ -358,6 +404,40 @@ export const LinksTab: React.FC<LinksTabProps> = ({ profile, onProfileUpdate }) 
         </Dialog>
       </div>
 
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent className="bg-card/95 backdrop-blur-sm border-border/50">
+          <DialogHeader>
+            <DialogTitle>Editar Link</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium">Título</label>
+              <Input
+                value={editLinkData.title}
+                onChange={(e) => setEditLinkData(prev => ({ ...prev, title: e.target.value }))}
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium">URL</label>
+              <Input
+                value={editLinkData.url}
+                onChange={(e) => setEditLinkData(prev => ({ ...prev, url: e.target.value }))}
+                className="mt-1"
+              />
+            </div>
+            <div className="flex space-x-2">
+              <Button variant="outline" onClick={() => setShowEditDialog(false)} className="flex-1">
+                Cancelar
+              </Button>
+              <Button onClick={handleSaveEdit} disabled={loading} className="flex-1 btn-gradient-primary">
+                {loading ? 'Salvando...' : 'Salvar'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {links.length === 0 ? (
         <Card className="bg-muted/20 border-dashed">
           <CardContent className="p-8 text-center">
@@ -386,7 +466,7 @@ export const LinksTab: React.FC<LinksTabProps> = ({ profile, onProfileUpdate }) 
           <SortableContext items={links.map(link => link.id)} strategy={verticalListSortingStrategy}>
             <div className="space-y-3">
               {links.map((link) => (
-                <SortableLink key={link.id} link={link} onDelete={handleDeleteLink} />
+                <SortableLink key={link.id} link={link} onDelete={handleDeleteLink} onEdit={handleEditLink} />
               ))}
             </div>
           </SortableContext>
