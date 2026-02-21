@@ -331,7 +331,6 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
               ref={fileInputRef}
               type="file"
               accept="image/*"
-              capture="environment"
               onChange={handleImageUpload}
               className="hidden"
             />
