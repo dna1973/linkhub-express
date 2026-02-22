@@ -5,6 +5,7 @@ import { ExternalLink, Instagram, Youtube, Github, Globe, Mail, Facebook, Linked
 import googleDriveIcon from '@/assets/google-drive.png';
 import notebookLmIcon from '@/assets/notebook-lm.svg';
 import { supabase } from '@/lib/supabase';
+import { safeOpenUrl } from '@/utils/sanitize';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDesignStore } from '@/stores/useDesignStore';
 
@@ -185,13 +186,8 @@ export const ProfilePreview: React.FC<ProfilePreviewProps> = ({ profile }) => {
         .eq('id', linkId);
     }
 
-    // Open link - detect email addresses and use mailto:
-    const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(url) || url.startsWith('mailto:');
-    if (isEmail) {
-      window.location.href = url.startsWith('mailto:') ? url : `mailto:${url}`;
-    } else {
-      window.open(url.startsWith('http') ? url : `https://${url}`, '_blank');
-    }
+    // Open link safely
+    safeOpenUrl(url);
   };
 
   const themeStyles = getThemeStyles();

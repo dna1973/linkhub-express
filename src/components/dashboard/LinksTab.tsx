@@ -7,6 +7,7 @@ import { Plus, GripVertical, Trash2, ExternalLink, Instagram, Youtube, Github, G
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { isValidUrl, sanitizeText } from '@/utils/sanitize';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import {
   DndContext,
@@ -181,6 +182,18 @@ export const LinksTab: React.FC<LinksTabProps> = ({ profile, onProfileUpdate }) 
       return;
     }
 
+    // Validate URL security
+    if (!isValidUrl(newLinkData.url)) {
+      toast({
+        title: "URL inválida",
+        description: "A URL fornecida não é válida. Use URLs com http:// ou https://.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const sanitizedTitle = sanitizeText(newLinkData.title, 100);
+
     setLoading(true);
 
     const maxPosition = Math.max(...links.map(l => l.position), -1);
@@ -188,9 +201,9 @@ export const LinksTab: React.FC<LinksTabProps> = ({ profile, onProfileUpdate }) 
     const { error } = await supabase
       .from('links')
       .insert([{
-        user_id: user.id,
-        title: newLinkData.title,
-        url: newLinkData.url,
+      user_id: user.id,
+        title: sanitizedTitle,
+        url: newLinkData.url.trim(),
         position: maxPosition + 1,
         is_visible: true,
         clicks: 0,
@@ -251,10 +264,19 @@ export const LinksTab: React.FC<LinksTabProps> = ({ profile, onProfileUpdate }) 
       return;
     }
 
+    if (!isValidUrl(editLinkData.url)) {
+      toast({
+        title: "URL inválida",
+        description: "A URL fornecida não é válida. Use URLs com http:// ou https://.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setLoading(true);
     const { error } = await supabase
       .from('links')
-      .update({ title: editLinkData.title, url: editLinkData.url })
+      .update({ title: sanitizeText(editLinkData.title, 100), url: editLinkData.url.trim() })
       .eq('id', editingLink.id);
 
     if (error) {

@@ -15,6 +15,8 @@ import PublicProfile from "./pages/PublicProfile";
 import ExampleProfile from "./pages/ExampleProfile";
 import AuthCallback from "./pages/AuthCallback";
 import NotFound from "./pages/NotFound";
+import Install from "./pages/Install";
+import Privacy from "./pages/Privacy";
 
 const queryClient = new QueryClient();
 
@@ -33,6 +35,8 @@ const App = () => (
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/analytics" element={<Analytics />} />
               <Route path="/exemplo" element={<ExampleProfile />} />
+              <Route path="/install" element={<Install />} />
+              <Route path="/privacy" element={<Privacy />} />
               <Route path="/:username" element={<PublicProfile />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
