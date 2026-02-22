@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ExternalLink, Instagram, Youtube, Github, Globe, Mail, Facebook, Linkedin } from 'lucide-react';
 import googleDriveIcon from '@/assets/google-drive.png';
+import notebookLmIcon from '@/assets/notebook-lm.svg';
 import { supabase } from '@/lib/supabase';
 
 const ICON_MAP: Record<string, any> = {
@@ -17,6 +18,8 @@ const ICON_MAP: Record<string, any> = {
   googledrive: ({ className }: { className?: string }) => <img src={googleDriveIcon} alt="Google Drive" className={className} />,
   'google drive': ({ className }: { className?: string }) => <img src={googleDriveIcon} alt="Google Drive" className={className} />,
   drive: ({ className }: { className?: string }) => <img src={googleDriveIcon} alt="Google Drive" className={className} />,
+  notebooklm: ({ className }: { className?: string }) => <img src={notebookLmIcon} alt="NotebookLM" className={className} />,
+  notebook: ({ className }: { className?: string }) => <img src={notebookLmIcon} alt="NotebookLM" className={className} />,
   website: Globe,
   web: Globe,
   email: Mail,
@@ -296,6 +299,7 @@ const PublicProfile = () => {
       if (lowerUrl.includes('x.com') || lowerUrl.includes('twitter.com')) return ICON_MAP.x;
       if (lowerUrl.includes('tiktok.com')) return ICON_MAP.tiktok;
       if (lowerUrl.includes('drive.google.com')) return ICON_MAP.drive;
+      if (lowerUrl.includes('notebooklm.google.com')) return ICON_MAP.notebooklm;
       if (lowerUrl.startsWith('mailto:')) return ICON_MAP.email;
     }
     // Default to Globe for regular websites instead of generic ExternalLink
