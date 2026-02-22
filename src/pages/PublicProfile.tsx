@@ -6,6 +6,7 @@ import { ExternalLink, Instagram, Youtube, Github, Globe, Mail, Facebook, Linked
 import googleDriveIcon from '@/assets/google-drive.png';
 import notebookLmIcon from '@/assets/notebook-lm.svg';
 import { supabase } from '@/lib/supabase';
+import { safeOpenUrl, isValidUrl } from '@/utils/sanitize';
 
 const ICON_MAP: Record<string, any> = {
   instagram: Instagram,
@@ -112,12 +113,8 @@ const PublicProfile = () => {
         geoData = await geoModule.getGeolocationData();
         deviceType = geoModule.getDeviceType();
         sessionId = geoModule.getOrCreateSessionId();
-        
-        console.log('🌍 Profile View - Geo data:', geoData);
-        console.log('📱 Profile View - Device:', deviceType);
       } catch (error) {
-        console.error('❌ Profile View - Geo error:', error);
-        // Fallback para método antigo
+        // Fallback silencioso
         try {
           const geoResponse = await fetch('https://ipapi.co/json/');
           if (geoResponse.ok) {
@@ -127,10 +124,9 @@ const PublicProfile = () => {
               countryCode: geoDataFallback.country_code || null,
               city: geoDataFallback.city || null
             };
-            console.log('🔄 Profile View - Fallback geo:', geoData);
           }
-        } catch (fallbackError) {
-          console.error('❌ Profile View - Fallback failed:', fallbackError);
+        } catch {
+          // Silently fail - geo data is optional
         }
       }
       
@@ -318,12 +314,7 @@ const PublicProfile = () => {
         geoData = await geoModule.getGeolocationData();
         deviceType = geoModule.getDeviceType();
         sessionId = geoModule.getOrCreateSessionId();
-        
-        console.log('🔗 Link Click - Geo data:', geoData);
-        console.log('📱 Link Click - Device:', deviceType);
       } catch (error) {
-        console.error('❌ Link Click - Geo error:', error);
-        // Fallback para método antigo
         try {
           const geoResponse = await fetch('https://ipapi.co/json/');
           if (geoResponse.ok) {
@@ -333,10 +324,9 @@ const PublicProfile = () => {
               countryCode: geoDataFallback.country_code || null,
               city: geoDataFallback.city || null
             };
-            console.log('🔄 Link Click - Fallback geo:', geoData);
           }
-        } catch (fallbackError) {
-          console.error('❌ Link Click - Fallback failed:', fallbackError);
+        } catch {
+          // Silently fail
         }
       }
 
@@ -361,13 +351,8 @@ const PublicProfile = () => {
       console.error('Erro ao registrar clique:', error);
     }
 
-    // Open link - detect email addresses and use mailto:
-    const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(url) || url.startsWith('mailto:');
-    if (isEmail) {
-      window.location.href = url.startsWith('mailto:') ? url : `mailto:${url}`;
-    } else {
-      window.open(url.startsWith('http') ? url : `https://${url}`, '_blank');
-    }
+    // Open link safely with noopener/noreferrer
+    safeOpenUrl(url);
   };
 
   if (loading) {

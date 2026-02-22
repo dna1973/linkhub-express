@@ -363,9 +363,10 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
               id="bio"
               placeholder="Conte um pouco sobre você..."
               value={formData.bio}
-              onChange={(e) => handleInputChange('bio', e.target.value)}
+              onChange={(e) => handleInputChange('bio', e.target.value.slice(0, 160))}
               className="mt-1 resize-none"
               rows={3}
+              maxLength={160}
             />
             <p className="text-xs text-muted-foreground mt-1">
               {formData.bio.length}/160 caracteres

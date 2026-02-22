@@ -14,7 +14,7 @@ import { AppSidebar } from '@/components/dashboard/AppSidebar';
 import { supabase } from '@/lib/supabase';
 
 const Dashboard = () => {
-  console.log('Dashboard component loading...'); // Debug log
+  // Dashboard component
   const { user } = useAuth();
   const navigate = useNavigate();
   const [profile, setProfile] = useState<any>(null);

@@ -172,8 +172,22 @@ const Index = () => {
             </div>
             <span className="font-semibold">LinkHub</span>
           </div>
+          <div className="flex items-center justify-center space-x-4 mb-2">
+            <button 
+              onClick={() => navigate('/privacy')} 
+              className="text-muted-foreground hover:text-foreground text-sm transition-colors"
+            >
+              Política de Privacidade
+            </button>
+            <button 
+              onClick={() => navigate('/install')} 
+              className="text-muted-foreground hover:text-foreground text-sm transition-colors"
+            >
+              Instalar App
+            </button>
+          </div>
           <p className="text-muted-foreground text-sm">
-            © 2024 LinkHub. Feito com ❤️ para criadores de conteúdo.
+            © {new Date().getFullYear()} LinkHub Express. Feito com ❤️ para criadores de conteúdo.
           </p>
         </div>
       </footer>
