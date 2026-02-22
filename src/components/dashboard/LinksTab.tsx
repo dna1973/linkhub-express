@@ -29,6 +29,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import googleDriveIcon from '@/assets/google-drive.png';
+import notebookLmIcon from '@/assets/notebook-lm.svg';
 
 interface Link {
   id: number;
@@ -53,6 +54,7 @@ const LINK_TYPES = [
   { id: 'youtube', label: 'YouTube', icon: Youtube, placeholder: 'https://youtube.com/@seucanal' },
   { id: 'github', label: 'GitHub', icon: Github, placeholder: 'https://github.com/seuusuario' },
   { id: 'googledrive', label: 'Google Drive', icon: ({ className }: { className?: string }) => <img src={googleDriveIcon} alt="Google Drive" className={className} />, placeholder: 'https://drive.google.com/...' },
+  { id: 'notebooklm', label: 'NotebookLM', icon: ({ className }: { className?: string }) => <img src={notebookLmIcon} alt="NotebookLM" className={className} />, placeholder: 'https://notebooklm.google.com/...' },
   { id: 'website', label: 'Website', icon: Globe, placeholder: 'https://seusite.com' },
   { id: 'email', label: 'Email', icon: Mail, placeholder: 'mailto:seu@email.com' },
 ];
