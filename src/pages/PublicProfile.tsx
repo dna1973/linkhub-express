@@ -413,12 +413,14 @@ const PublicProfile = () => {
               {profile?.full_name || 'Usuário'}
             </h1>
             
-            <p 
-              className="text-sm mb-4 opacity-80"
-              style={{ color: themeStyles.colors?.text || '#ffffff' }}
-            >
-              @{profile.username}
-            </p>
+            {profile?.show_username !== false && (
+              <p 
+                className="text-sm mb-4 opacity-80"
+                style={{ color: themeStyles.colors?.text || '#ffffff' }}
+              >
+                @{profile.username}
+              </p>
+            )}
             
             {profile?.bio && (
               <p 
