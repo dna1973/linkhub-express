@@ -57,7 +57,7 @@ const ExampleProfile = () => {
   };
 
   return (
-    <div className="min-h-screen" style={{ background: 'linear-gradient(135deg, #f59e0b 0%, #dc2626 100%)' }}>
+    <div className="min-h-screen bg-gradient-to-br from-purple-600 via-blue-600 to-cyan-500">
       {/* Back Button */}
       <div className="absolute top-4 left-4 z-10">
         <Button 
