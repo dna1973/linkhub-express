@@ -14,6 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useUsernameValidation } from '@/hooks/useUsernameValidation';
 import { useAutosave } from '@/hooks/useAutosave';
 import { AuthProviderInfo } from './AuthProviderInfo';
+import { ImageCropDialog } from './ImageCropDialog';
 
 interface SettingsTabProps {
   profile: any;
@@ -29,6 +30,8 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
+  const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [formData, setFormData] = useState({
     username: profile?.username || '',
     full_name: profile?.full_name || '',
@@ -111,79 +114,56 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
 
   const autosaveStatus = useAutosave(formData, handleAutosave, 1500, canAutosave);
 
-  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file || !user) return;
 
-    // Validate file type
     if (!file.type.startsWith('image/')) {
-      toast({
-        title: "Erro",
-        description: "Por favor, selecione apenas arquivos de imagem.",
-        variant: "destructive",
-      });
+      toast({ title: "Erro", description: "Por favor, selecione apenas arquivos de imagem.", variant: "destructive" });
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: "Erro", description: "O arquivo deve ter no máximo 5MB.", variant: "destructive" });
       return;
     }
 
-    // Validate file size (5MB max)
-    if (file.size > 5 * 1024 * 1024) {
-      toast({
-        title: "Erro",
-        description: "O arquivo deve ter no máximo 5MB.",
-        variant: "destructive",
-      });
-      return;
-    }
+    setPendingFile(file);
+    const objectUrl = URL.createObjectURL(file);
+    setCropImageSrc(objectUrl);
+
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleCropComplete = async (croppedBlob: Blob) => {
+    setCropImageSrc(null);
+    setPendingFile(null);
+    if (!user) return;
 
     setIsUploadingImage(true);
-
     try {
       // Delete old avatar if exists
       if (formData.avatar_url && formData.avatar_url.includes('supabase')) {
         const oldFileName = formData.avatar_url.split('/').pop();
         if (oldFileName) {
-          await supabase.storage
-            .from('avatars')
-            .remove([`${user.id}/${oldFileName}`]);
+          await supabase.storage.from('avatars').remove([`${user.id}/${oldFileName}`]);
         }
       }
 
-      // Upload new file
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Date.now()}.${fileExt}`;
+      const fileName = `${Date.now()}.jpg`;
       const filePath = `${user.id}/${fileName}`;
+      const file = new File([croppedBlob], fileName, { type: 'image/jpeg' });
 
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(filePath, file);
-
+      const { error: uploadError } = await supabase.storage.from('avatars').upload(filePath, file);
       if (uploadError) throw uploadError;
 
-      // Get public URL
-      const { data } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(filePath);
-
+      const { data } = supabase.storage.from('avatars').getPublicUrl(filePath);
       setFormData(prev => ({ ...prev, avatar_url: data.publicUrl }));
-
-      toast({
-        title: "Sucesso!",
-        description: "Imagem carregada com sucesso.",
-      });
-
+      toast({ title: "Sucesso!", description: "Imagem carregada com sucesso." });
     } catch (error) {
       console.error('Error uploading image:', error);
-      toast({
-        title: "Erro",
-        description: "Não foi possível carregar a imagem.",
-        variant: "destructive",
-      });
+      toast({ title: "Erro", description: "Não foi possível carregar a imagem.", variant: "destructive" });
     } finally {
       setIsUploadingImage(false);
-      // Reset input
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
     }
   };
 
@@ -466,6 +446,16 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
           </div>
         </CardContent>
       </Card>
+
+      {/* Image Crop Dialog */}
+      {cropImageSrc && (
+        <ImageCropDialog
+          open={!!cropImageSrc}
+          imageSrc={cropImageSrc}
+          onClose={() => { setCropImageSrc(null); setPendingFile(null); }}
+          onCropComplete={handleCropComplete}
+        />
+      )}
     </div>
   );
 };
