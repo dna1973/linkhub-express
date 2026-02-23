@@ -45,9 +45,9 @@ const ExampleProfile = () => {
 
       {/* Mobile Device Frame */}
       <div className="flex items-center justify-center min-h-screen p-4">
-        <div className="relative">
+        <div className="relative w-full max-w-[400px] mx-auto">
           {/* Samsung S24 Ultra Device Frame */}
-          <div className="w-[400px] h-[820px] bg-gradient-to-b from-gray-800 to-gray-900 rounded-[2.2rem] p-[3px] shadow-[0_25px_60px_rgba(0,0,0,0.5)]">
+          <div className="w-full aspect-[400/820] max-h-[90vh] bg-gradient-to-b from-gray-800 to-gray-900 rounded-[2.2rem] sm:rounded-[2.2rem] rounded-[1.5rem] p-[3px] shadow-[0_25px_60px_rgba(0,0,0,0.5)]">
             <div className="w-full h-full bg-black rounded-[2rem] p-[2px]">
               <div className="w-full h-full rounded-[1.9rem] overflow-hidden relative">
                 {/* Status Bar */}
