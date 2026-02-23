@@ -337,7 +337,7 @@ export const ProfilePreview: React.FC<ProfilePreviewProps> = ({ profile }) => {
                 {profile?.full_name || user?.email?.split('@')[0] || 'Usuário'}
               </h2>
               
-              {profile?.username && (
+              {profile?.username && profile?.show_username !== false && (
                 <p 
                   className="text-sm mb-2 opacity-80"
                   style={{ color: themeStyles.colors?.text || '#ffffff' }}
