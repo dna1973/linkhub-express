@@ -614,6 +614,29 @@ export const DesignTab: React.FC<DesignTabProps> = ({ profile, onProfileUpdate }
                       </Select>
                     </div>
                   </div>
+
+                  {/* Text Color */}
+                  <div>
+                    <Label className="text-sm font-medium mb-2 block">Cor do Texto</Label>
+                    <div className="flex items-center space-x-2">
+                      <Input
+                        type="color"
+                        value={customConfig.colors?.text || '#ffffff'}
+                        onChange={(e) => updateCustomConfig('colors', { text: e.target.value })}
+                        className="w-12 h-10 p-1 rounded cursor-pointer"
+                      />
+                      <Input
+                        type="text"
+                        value={customConfig.colors?.text || '#ffffff'}
+                        onChange={(e) => updateCustomConfig('colors', { text: e.target.value })}
+                        placeholder="#ffffff"
+                        className="flex-1"
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Cor aplicada ao nome, bio e textos do perfil
+                    </p>
+                  </div>
                     </div>
                   )}
 
