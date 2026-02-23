@@ -615,7 +615,7 @@ export const DesignTab: React.FC<DesignTabProps> = ({ profile, onProfileUpdate }
                     </div>
                   </div>
 
-                  {/* Text Color */}
+                   {/* Text Color */}
                   <div>
                     <Label className="text-sm font-medium mb-2 block">Cor do Texto</Label>
                     <div className="flex items-center space-x-2">
@@ -635,6 +635,35 @@ export const DesignTab: React.FC<DesignTabProps> = ({ profile, onProfileUpdate }
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
                       Cor aplicada ao nome, bio e textos do perfil
+                    </p>
+                  </div>
+
+                  {/* Avatar Border Color */}
+                  <div>
+                    <Label className="text-sm font-medium mb-2 block">Cor da Borda do Avatar</Label>
+                    <div className="flex items-center space-x-2">
+                      <Input
+                        type="color"
+                        value={customConfig.colors?.avatarBorder || '#ffffff33'}
+                        onChange={(e) => updateCustomConfig('colors', { 
+                          ...customConfig.colors,
+                          avatarBorder: e.target.value 
+                        })}
+                        className="w-12 h-10 p-1 rounded cursor-pointer"
+                      />
+                      <Input
+                        type="text"
+                        value={customConfig.colors?.avatarBorder || '#ffffff33'}
+                        onChange={(e) => updateCustomConfig('colors', { 
+                          ...customConfig.colors,
+                          avatarBorder: e.target.value 
+                        })}
+                        placeholder="#ffffff"
+                        className="flex-1"
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Cor do círculo ao redor da foto de perfil
                     </p>
                   </div>
                     </div>

@@ -427,7 +427,7 @@ const PublicProfile = () => {
           
           {/* Profile Section */}
           <div className="text-center mb-8">
-            <Avatar className="w-24 h-24 mx-auto mb-6 border-4 border-white/20">
+            <Avatar className="w-24 h-24 mx-auto mb-6 border-4" style={{ borderColor: themeStyles.colors?.avatarBorder || 'rgba(255,255,255,0.2)' }}>
               <AvatarImage src={profile?.avatar_url} />
               <AvatarFallback 
                 className="bg-white/10 text-2xl"

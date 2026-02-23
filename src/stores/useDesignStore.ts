@@ -22,6 +22,7 @@ export interface ThemeConfig {
     secondary?: string;
     accent?: string;
     text?: string;
+    avatarBorder?: string;
   };
 }
 
