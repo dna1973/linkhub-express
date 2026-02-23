@@ -320,7 +320,7 @@ export const ProfilePreview: React.FC<ProfilePreviewProps> = ({ profile }) => {
             
             {/* Profile Section */}
             <div className="text-center mb-4 flex-shrink-0">
-              <Avatar className="w-16 h-16 mx-auto mb-3 border-2 border-white/20">
+              <Avatar className="w-16 h-16 mx-auto mb-3 border-2" style={{ borderColor: themeStyles.colors?.avatarBorder || 'rgba(255,255,255,0.2)' }}>
                 <AvatarImage src={profile?.avatar_url} />
                 <AvatarFallback 
                   className="bg-white/10 text-lg"
