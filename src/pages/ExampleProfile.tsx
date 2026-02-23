@@ -2,6 +2,7 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Instagram, Youtube, Twitter, Globe, Mail, Phone } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import exampleAvatar from '@/assets/example-avatar.jpg';
 
 const ExampleProfile = () => {
   const navigate = useNavigate();
@@ -85,8 +86,8 @@ const ExampleProfile = () => {
               <div className="h-[calc(100%-1.5rem)] flex flex-col items-center text-white p-6 overflow-y-auto" style={{ background: 'linear-gradient(135deg, #f59e0b 0%, #dc2626 100%)' }}>
                 {/* Profile Info */}
                 <div className="text-center mb-8">
-                  <div className="w-24 h-24 rounded-full backdrop-blur-sm flex items-center justify-center mb-4 mx-auto" style={{ backgroundColor: 'rgba(251, 191, 36, 0.3)', border: '2px solid rgba(254, 243, 199, 0.4)' }}>
-                    <span className="text-3xl font-bold">JD</span>
+                  <div className="w-24 h-24 rounded-full overflow-hidden mb-4 mx-auto" style={{ border: '3px solid rgba(254, 243, 199, 0.5)' }}>
+                    <img src={exampleAvatar} alt="João Silva" className="w-full h-full object-cover" />
                   </div>
                   <h1 className="text-2xl font-bold mb-2">João Silva</h1>
                   <p className="text-white/80 text-sm leading-relaxed">
