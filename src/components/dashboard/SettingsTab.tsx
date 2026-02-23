@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -7,11 +7,12 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { UsernameInput } from '@/components/ui/username-input';
-import { Copy, Check, Upload, ExternalLink, Trash2, Globe } from 'lucide-react';
+import { Copy, Check, Upload, ExternalLink, Trash2, Globe, Loader2, CheckCircle2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { useUsernameValidation } from '@/hooks/useUsernameValidation';
+import { useAutosave } from '@/hooks/useAutosave';
 import { AuthProviderInfo } from './AuthProviderInfo';
 
 interface SettingsTabProps {
@@ -26,7 +27,6 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   const { user } = useAuth();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [isLoading, setIsLoading] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
   const [formData, setFormData] = useState({
@@ -74,64 +74,42 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleSave = async () => {
+  const canAutosave = useMemo(() => {
+    if (!user) return false;
+    if (formData.username && (!usernameValidation.isValid || !usernameValidation.isAvailable)) return false;
+    return true;
+  }, [user, formData.username, usernameValidation.isValid, usernameValidation.isAvailable]);
+
+  const handleAutosave = useCallback(async (data: typeof formData) => {
     if (!user) return;
     
-    // Validate username before saving
-    if (formData.username && (!usernameValidation.isValid || !usernameValidation.isAvailable)) {
-      toast({
-        title: "Username inválido",
-        description: "Por favor, escolha um username válido e disponível.",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    setIsLoading(true);
-    
-    try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          username: formData.username || null,
-          full_name: formData.full_name || null,
-          bio: formData.bio || null,
-          avatar_url: formData.avatar_url || null,
-          custom_domain: formData.custom_domain || null,
-          preferred_domain: formData.preferred_domain,
-        })
-        .eq('id', user.id);
+    const { error } = await supabase
+      .from('profiles')
+      .update({
+        username: data.username || null,
+        full_name: data.full_name || null,
+        bio: data.bio || null,
+        avatar_url: data.avatar_url || null,
+        custom_domain: data.custom_domain || null,
+        preferred_domain: data.preferred_domain,
+      })
+      .eq('id', user.id);
 
-      if (error) {
-        // Handle specific username constraint error
-        if (error.code === '23505' && error.message.includes('username')) {
-          toast({
-            title: "Username já existe",
-            description: "Este username já está sendo usado por outro usuário.",
-            variant: "destructive",
-          });
-          return;
-        }
-        throw error;
+    if (error) {
+      if (error.code === '23505' && error.message.includes('username')) {
+        toast({
+          title: "Username já existe",
+          description: "Este username já está sendo usado por outro usuário.",
+          variant: "destructive",
+        });
       }
-
-      toast({
-        title: "Perfil atualizado!",
-        description: "Suas informações foram salvas com sucesso.",
-      });
-      
-      onProfileUpdate();
-    } catch (error) {
-      console.error('Error updating profile:', error);
-      toast({
-        title: "Erro",
-        description: "Não foi possível atualizar o perfil.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
+      throw error;
     }
-  };
+    
+    onProfileUpdate();
+  }, [user, toast, onProfileUpdate]);
+
+  const autosaveStatus = useAutosave(formData, handleAutosave, 1500, canAutosave);
 
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -373,14 +351,27 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             </p>
           </div>
 
-          {/* Save Button */}
-          <Button
-            onClick={handleSave}
-            disabled={isLoading || (formData.username && (!usernameValidation.isValid || !usernameValidation.isAvailable))}
-            className="w-full btn-gradient-primary"
-          >
-            {isLoading ? 'Salvando...' : 'Salvar Configurações'}
-          </Button>
+          {/* Autosave Status */}
+          <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground py-2">
+            {autosaveStatus === 'saving' && (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>Salvando automaticamente...</span>
+              </>
+            )}
+            {autosaveStatus === 'saved' && (
+              <>
+                <CheckCircle2 className="h-4 w-4 text-green-500" />
+                <span className="text-green-500">Salvo automaticamente</span>
+              </>
+            )}
+            {autosaveStatus === 'error' && (
+              <span className="text-destructive">Erro ao salvar. Tente novamente.</span>
+            )}
+            {autosaveStatus === 'idle' && (
+              <span className="text-muted-foreground/50">As alterações são salvas automaticamente</span>
+            )}
+          </div>
         </CardContent>
       </Card>
 

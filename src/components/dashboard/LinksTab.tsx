@@ -1,12 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Plus, GripVertical, Trash2, ExternalLink, Instagram, Youtube, Github, Globe, Mail, Facebook, Linkedin, Pencil } from 'lucide-react';
+import { Plus, GripVertical, Trash2, ExternalLink, Instagram, Youtube, Github, Globe, Mail, Facebook, Linkedin, Pencil, Loader2, CheckCircle2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { useAutosave } from '@/hooks/useAutosave';
 import { isValidUrl, sanitizeText } from '@/utils/sanitize';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import {
@@ -254,42 +255,23 @@ export const LinksTab: React.FC<LinksTabProps> = ({ profile, onProfileUpdate }) 
     setShowEditDialog(true);
   };
 
-  const handleSaveEdit = async () => {
-    if (!editingLink || !editLinkData.title || !editLinkData.url) {
-      toast({
-        title: "Erro",
-        description: "Preencha todos os campos.",
-        variant: "destructive",
-      });
-      return;
-    }
+  const handleAutoSaveEdit = useCallback(async (data: { title: string; url: string }) => {
+    if (!editingLink) return;
+    if (!data.title || !data.url) return;
+    if (!isValidUrl(data.url)) return;
 
-    if (!isValidUrl(editLinkData.url)) {
-      toast({
-        title: "URL inválida",
-        description: "A URL fornecida não é válida. Use URLs com http:// ou https://.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setLoading(true);
     const { error } = await supabase
       .from('links')
-      .update({ title: sanitizeText(editLinkData.title, 100), url: editLinkData.url.trim() })
+      .update({ title: sanitizeText(data.title, 100), url: data.url.trim() })
       .eq('id', editingLink.id);
 
-    if (error) {
-      toast({ title: "Erro", description: "Erro ao salvar alterações.", variant: "destructive" });
-    } else {
-      toast({ title: "Link atualizado!", description: "As alterações foram salvas." });
-      setShowEditDialog(false);
-      setEditingLink(null);
-      loadLinks();
-      window.dispatchEvent(new CustomEvent('linksUpdated'));
-    }
-    setLoading(false);
-  };
+    if (error) throw error;
+    
+    loadLinks();
+    window.dispatchEvent(new CustomEvent('linksUpdated'));
+  }, [editingLink]);
+
+  const editAutosaveStatus = useAutosave(editLinkData, handleAutoSaveEdit, 1500, showEditDialog && !!editingLink);
 
   const selectLinkType = (linkType: any) => {
     setSelectedLinkType(linkType);
@@ -452,12 +434,26 @@ export const LinksTab: React.FC<LinksTabProps> = ({ profile, onProfileUpdate }) 
                 className="mt-1"
               />
             </div>
-            <div className="flex space-x-2">
-              <Button variant="outline" onClick={() => setShowEditDialog(false)} className="flex-1">
-                Cancelar
-              </Button>
-              <Button onClick={handleSaveEdit} disabled={loading} className="flex-1 btn-gradient-primary">
-                {loading ? 'Salvando...' : 'Salvar'}
+            <div className="flex items-center justify-between pt-2">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                {editAutosaveStatus === 'saving' && (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Salvando...</span>
+                  </>
+                )}
+                {editAutosaveStatus === 'saved' && (
+                  <>
+                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                    <span className="text-green-500">Salvo</span>
+                  </>
+                )}
+                {editAutosaveStatus === 'idle' && (
+                  <span className="text-muted-foreground/50">Autosave ativo</span>
+                )}
+              </div>
+              <Button variant="outline" size="sm" onClick={() => setShowEditDialog(false)}>
+                Fechar
               </Button>
             </div>
           </div>
