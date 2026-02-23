@@ -76,6 +76,11 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
     ? `${getSelectedDomain()}/${profile.username}`
     : 'Configure seu @username primeiro';
 
+  // Shareable URL via edge function (serves proper OG meta tags for social previews)
+  const shareableUrl = profile?.username
+    ? `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/profile-og?u=${profile.username}`
+    : publicUrl;
+
   const handleInputChange = (field: string, value: string | boolean) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
@@ -217,11 +222,11 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
     if (!profile?.username) return;
     
     try {
-      await navigator.clipboard.writeText(publicUrl);
+      await navigator.clipboard.writeText(shareableUrl);
       setIsCopied(true);
       toast({
         title: "Link copiado!",
-        description: "O link foi copiado para a área de transferência.",
+        description: "Link otimizado para redes sociais copiado.",
       });
       setTimeout(() => setIsCopied(false), 2000);
     } catch (error) {
