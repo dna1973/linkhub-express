@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { UsernameInput } from '@/components/ui/username-input';
 import { Copy, Check, Upload, ExternalLink, Trash2, Globe, Loader2, CheckCircle2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -39,6 +40,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
     avatar_url: profile?.avatar_url || '',
     custom_domain: profile?.custom_domain || '',
     preferred_domain: profile?.preferred_domain || 'lovable',
+    show_username: profile?.show_username ?? true,
   });
 
   // Username validation
@@ -54,6 +56,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
         avatar_url: profile.avatar_url || '',
         custom_domain: profile.custom_domain || '',
         preferred_domain: profile.preferred_domain || 'lovable',
+        show_username: profile.show_username ?? true,
       });
     }
   }, [profile]);
@@ -73,7 +76,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
     ? `${getSelectedDomain()}/${profile.username}`
     : 'Configure seu @username primeiro';
 
-  const handleInputChange = (field: string, value: string) => {
+  const handleInputChange = (field: string, value: string | boolean) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
@@ -95,6 +98,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
         avatar_url: data.avatar_url || null,
         custom_domain: data.custom_domain || null,
         preferred_domain: data.preferred_domain,
+        show_username: data.show_username,
       })
       .eq('id', user.id);
 
@@ -340,6 +344,20 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             <p className="text-xs text-muted-foreground mt-1">
               {formData.bio.length}/160 caracteres
             </p>
+          </div>
+
+          {/* Show Username Toggle */}
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label>Exibir @username no perfil público</Label>
+              <p className="text-xs text-muted-foreground">
+                Quando desativado, o @username não aparecerá na sua página pública.
+              </p>
+            </div>
+            <Switch
+              checked={formData.show_username}
+              onCheckedChange={(checked) => handleInputChange('show_username', checked as any)}
+            />
           </div>
 
           {/* Autosave Status */}
