@@ -27,6 +27,17 @@ const ICON_MAP: Record<string, any> = {
   default: ExternalLink,
 };
 
+const updateMetaTag = (name: string, content: string, isProperty = false) => {
+  const attr = isProperty ? 'property' : 'name';
+  let el = document.querySelector(`meta[${attr}="${name}"]`) as HTMLMetaElement | null;
+  if (!el) {
+    el = document.createElement('meta');
+    el.setAttribute(attr, name);
+    document.head.appendChild(el);
+  }
+  el.setAttribute('content', content);
+};
+
 const PublicProfile = () => {
   const { username } = useParams();
   const [profile, setProfile] = useState<any>(null);
@@ -40,10 +51,30 @@ const PublicProfile = () => {
     }
   }, [username]);
 
-  // Registrar visualização do perfil
+  // Atualizar meta tags dinâmicas e registrar visualização
   useEffect(() => {
     if (profile?.id) {
       registerProfileView();
+      
+      // Dynamic meta tags for SEO / social sharing (client-side)
+      const title = profile.full_name
+        ? `${profile.full_name} | LinkHub`
+        : `@${profile.username} | LinkHub`;
+      const description = profile.bio || `Confira os links de @${profile.username} no LinkHub`;
+      
+      document.title = title;
+      updateMetaTag('description', description);
+      updateMetaTag('og:title', title, true);
+      updateMetaTag('og:description', description, true);
+      updateMetaTag('og:type', 'profile', true);
+      updateMetaTag('og:url', window.location.href, true);
+      if (profile.avatar_url) {
+        updateMetaTag('og:image', profile.avatar_url, true);
+        updateMetaTag('twitter:image', profile.avatar_url);
+      }
+      updateMetaTag('twitter:card', 'summary');
+      updateMetaTag('twitter:title', title);
+      updateMetaTag('twitter:description', description);
     }
   }, [profile?.id]);
 
