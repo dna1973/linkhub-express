@@ -392,9 +392,21 @@ export const ProfilePreview: React.FC<ProfilePreviewProps> = ({ profile }) => {
             </div>
 
             {/* Footer */}
-            <div className="mt-6 pt-4 border-t border-white/10 text-center">
+            <div className="mt-4 pt-3 text-center flex-shrink-0">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => window.location.href = '/'}
+                className="rounded-full px-4 border opacity-70 hover:opacity-100 bg-transparent transition-all duration-200 mb-2 text-[10px] h-7"
+                style={{ 
+                  color: themeStyles.colors?.text || '#ffffff',
+                  borderColor: `${themeStyles.colors?.text || '#ffffff'}50`
+                }}
+              >
+                👉 Clique aqui para criar seu LinkHub
+              </Button>
               <p 
-                className="text-xs opacity-40"
+                className="text-[10px] opacity-40"
                 style={{ color: themeStyles.colors?.text || '#ffffff' }}
               >
                 Powered by LinkHub
