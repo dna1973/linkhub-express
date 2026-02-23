@@ -501,19 +501,22 @@ const PublicProfile = () => {
           {/* Footer */}
           <div className="text-center">
             <p 
-              className="text-sm mb-4 opacity-40"
+              className="text-sm mb-3 opacity-40"
               style={{ color: themeStyles.colors?.text || '#ffffff' }}
             >
               Powered by LinkHub
             </p>
             <Button
-              variant="ghost"
+              variant="outline"
               size="sm"
               onClick={() => window.location.href = '/'}
-              className="opacity-60 hover:opacity-100"
-              style={{ color: themeStyles.colors?.text || '#ffffff' }}
+              className="rounded-full px-6 border-2 opacity-70 hover:opacity-100 bg-transparent transition-all duration-200"
+              style={{ 
+                color: themeStyles.colors?.text || '#ffffff',
+                borderColor: `${themeStyles.colors?.text || '#ffffff'}50`
+              }}
             >
-              Crie o seu LinkHub
+              👉 Clique aqui para criar seu LinkHub
             </Button>
           </div>
         </div>
