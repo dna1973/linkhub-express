@@ -1,1 +1,4 @@
 project_id = "ktfkuidoulxogiscwnws"
+
+[functions.profile-og]
+verify_jwt = false

@@ -23,7 +23,7 @@ Deno.serve(async (req) => {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("full_name, bio, avatar_url, username")
+    .select("full_name, bio, avatar_url, username, custom_domain, preferred_domain")
     .eq("username", username)
     .single();
 
@@ -34,8 +34,15 @@ Deno.serve(async (req) => {
   const description = profile?.bio || `Confira os links de @${username} no LinkHub`;
   const avatar = profile?.avatar_url || "";
   
-  // The published URL of the app
-  const siteUrl = "https://linkhub-express.lovable.app";
+  // Determine redirect URL based on user's preferred domain
+  const defaultSiteUrl = "https://linkhub-express.lovable.app";
+  let siteUrl = defaultSiteUrl;
+  if (profile?.preferred_domain === "custom" && profile?.custom_domain) {
+    const domain = profile.custom_domain.startsWith("http")
+      ? profile.custom_domain
+      : `https://${profile.custom_domain}`;
+    siteUrl = domain;
+  }
   const profileUrl = `${siteUrl}/${username}`;
 
   const html = `<!DOCTYPE html>
