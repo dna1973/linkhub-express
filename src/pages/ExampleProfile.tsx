@@ -57,7 +57,7 @@ const ExampleProfile = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-600 via-blue-600 to-cyan-500">
+    <div className="min-h-screen" style={{ background: 'linear-gradient(135deg, #f59e0b 0%, #dc2626 100%)' }}>
       {/* Back Button */}
       <div className="absolute top-4 left-4 z-10">
         <Button 
@@ -82,10 +82,10 @@ const ExampleProfile = () => {
               </div>
               
               {/* Profile Content */}
-              <div className="h-[calc(100%-1.5rem)] bg-gradient-to-br from-purple-600 via-blue-600 to-cyan-500 flex flex-col items-center text-white p-6 overflow-y-auto">
+              <div className="h-[calc(100%-1.5rem)] flex flex-col items-center text-white p-6 overflow-y-auto" style={{ background: 'linear-gradient(135deg, #f59e0b 0%, #dc2626 100%)' }}>
                 {/* Profile Info */}
                 <div className="text-center mb-8">
-                  <div className="w-24 h-24 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center mb-4 mx-auto">
+                  <div className="w-24 h-24 rounded-full backdrop-blur-sm flex items-center justify-center mb-4 mx-auto" style={{ backgroundColor: 'rgba(251, 191, 36, 0.3)', border: '2px solid rgba(254, 243, 199, 0.4)' }}>
                     <span className="text-3xl font-bold">JD</span>
                   </div>
                   <h1 className="text-2xl font-bold mb-2">João Silva</h1>
@@ -102,9 +102,10 @@ const ExampleProfile = () => {
                     <button
                       key={link.id}
                       onClick={handleLinkClick}
-                      className="w-full bg-white/10 backdrop-blur-sm border border-white/20 rounded-2xl p-4 hover:bg-white/20 transition-all duration-300 flex items-center space-x-4 group"
+                      className="w-full backdrop-blur-sm rounded-full p-4 hover:bg-white/20 transition-all duration-300 flex items-center space-x-4 group"
+                      style={{ backgroundColor: 'rgba(255,255,255,0.1)', border: '1px solid rgba(254, 243, 199, 0.3)' }}
                     >
-                      <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center">
+                      <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ backgroundColor: 'rgba(251, 191, 36, 0.25)' }}>
                         <link.icon className="h-6 w-6 text-white" />
                       </div>
                       <div className="flex-1 text-left">
