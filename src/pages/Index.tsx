@@ -199,7 +199,7 @@ const Index = () => {
             </button>
           </div>
           <p className="text-muted-foreground text-sm">
-            © {new Date().getFullYear()} LinkHub Express. Feito com ❤️ para criadores de conteúdo.
+            © {new Date().getFullYear()} LinkHub Express.
           </p>
         </div>
       </footer>
