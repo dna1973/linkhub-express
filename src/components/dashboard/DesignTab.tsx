@@ -6,7 +6,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Palette, Sparkles, Save, Type, Zap, Image } from 'lucide-react';
+import { Palette, Sparkles, Save, Type, Zap, Image, UserCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -257,7 +257,7 @@ export const DesignTab: React.FC<DesignTabProps> = ({ profile, onProfileUpdate }
   const [selectedTheme, setSelectedTheme] = useState('pebble-blue');
   const [customConfig, setCustomConfig] = useState<ThemeConfig>(customTheme);
   const [loading, setLoading] = useState(false);
-  const [activeCustomTab, setActiveCustomTab] = useState<'background' | 'typography' | 'buttons'>('background');
+  const [activeCustomTab, setActiveCustomTab] = useState<'background' | 'typography' | 'buttons' | 'avatar'>('background');
 
   useEffect(() => {
     if (profile?.theme_options) {
@@ -434,6 +434,15 @@ export const DesignTab: React.FC<DesignTabProps> = ({ profile, onProfileUpdate }
                   >
                     <Zap className="h-3 w-3 mr-1" />
                     Botões
+                  </Button>
+                  <Button
+                    variant={activeCustomTab === 'avatar' ? 'default' : 'ghost'}
+                    size="sm"
+                    onClick={() => setActiveCustomTab('avatar')}
+                    className="flex-1 h-8 text-xs"
+                  >
+                    <UserCircle className="h-3 w-3 mr-1" />
+                    Avatar
                   </Button>
                 </div>
 
@@ -637,6 +646,17 @@ export const DesignTab: React.FC<DesignTabProps> = ({ profile, onProfileUpdate }
                       Cor aplicada ao nome, bio e textos do perfil
                     </p>
                   </div>
+
+                    </div>
+                  )}
+
+                  {/* Tab: Avatar */}
+                  {activeCustomTab === 'avatar' && (
+                    <div className="space-y-4">
+                  <h4 className="font-medium flex items-center">
+                    <UserCircle className="h-4 w-4 mr-2" />
+                    Avatar
+                  </h4>
 
                   {/* Avatar Border Color */}
                   <div>
