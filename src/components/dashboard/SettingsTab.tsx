@@ -157,7 +157,18 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
       if (uploadError) throw uploadError;
 
       const { data } = supabase.storage.from('avatars').getPublicUrl(filePath);
-      setFormData(prev => ({ ...prev, avatar_url: data.publicUrl }));
+      const newAvatarUrl = data.publicUrl;
+
+      // Save directly to database (don't rely on autosave delay)
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ avatar_url: newAvatarUrl })
+        .eq('id', user.id);
+
+      if (updateError) throw updateError;
+
+      setFormData(prev => ({ ...prev, avatar_url: newAvatarUrl }));
+      onProfileUpdate();
       toast({ title: "Sucesso!", description: "Imagem carregada com sucesso." });
     } catch (error) {
       console.error('Error uploading image:', error);
