@@ -2,12 +2,14 @@ import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Link, Sparkles, Zap, Palette, BarChart3 } from 'lucide-react';
+import { Link, Sparkles, Zap, Palette, BarChart3, Sun, Moon } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from 'next-themes';
 
 const Index = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { theme, setTheme } = useTheme();
 
   useEffect(() => {
     if (user) {
@@ -50,12 +52,22 @@ const Index = () => {
             <h1 className="text-xl font-bold">LinkHub</h1>
           </div>
           
-          <Button 
-            onClick={() => navigate('/auth')}
-            className="btn-gradient-primary hover-bounce"
-          >
-            Começar Grátis
-          </Button>
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+              className="rounded-full"
+            >
+              {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+            </Button>
+            <Button 
+              onClick={() => navigate('/auth')}
+              className="btn-gradient-primary hover-bounce"
+            >
+              Começar Grátis
+            </Button>
+          </div>
         </div>
       </header>
 
