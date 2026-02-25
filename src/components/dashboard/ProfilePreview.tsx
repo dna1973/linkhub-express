@@ -87,6 +87,7 @@ export const ProfilePreview: React.FC<ProfilePreviewProps> = ({ profile }) => {
         ? `linear-gradient(135deg, ${custom.background.colors?.[0] || '#111827'}, ${custom.background.colors?.[1] || '#1f2937'})`
         : custom.background?.color || '#111827',
       buttonStyle: custom.buttonStyle?.type || 'glass',
+      buttonSize: (custom.buttonStyle as any)?.size || 'md',
       font: custom.font || { family: 'inter', size: 'md', weight: 'normal' },
       colors: custom.colors || { primary: '#ffffff', secondary: '#f3f4f6', accent: '#3b82f6', text: '#ffffff' },
     };
@@ -380,7 +381,7 @@ export const ProfilePreview: React.FC<ProfilePreviewProps> = ({ profile }) => {
                     <Button
                       key={link.id}
                       onClick={() => handleLinkClick(link.id, link.url)}
-                      className={`w-full h-12 ${getButtonClassName(themeStyles.buttonStyle)} hover-bounce flex items-center justify-center space-x-3 transition-all duration-200`}
+                      className={`w-full ${themeStyles.buttonSize === 'sm' ? 'h-10' : themeStyles.buttonSize === 'lg' ? 'h-14' : 'h-12'} ${getButtonClassName(themeStyles.buttonStyle)} hover-bounce flex items-center justify-center space-x-3 transition-all duration-200`}
                       style={getButtonStyle(themeStyles.buttonStyle)}
                     >
                       <IconComponent className="h-5 w-5" />
