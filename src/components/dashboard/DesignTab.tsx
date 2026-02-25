@@ -205,62 +205,17 @@ export const DesignTab: React.FC<DesignTabProps> = ({ profile, onProfileUpdate }
 
   return (
     <div className="space-y-4">
-      <Tabs defaultValue="themes" className="w-full">
-        <TabsList className="w-full grid grid-cols-3">
-          <TabsTrigger value="themes" className="text-xs sm:text-sm">
-            <Sparkles className="h-4 w-4 mr-1.5" />
-            Temas
+      <Tabs defaultValue="templates" className="w-full">
+        <TabsList className="w-full grid grid-cols-2">
+          <TabsTrigger value="templates" className="text-xs sm:text-sm">
+            <LayoutTemplate className="h-4 w-4 mr-1.5" />
+            Modelos
           </TabsTrigger>
           <TabsTrigger value="custom" className="text-xs sm:text-sm">
             <Palette className="h-4 w-4 mr-1.5" />
             Personalizado
           </TabsTrigger>
-          <TabsTrigger value="templates" className="text-xs sm:text-sm">
-            <LayoutTemplate className="h-4 w-4 mr-1.5" />
-            Modelos
-          </TabsTrigger>
         </TabsList>
-
-        {/* Tab: Temas Predefinidos */}
-        <TabsContent value="themes" className="mt-4 space-y-4">
-          <RadioGroup value={selectedTheme} onValueChange={handleThemeSelect}>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {PREDEFINED_THEMES.map((theme) => (
-                <Label key={theme.id} htmlFor={theme.id} className="cursor-pointer">
-                  <Card className={`bg-card/30 border-border/50 hover:shadow-lg hover:scale-105 transition-all duration-200 ${
-                    selectedTheme === theme.id ? 'ring-2 ring-primary shadow-lg' : ''
-                  }`}>
-                    <CardContent className="p-4">
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                          <RadioGroupItem value={theme.id} id={theme.id} />
-                          {selectedTheme === theme.id && (
-                            <Badge variant="secondary" className="text-xs">Selecionado</Badge>
-                          )}
-                        </div>
-                        <div
-                          className="w-full h-11 rounded-lg border-2 border-white/20 shadow-sm"
-                          style={{ background: theme.preview }}
-                        />
-                        <div className="text-center">
-                          <h4 className="font-medium text-sm">{theme.name}</h4>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {theme.config.buttonStyle.type} • {theme.config.background.type}
-                          </p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </Label>
-              ))}
-            </div>
-          </RadioGroup>
-
-          <Button onClick={handleSaveTheme} disabled={loading} className="w-full btn-gradient-primary hover-bounce">
-            <Save className="h-4 w-4 mr-2" />
-            {loading ? 'Salvando...' : 'Salvar Configurações'}
-          </Button>
-        </TabsContent>
 
         {/* Tab: Personalizado */}
         <TabsContent value="custom" className="mt-4 space-y-4">
