@@ -340,24 +340,31 @@ export const OnboardingDialog: React.FC<OnboardingDialogProps> = ({ open, onComp
         .eq('id', user.id);
       if (profileError) throw profileError;
 
-      // 2. Create links for selected platforms
+      // 2. Create links for selected platforms (only if user provided a URL)
       if (selectedPlatforms.size > 0) {
-        const linksToCreate = Array.from(selectedPlatforms).map((platformId, index) => {
-          const platform = PLATFORMS.find(p => p.id === platformId)!;
-          const url = platformUrls[platformId]?.trim() || platform.placeholder;
-          return {
-            user_id: user.id,
-            title: platform.label,
-            url,
-            position: index,
-            is_visible: true,
-          };
-        });
+        const linksToCreate = Array.from(selectedPlatforms)
+          .filter((platformId) => {
+            const url = platformUrls[platformId]?.trim();
+            return url && url.length > 0;
+          })
+          .map((platformId, index) => {
+            const platform = PLATFORMS.find(p => p.id === platformId)!;
+            const url = platformUrls[platformId]!.trim();
+            return {
+              user_id: user.id,
+              title: platform.label,
+              url,
+              position: index,
+              is_visible: true,
+            };
+          });
 
-        const { error: linksError } = await supabase
-          .from('links')
-          .insert(linksToCreate);
-        if (linksError) throw linksError;
+        if (linksToCreate.length > 0) {
+          const { error: linksError } = await supabase
+            .from('links')
+            .insert(linksToCreate);
+          if (linksError) throw linksError;
+        }
       }
 
       onComplete(selectedType);

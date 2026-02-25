@@ -183,12 +183,13 @@ const PublicProfile = () => {
   const getThemeStyles = () => {
     const themeOptions = profile?.theme_options;
     
-    if (themeOptions?.themeId === 'custom' && themeOptions?.custom) {
+    // Use custom config when available (from onboarding templates or custom theme)
+    if (themeOptions?.custom) {
       const custom = themeOptions.custom;
       return {
         background: custom.background?.type === 'gradient' 
           ? `linear-gradient(135deg, ${custom.background.colors?.[0] || '#111827'}, ${custom.background.colors?.[1] || '#1f2937'})`
-          : custom.background?.color || '#111827',
+          : custom.background?.color || custom.background?.colors?.[0] || '#111827',
         buttonStyle: custom.buttonStyle?.type || 'glass',
         font: custom.font,
         colors: custom.colors,
