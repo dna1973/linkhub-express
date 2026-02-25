@@ -333,57 +333,57 @@ const PublicProfile = () => {
     return Globe;
   };
 
-  const handleLinkClick = async (linkId: number, url: string) => {
-    try {
-      // Obter dados de geolocalização melhorados
-      let geoData = { country: null, countryCode: null, city: null };
-      let deviceType = 'desktop';
-      let sessionId = null;
-      
-      try {
-        const geoModule = await import('@/utils/geolocation');
-        geoData = await geoModule.getGeolocationData();
-        deviceType = geoModule.getDeviceType();
-        sessionId = geoModule.getOrCreateSessionId();
-      } catch (error) {
-        try {
-          const geoResponse = await fetch('https://ipapi.co/json/');
-          if (geoResponse.ok) {
-            const geoDataFallback = await geoResponse.json();
-            geoData = {
-              country: geoDataFallback.country_name || null,
-              countryCode: geoDataFallback.country_code || null,
-              city: geoDataFallback.city || null
-            };
-          }
-        } catch {
-          // Silently fail
-        }
-      }
-
-      // Registrar clique na tabela de analytics com dados melhorados
-      await supabase
-        .from('link_clicks')
-        .insert({
-          link_id: linkId,
-          profile_id: profile.id,
-          ip_address: null,
-          user_agent: navigator.userAgent,
-          referrer: document.referrer || null,
-          country: geoData.country,
-          country_code: geoData.countryCode,
-          city: geoData.city,
-          session_id: sessionId,
-          device_type: deviceType
-        });
-
-      // Click count is automatically incremented by database trigger
-    } catch (error) {
-      console.error('Erro ao registrar clique:', error);
-    }
-
-    // Open link safely with noopener/noreferrer
+  const handleLinkClick = (linkId: number, url: string) => {
+    // CRITICAL: Open link FIRST, synchronously, before any async work.
+    // iOS blocks window.open if it's not called directly from the user gesture.
     safeOpenUrl(url);
+
+    // Register analytics in background (fire-and-forget)
+    (async () => {
+      try {
+        let geoData = { country: null, countryCode: null, city: null };
+        let deviceType = 'desktop';
+        let sessionId = null;
+        
+        try {
+          const geoModule = await import('@/utils/geolocation');
+          geoData = await geoModule.getGeolocationData();
+          deviceType = geoModule.getDeviceType();
+          sessionId = geoModule.getOrCreateSessionId();
+        } catch {
+          try {
+            const geoResponse = await fetch('https://ipapi.co/json/');
+            if (geoResponse.ok) {
+              const geoDataFallback = await geoResponse.json();
+              geoData = {
+                country: geoDataFallback.country_name || null,
+                countryCode: geoDataFallback.country_code || null,
+                city: geoDataFallback.city || null
+              };
+            }
+          } catch {
+            // Silently fail
+          }
+        }
+
+        await supabase
+          .from('link_clicks')
+          .insert({
+            link_id: linkId,
+            profile_id: profile.id,
+            ip_address: null,
+            user_agent: navigator.userAgent,
+            referrer: document.referrer || null,
+            country: geoData.country,
+            country_code: geoData.countryCode,
+            city: geoData.city,
+            session_id: sessionId,
+            device_type: deviceType
+          });
+      } catch (error) {
+        console.error('Erro ao registrar clique:', error);
+      }
+    })();
   };
 
   if (loading) {
