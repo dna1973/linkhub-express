@@ -14,6 +14,7 @@ import { AppSidebar } from '@/components/dashboard/AppSidebar';
 import { OnboardingDialog } from '@/components/dashboard/OnboardingDialog';
 import { supabase } from '@/lib/supabase';
 import { useDesignStore } from '@/stores/useDesignStore';
+import { resolveThemeConfig } from '@/utils/themes';
 
 const Dashboard = () => {
   // Dashboard component
@@ -57,8 +58,9 @@ const Dashboard = () => {
         if (opts.themeId) {
           setCurrentTheme(opts.themeId);
         }
-        if (opts.custom) {
-          setCustomTheme(opts.custom);
+        const resolved = resolveThemeConfig(opts);
+        if (resolved) {
+          setCustomTheme(resolved);
         }
       }
     } else {

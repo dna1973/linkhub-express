@@ -7,6 +7,7 @@ import googleDriveIcon from '@/assets/google-drive.png';
 import notebookLmIcon from '@/assets/notebook-lm.svg';
 import { supabase } from '@/lib/supabase';
 import { safeOpenUrl, isValidUrl } from '@/utils/sanitize';
+import { resolveThemeConfig } from '@/utils/themes';
 
 const ICON_MAP: Record<string, any> = {
   instagram: Instagram,
@@ -182,76 +183,24 @@ const PublicProfile = () => {
 
   const getThemeStyles = () => {
     const themeOptions = profile?.theme_options;
+    const resolved = resolveThemeConfig(themeOptions as Record<string, any> | null);
     
-    // Use custom config when available (from onboarding templates or custom theme)
-    if (themeOptions?.custom) {
-      const custom = themeOptions.custom;
+    if (resolved) {
       return {
-        background: custom.background?.type === 'gradient' 
-          ? `linear-gradient(135deg, ${custom.background.colors?.[0] || '#111827'}, ${custom.background.colors?.[1] || '#1f2937'})`
-          : custom.background?.color || custom.background?.colors?.[0] || '#111827',
-        buttonStyle: custom.buttonStyle?.type || 'glass',
-        font: custom.font,
-        colors: custom.colors,
+        background: resolved.background?.type === 'gradient' 
+          ? `linear-gradient(135deg, ${resolved.background.colors?.[0] || '#111827'}, ${resolved.background.colors?.[1] || '#1f2937'})`
+          : resolved.background?.color || resolved.background?.colors?.[0] || '#111827',
+        buttonStyle: resolved.buttonStyle?.type || 'glass',
+        font: resolved.font,
+        colors: resolved.colors,
       };
     }
 
-    // Temas predefinidos com cores de texto adequadas
-    const defaultThemes: Record<string, any> = {
-      'default': {
-        background: '#111827',
-        buttonStyle: 'glass',
-        colors: { text: '#ffffff' },
-      },
-      'pebble-blue': {
-        background: 'linear-gradient(135deg, #1e3a8a, #3730a3)',
-        buttonStyle: 'solid',
-        colors: { text: '#ffffff' },
-      },
-      'sunset': {
-        background: 'linear-gradient(135deg, #f59e0b, #dc2626)',
-        buttonStyle: 'outline',
-        colors: { text: '#ffffff' },
-      },
-      'ocean': {
-        background: 'linear-gradient(135deg, #0891b2, #1e40af)',
-        buttonStyle: 'modern',
-        colors: { text: '#ffffff' },
-      },
-      'forest': {
-        background: 'linear-gradient(135deg, #065f46, #064e3b)',
-        buttonStyle: 'glass',
-        colors: { text: '#ffffff' },
-      },
-      'purple-rain': {
-        background: 'linear-gradient(135deg, #7c3aed, #c026d3)',
-        buttonStyle: 'solid',
-        colors: { text: '#ffffff' },
-      },
-      'midnight': {
-        background: 'linear-gradient(135deg, #0f172a, #1e293b)',
-        buttonStyle: 'glass',
-        colors: { text: '#ffffff' },
-      },
-      'rose-gold': {
-        background: 'linear-gradient(135deg, #fbbf24, #f59e0b)',
-        buttonStyle: 'modern',
-        colors: { text: '#92400e' },
-      },
-      'cyber-neon': {
-        background: 'linear-gradient(135deg, #0c0c0c, #1a1a1a)',
-        buttonStyle: 'outline',
-        colors: { primary: '#00ff88', secondary: '#00ccff', accent: '#ff0066', text: '#ffffff' },
-      },
-      'coral-reef': {
-        background: 'linear-gradient(135deg, #ff6b6b, #4ecdc4)',
-        buttonStyle: 'solid',
-        colors: { text: '#ffffff' },
-      },
+    return {
+      background: '#111827',
+      buttonStyle: 'glass',
+      colors: { text: '#ffffff' },
     };
-
-    const theme = defaultThemes[themeOptions?.themeId || 'default'];
-    return theme || defaultThemes.default;
   };
 
   const getButtonClassName = (buttonStyle: string, themeColors?: any) => {
@@ -428,7 +377,7 @@ const PublicProfile = () => {
           
           {/* Profile Section */}
           <div className="text-center mb-8">
-            <Avatar className="w-24 h-24 mx-auto mb-6 border-4" style={{ borderColor: themeStyles.colors?.avatarBorder || 'rgba(255,255,255,0.2)' }}>
+            <Avatar className="w-24 h-24 mx-auto mb-6 border-4" style={{ borderColor: (themeStyles.colors as any)?.avatarBorder || 'rgba(255,255,255,0.2)' }}>
               <AvatarImage src={profile?.avatar_url} />
               <AvatarFallback 
                 className="bg-white/10 text-2xl"
