@@ -3,7 +3,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+  "Access-Control-Allow-Methods": "GET, DELETE, OPTIONS",
 };
 
 serve(async (req) => {
@@ -111,6 +112,14 @@ serve(async (req) => {
       if (!targetUserId) throw new Error("userId required");
       if (targetUserId === user.id) throw new Error("Cannot delete yourself");
 
+      // Delete related data first (cascading)
+      await adminClient.from("link_clicks").delete().eq("profile_id", targetUserId);
+      await adminClient.from("profile_views").delete().eq("profile_id", targetUserId);
+      await adminClient.from("links").delete().eq("user_id", targetUserId);
+      await adminClient.from("profiles").delete().eq("id", targetUserId);
+      await adminClient.from("user_roles").delete().eq("user_id", targetUserId);
+
+      // Finally delete auth user
       const { error } = await adminClient.auth.admin.deleteUser(targetUserId);
       if (error) throw error;
 
