@@ -196,7 +196,7 @@ export const ONBOARDING_TEMPLATES = [
     font: 'Montserrat, sans-serif',
     config: {
       background: { type: 'gradient' as const, colors: ['#7C3AED', '#C026D3'] },
-      buttonStyle: { type: 'solid' as const, color: '#FFFFFF', borderRadius: 'md' as const },
+      buttonStyle: { type: 'glass' as const, color: '#D946EF', borderRadius: 'md' as const },
       font: { family: 'montserrat' as const, size: 'md' as const, weight: 'bold' as const },
       colors: { primary: '#2D1B4E', secondary: '#3D2B5E', accent: '#D946EF', text: '#2D1B4E' },
     },
