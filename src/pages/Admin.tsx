@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { Users, Link as LinkIcon, Eye, MousePointerClick, Trash2, Search, ArrowLeft, Shield } from 'lucide-react';
+import { Users, Link as LinkIcon, Eye, MousePointerClick, Trash2, Search, ArrowLeft, Shield, Ban, CheckCircle } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 
 interface AdminUser {
@@ -17,6 +17,7 @@ interface AdminUser {
   email: string;
   created_at: string;
   last_sign_in_at: string | null;
+  banned_until: string | null;
   username: string | null;
   full_name: string | null;
   avatar_url: string | null;
@@ -116,6 +117,36 @@ const Admin = () => {
     }
   };
 
+  const handleToggleBan = async (userId: string, email: string, currentlyBanned: boolean) => {
+    try {
+      const session = (await supabase.auth.getSession()).data.session;
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-users?action=toggle-ban`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${session?.access_token}`,
+            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ userId, ban: !currentlyBanned }),
+        }
+      );
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+
+      const action = currentlyBanned ? 'reativado' : 'inativado';
+      toast({ title: `Usuário ${action}`, description: `${email} foi ${action}.` });
+      setUsers(prev => prev.map(u => 
+        u.id === userId 
+          ? { ...u, banned_until: currentlyBanned ? null : '2126-01-01T00:00:00Z' } 
+          : u
+      ));
+    } catch (err: any) {
+      toast({ title: 'Erro', description: err.message, variant: 'destructive' });
+    }
+  };
+
   if (isAdmin === null || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -191,13 +222,16 @@ const Admin = () => {
                   <TableHead className="hidden md:table-cell">Email</TableHead>
                   <TableHead className="hidden sm:table-cell">Tipo</TableHead>
                   <TableHead className="hidden md:table-cell">Links</TableHead>
+                  <TableHead className="hidden md:table-cell">Status</TableHead>
                   <TableHead className="hidden lg:table-cell">Último acesso</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredUsers.map(u => (
-                  <TableRow key={u.id}>
+                {filteredUsers.map(u => {
+                  const isBanned = u.banned_until && new Date(u.banned_until) > new Date();
+                  return (
+                  <TableRow key={u.id} className={isBanned ? 'opacity-60' : ''}>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <Avatar className="h-8 w-8">
@@ -219,42 +253,61 @@ const Admin = () => {
                       {u.user_type && <Badge variant="outline" className="text-xs">{u.user_type}</Badge>}
                     </TableCell>
                     <TableCell className="hidden md:table-cell text-sm">{u.link_count}</TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      {isBanned ? (
+                        <Badge variant="destructive" className="text-[10px]">Inativo</Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-[10px] border-green-500 text-green-500">Ativo</Badge>
+                      )}
+                    </TableCell>
                     <TableCell className="hidden lg:table-cell text-xs text-muted-foreground">
                       {u.last_sign_in_at ? new Date(u.last_sign_in_at).toLocaleDateString('pt-BR') : '—'}
                     </TableCell>
                     <TableCell className="text-right">
                       {u.role !== 'admin' && (
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Excluir usuário?</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Isso removerá permanentemente <strong>{u.email}</strong> e todos os seus dados (links, analytics, perfil). Esta ação não pode ser desfeita.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={() => handleDeleteUser(u.id, u.email)}
-                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                              >
-                                Excluir
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleToggleBan(u.id, u.email, !!isBanned)}
+                            title={isBanned ? 'Reativar usuário' : 'Inativar usuário'}
+                            className={isBanned ? 'text-green-500 hover:text-green-500' : 'text-orange-500 hover:text-orange-500'}
+                          >
+                            {isBanned ? <CheckCircle className="h-4 w-4" /> : <Ban className="h-4 w-4" />}
+                          </Button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Excluir usuário?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Isso removerá permanentemente <strong>{u.email}</strong> e todos os seus dados (links, analytics, perfil). Esta ação não pode ser desfeita.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => handleDeleteUser(u.id, u.email)}
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                >
+                                  Excluir
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
                       )}
                     </TableCell>
                   </TableRow>
-                ))}
+                  );
+                })}
                 {filteredUsers.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                       Nenhum usuário encontrado.
                     </TableCell>
                   </TableRow>

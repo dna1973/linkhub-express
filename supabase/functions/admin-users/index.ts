@@ -4,7 +4,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-  "Access-Control-Allow-Methods": "GET, DELETE, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
 };
 
 serve(async (req) => {
@@ -92,6 +92,7 @@ serve(async (req) => {
           email: u.email,
           created_at: u.created_at,
           last_sign_in_at: u.last_sign_in_at,
+          banned_until: u.banned_until,
           username: profile.username,
           full_name: profile.full_name,
           avatar_url: profile.avatar_url,
@@ -122,6 +123,33 @@ serve(async (req) => {
       // Finally delete auth user
       const { error } = await adminClient.auth.admin.deleteUser(targetUserId);
       if (error) throw error;
+
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // TOGGLE BAN USER
+    if (req.method === "POST" && action === "toggle-ban") {
+      const body = await req.json();
+      const targetUserId = body.userId;
+      const ban = body.ban; // true = ban, false = unban
+      if (!targetUserId) throw new Error("userId required");
+      if (targetUserId === user.id) throw new Error("Cannot ban yourself");
+
+      if (ban) {
+        // Ban for ~100 years (effectively permanent)
+        const { error } = await adminClient.auth.admin.updateUserById(targetUserId, {
+          ban_duration: "876000h",
+        });
+        if (error) throw error;
+      } else {
+        // Unban
+        const { error } = await adminClient.auth.admin.updateUserById(targetUserId, {
+          ban_duration: "none",
+        });
+        if (error) throw error;
+      }
 
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
