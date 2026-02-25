@@ -10,6 +10,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
+import Admin from "./pages/Admin";
 import Analytics from "./pages/Analytics";
 import PublicProfile from "./pages/PublicProfile";
 import ExampleProfile from "./pages/ExampleProfile";
@@ -33,6 +34,7 @@ const App = () => (
               <Route path="/auth" element={<Auth />} />
               <Route path="/auth/callback" element={<AuthCallback />} />
               <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/admin" element={<Admin />} />
               <Route path="/analytics" element={<Analytics />} />
               <Route path="/exemplo" element={<ExampleProfile />} />
               <Route path="/install" element={<Install />} />
