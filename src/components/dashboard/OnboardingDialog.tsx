@@ -40,7 +40,7 @@ const USER_TYPES = [
   },
 ] as const;
 
-const ONBOARDING_TEMPLATES = [
+export const ONBOARDING_TEMPLATES = [
   {
     id: 'warm-peach',
     name: 'Peach',

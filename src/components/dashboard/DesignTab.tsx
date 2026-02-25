@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -6,13 +7,14 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Palette, Sparkles, Save, Type, Zap, Image, UserCircle, LayoutTemplate } from 'lucide-react';
+import { Palette, Sparkles, Save, Type, Zap, Image, UserCircle, LayoutTemplate, Check } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { useDesignStore, ThemeConfig } from '@/stores/useDesignStore';
 import { PREDEFINED_THEMES } from '@/utils/themes';
+import { ONBOARDING_TEMPLATES } from '@/components/dashboard/OnboardingDialog';
 
 interface DesignTabProps {
   profile: any;
@@ -489,138 +491,84 @@ export const DesignTab: React.FC<DesignTabProps> = ({ profile, onProfileUpdate }
 
         {/* Tab: Modelos */}
         <TabsContent value="templates" className="mt-4 space-y-4">
-          <p className="text-sm text-muted-foreground">Escolha um modelo de layout para seu perfil. Cada modelo organiza seus links e informações de forma diferente.</p>
+          <p className="text-sm text-muted-foreground">Escolha um modelo visual para seu perfil. Clique para aplicar.</p>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {[
-              {
-                id: 'classic',
-                name: 'Clássico',
-                description: 'Avatar centralizado com links em lista vertical',
-                preview: (
-                  <div className="flex flex-col items-center gap-1.5 py-2">
-                    <div className="w-8 h-8 rounded-full bg-muted-foreground/20" />
-                    <div className="w-16 h-1.5 rounded bg-muted-foreground/20" />
-                    <div className="w-12 h-1 rounded bg-muted-foreground/10" />
-                    <div className="w-full space-y-1 mt-1">
-                      <div className="h-3 rounded bg-muted-foreground/15 w-full" />
-                      <div className="h-3 rounded bg-muted-foreground/15 w-full" />
-                      <div className="h-3 rounded bg-muted-foreground/15 w-full" />
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+            {ONBOARDING_TEMPLATES.map((template) => {
+              const isSelected = selectedTheme === template.id;
+              const btnBorderStyle = template.config.buttonStyle.type === 'outline'
+                ? { border: `2px solid ${template.btnText}`, background: 'transparent' }
+                : { background: template.btnBg };
+
+              return (
+                <button
+                  key={template.id}
+                  onClick={() => {
+                    setSelectedTheme(template.id);
+                    setCurrentTheme(template.id);
+                    setCustomTheme(template.config as ThemeConfig);
+                    setCustomConfig(template.config as ThemeConfig);
+                  }}
+                  className={cn(
+                    'relative rounded-2xl overflow-hidden transition-all duration-300',
+                    'w-full h-[220px] sm:h-[240px]',
+                    'hover:scale-105 hover:shadow-xl',
+                    isSelected
+                      ? 'ring-3 ring-primary shadow-xl scale-105'
+                      : 'ring-1 ring-border/30 hover:ring-primary/50'
+                  )}
+                >
+                  <div
+                    className="w-full h-full flex flex-col items-center pt-6 px-3 pb-3"
+                    style={{ background: template.bg }}
+                  >
+                    <div className="w-10 h-10 rounded-full bg-white/30 border-2 border-white/50 mb-2" />
+                    <div
+                      className="text-[10px] font-bold mb-0.5 truncate w-full text-center"
+                      style={{ color: template.textColor, fontFamily: template.font }}
+                    >
+                      Seu Nome
                     </div>
-                  </div>
-                ),
-              },
-              {
-                id: 'card',
-                name: 'Cartão',
-                description: 'Perfil em formato de cartão com links agrupados',
-                preview: (
-                  <div className="p-2">
-                    <div className="rounded-lg border border-muted-foreground/10 p-2">
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="w-6 h-6 rounded-full bg-muted-foreground/20" />
-                        <div className="space-y-0.5">
-                          <div className="w-12 h-1.5 rounded bg-muted-foreground/20" />
-                          <div className="w-8 h-1 rounded bg-muted-foreground/10" />
+                    <div
+                      className="text-[7px] opacity-70 mb-3 truncate w-full text-center"
+                      style={{ color: template.textColor }}
+                    >
+                      Sua bio aqui
+                    </div>
+                    <div className="w-full space-y-1.5">
+                      {['Meu site', 'YouTube', 'Instagram'].map((label) => (
+                        <div
+                          key={label}
+                          className="w-full h-5 flex items-center justify-center text-[7px] font-medium"
+                          style={{
+                            ...btnBorderStyle,
+                            color: template.btnText,
+                            borderRadius: template.btnRadius,
+                            fontFamily: template.font,
+                          }}
+                        >
+                          {label}
                         </div>
-                      </div>
-                      <div className="space-y-1">
-                        <div className="h-3 rounded bg-muted-foreground/15 w-full" />
-                        <div className="h-3 rounded bg-muted-foreground/15 w-full" />
-                      </div>
+                      ))}
                     </div>
                   </div>
-                ),
-              },
-              {
-                id: 'grid',
-                name: 'Grade',
-                description: 'Links exibidos em grade com ícones grandes',
-                preview: (
-                  <div className="flex flex-col items-center gap-1.5 py-2">
-                    <div className="w-8 h-8 rounded-full bg-muted-foreground/20" />
-                    <div className="w-16 h-1.5 rounded bg-muted-foreground/20" />
-                    <div className="grid grid-cols-2 gap-1 w-full mt-1">
-                      <div className="h-8 rounded bg-muted-foreground/15" />
-                      <div className="h-8 rounded bg-muted-foreground/15" />
-                      <div className="h-8 rounded bg-muted-foreground/15" />
-                      <div className="h-8 rounded bg-muted-foreground/15" />
+                  {isSelected && (
+                    <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-primary flex items-center justify-center">
+                      <Check className="h-3 w-3 text-primary-foreground" />
                     </div>
+                  )}
+                  <div className="absolute bottom-0 inset-x-0 bg-black/50 backdrop-blur-sm py-1">
+                    <p className="text-[9px] text-white text-center font-medium">{template.name}</p>
                   </div>
-                ),
-              },
-              {
-                id: 'minimal',
-                name: 'Minimalista',
-                description: 'Design limpo com foco nos links',
-                preview: (
-                  <div className="flex flex-col gap-1.5 py-3 px-2">
-                    <div className="w-12 h-1.5 rounded bg-muted-foreground/20" />
-                    <div className="w-20 h-1 rounded bg-muted-foreground/10" />
-                    <div className="space-y-1.5 mt-2">
-                      <div className="h-2.5 rounded bg-muted-foreground/15 w-full" />
-                      <div className="h-2.5 rounded bg-muted-foreground/15 w-full" />
-                      <div className="h-2.5 rounded bg-muted-foreground/15 w-full" />
-                      <div className="h-2.5 rounded bg-muted-foreground/15 w-full" />
-                    </div>
-                  </div>
-                ),
-              },
-              {
-                id: 'hero',
-                name: 'Hero',
-                description: 'Foto grande no topo com bio destacada',
-                preview: (
-                  <div className="flex flex-col gap-1.5">
-                    <div className="w-full h-12 rounded-t bg-muted-foreground/15" />
-                    <div className="flex flex-col items-center -mt-3">
-                      <div className="w-8 h-8 rounded-full bg-muted-foreground/25 border-2 border-background" />
-                      <div className="w-14 h-1.5 rounded bg-muted-foreground/20 mt-1" />
-                    </div>
-                    <div className="space-y-1 px-2">
-                      <div className="h-3 rounded bg-muted-foreground/15 w-full" />
-                      <div className="h-3 rounded bg-muted-foreground/15 w-full" />
-                    </div>
-                  </div>
-                ),
-              },
-              {
-                id: 'social',
-                name: 'Social',
-                description: 'Estilo rede social com destaque para interações',
-                preview: (
-                  <div className="flex flex-col items-center gap-1.5 py-2">
-                    <div className="w-10 h-10 rounded-full bg-muted-foreground/20" />
-                    <div className="w-16 h-1.5 rounded bg-muted-foreground/20" />
-                    <div className="flex gap-2 mt-0.5">
-                      <div className="text-center"><div className="w-4 h-1 rounded bg-muted-foreground/20 mx-auto" /><div className="w-6 h-0.5 rounded bg-muted-foreground/10 mt-0.5" /></div>
-                      <div className="text-center"><div className="w-4 h-1 rounded bg-muted-foreground/20 mx-auto" /><div className="w-6 h-0.5 rounded bg-muted-foreground/10 mt-0.5" /></div>
-                    </div>
-                    <div className="space-y-1 w-full mt-1">
-                      <div className="h-3 rounded bg-muted-foreground/15 w-full" />
-                      <div className="h-3 rounded bg-muted-foreground/15 w-full" />
-                    </div>
-                  </div>
-                ),
-              },
-            ].map((model) => (
-              <Card
-                key={model.id}
-                className="bg-card/30 border-border/50 hover:shadow-lg hover:scale-105 transition-all duration-200 cursor-pointer opacity-80 hover:opacity-100"
-              >
-                <CardContent className="p-4 space-y-3">
-                  <div className="w-full h-28 rounded-lg bg-muted/30 border border-border/30 overflow-hidden flex items-center justify-center">
-                    <div className="w-16">{model.preview}</div>
-                  </div>
-                  <div className="text-center">
-                    <h4 className="font-medium text-sm">{model.name}</h4>
-                    <p className="text-xs text-muted-foreground mt-1">{model.description}</p>
-                  </div>
-                  <Badge variant="outline" className="text-[10px] w-full justify-center">Em breve</Badge>
-                </CardContent>
-              </Card>
-            ))}
+                </button>
+              );
+            })}
           </div>
+
+          <Button onClick={handleSaveTheme} disabled={loading} className="w-full btn-gradient-primary hover-bounce">
+            <Save className="h-4 w-4 mr-2" />
+            {loading ? 'Salvando...' : 'Salvar Modelo'}
+          </Button>
         </TabsContent>
       </Tabs>
     </div>
