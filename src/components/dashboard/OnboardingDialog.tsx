@@ -216,8 +216,8 @@ const PhoneMockup: React.FC<{
     <button
       onClick={onClick}
       className={cn(
-        'relative rounded-2xl overflow-hidden transition-all duration-300 flex-shrink-0 snap-center',
-        'w-[140px] h-[240px] sm:w-[150px] sm:h-[260px]',
+        'relative rounded-2xl overflow-hidden transition-all duration-300 flex-shrink-0',
+        'w-full max-w-[130px] h-[220px] sm:max-w-[140px] sm:h-[240px]',
         'hover:scale-105 hover:shadow-xl',
         isSelected
           ? 'ring-3 ring-primary shadow-xl scale-105'
@@ -469,7 +469,7 @@ export const OnboardingDialog: React.FC<OnboardingDialogProps> = ({ open, onComp
       <DialogContent
         className={cn(
           '[&>button]:hidden',
-          step === 3 ? 'sm:max-w-2xl' : 'sm:max-w-lg'
+          step === 3 ? 'sm:max-w-3xl max-h-[85vh] overflow-y-auto' : 'sm:max-w-lg'
         )}
         onPointerDownOutside={(e) => e.preventDefault()}
       >
@@ -619,7 +619,7 @@ export const OnboardingDialog: React.FC<OnboardingDialogProps> = ({ open, onComp
         {/* Step 3: Template Selection */}
         {step === 3 && (
           <div className="mt-4">
-            <div className="flex gap-3 overflow-x-auto pb-3 snap-x snap-mandatory scrollbar-thin scrollbar-thumb-muted">
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3 justify-items-center">
               {ONBOARDING_TEMPLATES.map((template) => (
                 <PhoneMockup
                   key={template.id}
