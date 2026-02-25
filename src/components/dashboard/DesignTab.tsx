@@ -278,9 +278,11 @@ export const DesignTab: React.FC<DesignTabProps> = ({ profile, onProfileUpdate }
 
     setLoading(true);
 
+    // Always save custom config — onboarding templates also use it
+    const isPredefined = PREDEFINED_THEMES.some(t => t.id === selectedTheme);
     const themeOptions = {
       themeId: selectedTheme,
-      custom: selectedTheme === 'custom' ? customConfig : null,
+      custom: selectedTheme === 'custom' || !isPredefined ? customConfig : (PREDEFINED_THEMES.find(t => t.id === selectedTheme)?.config || null),
     };
 
     const { error } = await supabase

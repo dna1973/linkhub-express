@@ -13,6 +13,7 @@ import { ProfilePreview } from '@/components/dashboard/ProfilePreview';
 import { AppSidebar } from '@/components/dashboard/AppSidebar';
 import { OnboardingDialog } from '@/components/dashboard/OnboardingDialog';
 import { supabase } from '@/lib/supabase';
+import { useDesignStore } from '@/stores/useDesignStore';
 
 const Dashboard = () => {
   // Dashboard component
@@ -21,6 +22,7 @@ const Dashboard = () => {
   const [profile, setProfile] = useState<any>(null);
   const [activeTab, setActiveTab] = useState('links');
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const { setCurrentTheme, setCustomTheme } = useDesignStore();
 
   useEffect(() => {
     if (!user) {
@@ -48,6 +50,16 @@ const Dashboard = () => {
       // Show onboarding if user_type is not set
       if (!data.user_type) {
         setShowOnboarding(true);
+      }
+      // Sync design store with saved theme
+      if (data.theme_options && typeof data.theme_options === 'object' && !Array.isArray(data.theme_options)) {
+        const opts = data.theme_options as Record<string, any>;
+        if (opts.themeId) {
+          setCurrentTheme(opts.themeId);
+        }
+        if (opts.custom) {
+          setCustomTheme(opts.custom);
+        }
       }
     } else {
       // Create profile if it doesn't exist
