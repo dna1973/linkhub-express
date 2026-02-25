@@ -11,6 +11,7 @@ import { SettingsTab } from '@/components/dashboard/SettingsTab';
 import { AnalyticsTab } from '@/components/dashboard/AnalyticsTab';
 import { ProfilePreview } from '@/components/dashboard/ProfilePreview';
 import { AppSidebar } from '@/components/dashboard/AppSidebar';
+import { OnboardingDialog } from '@/components/dashboard/OnboardingDialog';
 import { supabase } from '@/lib/supabase';
 
 const Dashboard = () => {
@@ -19,6 +20,7 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const [profile, setProfile] = useState<any>(null);
   const [activeTab, setActiveTab] = useState('links');
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -43,6 +45,10 @@ const Dashboard = () => {
       console.error('Error loading profile:', error);
     } else if (data) {
       setProfile(data);
+      // Show onboarding if user_type is not set
+      if (!data.user_type) {
+        setShowOnboarding(true);
+      }
     } else {
       // Create profile if it doesn't exist
       const displayName = user.user_metadata?.full_name || 
@@ -136,6 +142,14 @@ const Dashboard = () => {
             </div>
           </div>
         </main>
+
+        <OnboardingDialog
+          open={showOnboarding}
+          onComplete={(userType) => {
+            setShowOnboarding(false);
+            loadProfile();
+          }}
+        />
       </div>
     </SidebarProvider>
   );

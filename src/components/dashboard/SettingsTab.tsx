@@ -8,7 +8,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { UsernameInput } from '@/components/ui/username-input';
-import { Copy, Check, Upload, ExternalLink, Trash2, Globe, Loader2, CheckCircle2 } from 'lucide-react';
+import { USER_TYPE_LABELS } from './OnboardingDialog';
+import { Copy, Check, Upload, ExternalLink, Trash2, Globe, Loader2, CheckCircle2, Megaphone, Briefcase, User } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -41,6 +42,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
     custom_domain: profile?.custom_domain || '',
     preferred_domain: profile?.preferred_domain || 'lovable',
     show_username: profile?.show_username ?? true,
+    user_type: profile?.user_type || '',
   });
 
   // Username validation
@@ -57,6 +59,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
         custom_domain: profile.custom_domain || '',
         preferred_domain: profile.preferred_domain || 'lovable',
         show_username: profile.show_username ?? true,
+        user_type: profile.user_type || '',
       });
     }
   }, [profile]);
@@ -104,6 +107,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
         custom_domain: data.custom_domain || null,
         preferred_domain: data.preferred_domain,
         show_username: data.show_username,
+        user_type: data.user_type || null,
       })
       .eq('id', user.id);
 
@@ -363,6 +367,42 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
               checked={formData.show_username}
               onCheckedChange={(checked) => handleInputChange('show_username', checked as any)}
             />
+          </div>
+
+          {/* User Type */}
+          <div>
+            <Label>Tipo de uso</Label>
+            <Select
+              value={formData.user_type}
+              onValueChange={(value) => handleInputChange('user_type', value)}
+            >
+              <SelectTrigger className="mt-1">
+                <SelectValue placeholder="Selecione seu tipo de uso" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="creator">
+                  <div className="flex items-center gap-2">
+                    <Megaphone className="h-4 w-4" />
+                    <span>Criador</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="business">
+                  <div className="flex items-center gap-2">
+                    <Briefcase className="h-4 w-4" />
+                    <span>Negócios</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="personal">
+                  <div className="flex items-center gap-2">
+                    <User className="h-4 w-4" />
+                    <span>Pessoal</span>
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground mt-1">
+              Isso personaliza sua experiência no dashboard.
+            </p>
           </div>
 
           {/* Autosave Status */}
