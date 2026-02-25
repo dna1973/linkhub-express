@@ -1,4 +1,5 @@
-import { Link as LinkIcon, Palette, User, Sun, Moon, LogOut, Eye, BarChart3, Sparkles } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Link as LinkIcon, Palette, User, Sun, Moon, LogOut, Eye, BarChart3, Sparkles, Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useTheme } from 'next-themes';
 import { useAuth } from '@/contexts/AuthContext';
@@ -39,6 +40,20 @@ export function AppSidebar({ activeTab, onTabChange, profile }: AppSidebarProps)
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const isCollapsed = state === 'collapsed';
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    import('@/lib/supabase').then(({ supabase }) => {
+      supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', user.id)
+        .eq('role', 'admin')
+        .maybeSingle()
+        .then(({ data }) => setIsAdmin(!!data));
+    });
+  }, [user]);
 
   const handleSignOut = async () => {
     await signOut();
@@ -118,6 +133,17 @@ export function AppSidebar({ activeTab, onTabChange, profile }: AppSidebarProps)
       <SidebarFooter className="p-4 space-y-2">
         {!isCollapsed && user?.email && (
           <p className="text-xs text-muted-foreground truncate px-2 pb-1">{user.email}</p>
+        )}
+        {isAdmin && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate('/admin')}
+            className="w-full justify-start text-primary"
+          >
+            <Shield className="h-4 w-4" />
+            {!isCollapsed && <span className="ml-2">Admin</span>}
+          </Button>
         )}
         <Button
           variant="ghost"
