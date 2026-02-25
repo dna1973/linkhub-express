@@ -404,6 +404,25 @@ export const DesignTab: React.FC<DesignTabProps> = ({ profile, onProfileUpdate }
                         </Select>
                       </div>
                     </div>
+                    <div>
+                      <Label className="text-sm">Tamanho do Botão</Label>
+                      <div className="grid grid-cols-3 gap-2 mt-2">
+                        {[
+                          { id: 'sm', name: 'Pequeno', height: 'h-10' },
+                          { id: 'md', name: 'Médio', height: 'h-12' },
+                          { id: 'lg', name: 'Grande', height: 'h-14' },
+                        ].map((size) => (
+                          <Button
+                            key={size.id}
+                            variant={(customConfig.buttonStyle as any).size === size.id || (!( customConfig.buttonStyle as any).size && size.id === 'md') ? "default" : "outline"}
+                            className={`${size.height} text-xs`}
+                            onClick={() => updateCustomConfig('buttonStyle', { size: size.id })}
+                          >
+                            {size.name}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
                     <div className="space-y-4">
                       <h4 className="font-medium flex items-center">
                         <Palette className="h-4 w-4 mr-2" />
