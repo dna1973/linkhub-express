@@ -5,7 +5,8 @@ import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Megaphone, Briefcase, User } from 'lucide-react';
+import { Loader2, Megaphone, Briefcase, User, ArrowLeft, ArrowRight, Check } from 'lucide-react';
+import { ThemeConfig } from '@/stores/useDesignStore';
 
 interface OnboardingDialogProps {
   open: boolean;
@@ -18,8 +19,6 @@ const USER_TYPES = [
     title: 'Criador',
     description: 'Aumentar meus seguidores e explorar maneiras de monetizar meu público.',
     icon: Megaphone,
-    gradient: 'from-pink-500 to-yellow-400',
-    iconColor: 'text-pink-600',
     bgIcon: 'bg-gradient-to-br from-yellow-300 to-pink-400',
   },
   {
@@ -27,8 +26,6 @@ const USER_TYPES = [
     title: 'Negócios',
     description: 'Expandir meu negócio e alcançar mais clientes.',
     icon: Briefcase,
-    gradient: 'from-purple-500 to-indigo-400',
-    iconColor: 'text-purple-600',
     bgIcon: 'bg-gradient-to-br from-purple-300 to-indigo-400',
   },
   {
@@ -36,35 +33,310 @@ const USER_TYPES = [
     title: 'Pessoal',
     description: 'Compartilhar links com meus amigos e conhecidos.',
     icon: User,
-    gradient: 'from-orange-400 to-blue-500',
-    iconColor: 'text-blue-600',
     bgIcon: 'bg-gradient-to-br from-orange-300 to-blue-400',
   },
 ] as const;
 
+const ONBOARDING_TEMPLATES = [
+  {
+    id: 'warm-peach',
+    name: 'Peach',
+    bg: 'linear-gradient(180deg, #FDDCB5 0%, #F8C4A0 100%)',
+    textColor: '#3D2B1F',
+    btnBg: '#F5A876',
+    btnText: '#3D2B1F',
+    btnRadius: '12px',
+    font: 'Poppins, sans-serif',
+    config: {
+      background: { type: 'gradient' as const, colors: ['#FDDCB5', '#F8C4A0'] },
+      buttonStyle: { type: 'solid' as const, color: '#F5A876', borderRadius: 'lg' as const },
+      font: { family: 'poppins' as const, size: 'md' as const, weight: 'medium' as const },
+      colors: { primary: '#3D2B1F', secondary: '#5C3D2E', accent: '#F5A876', text: '#3D2B1F' },
+    },
+  },
+  {
+    id: 'clean-white',
+    name: 'Clean',
+    bg: '#FFFFFF',
+    textColor: '#1A1A1A',
+    btnBg: '#F5F5F5',
+    btnText: '#1A1A1A',
+    btnRadius: '24px',
+    font: 'Inter, sans-serif',
+    config: {
+      background: { type: 'solid' as const, colors: ['#FFFFFF', '#F9FAFB'] },
+      buttonStyle: { type: 'outline' as const, color: '#E5E7EB', borderRadius: 'full' as const },
+      font: { family: 'inter' as const, size: 'md' as const, weight: 'normal' as const },
+      colors: { primary: '#1A1A1A', secondary: '#6B7280', accent: '#3B82F6', text: '#1A1A1A' },
+    },
+  },
+  {
+    id: 'ocean-deep',
+    name: 'Ocean',
+    bg: 'linear-gradient(180deg, #0891B2 0%, #1E40AF 100%)',
+    textColor: '#FFFFFF',
+    btnBg: 'rgba(255,255,255,0.15)',
+    btnText: '#FFFFFF',
+    btnRadius: '8px',
+    font: 'Montserrat, sans-serif',
+    config: {
+      background: { type: 'gradient' as const, colors: ['#0891B2', '#1E40AF'] },
+      buttonStyle: { type: 'glass' as const, color: '#22D3EE', borderRadius: 'md' as const },
+      font: { family: 'montserrat' as const, size: 'md' as const, weight: 'medium' as const },
+      colors: { primary: '#22D3EE', secondary: '#67E8F9', accent: '#0EA5E9', text: '#FFFFFF' },
+    },
+  },
+  {
+    id: 'sunset-warm',
+    name: 'Sunset',
+    bg: 'linear-gradient(180deg, #F59E0B 0%, #DC2626 100%)',
+    textColor: '#FFFFFF',
+    btnBg: 'rgba(255,255,255,0.2)',
+    btnText: '#FFFFFF',
+    btnRadius: '999px',
+    font: 'Playfair Display, serif',
+    config: {
+      background: { type: 'gradient' as const, colors: ['#F59E0B', '#DC2626'] },
+      buttonStyle: { type: 'outline' as const, color: '#FFFFFF', borderRadius: 'full' as const },
+      font: { family: 'playfair' as const, size: 'lg' as const, weight: 'bold' as const },
+      colors: { primary: '#FFFFFF', secondary: '#FEF3C7', accent: '#FBBF24', text: '#FFFFFF' },
+    },
+  },
+  {
+    id: 'midnight-dark',
+    name: 'Midnight',
+    bg: 'linear-gradient(180deg, #0F172A 0%, #1E293B 100%)',
+    textColor: '#E2E8F0',
+    btnBg: '#334155',
+    btnText: '#E2E8F0',
+    btnRadius: '12px',
+    font: 'Inter, sans-serif',
+    config: {
+      background: { type: 'gradient' as const, colors: ['#0F172A', '#1E293B'] },
+      buttonStyle: { type: 'glass' as const, color: '#3B82F6', borderRadius: 'lg' as const },
+      font: { family: 'inter' as const, size: 'md' as const, weight: 'normal' as const },
+      colors: { primary: '#3B82F6', secondary: '#64748B', accent: '#06B6D4', text: '#FFFFFF' },
+    },
+  },
+  {
+    id: 'forest-green',
+    name: 'Forest',
+    bg: 'linear-gradient(180deg, #065F46 0%, #064E3B 100%)',
+    textColor: '#D1FAE5',
+    btnBg: 'rgba(16,185,129,0.25)',
+    btnText: '#6EE7B7',
+    btnRadius: '12px',
+    font: 'Roboto Mono, monospace',
+    config: {
+      background: { type: 'gradient' as const, colors: ['#065F46', '#064E3B'] },
+      buttonStyle: { type: 'glass' as const, color: '#10B981', borderRadius: 'lg' as const },
+      font: { family: 'roboto-mono' as const, size: 'md' as const, weight: 'normal' as const },
+      colors: { primary: '#10B981', secondary: '#6EE7B7', accent: '#34D399', text: '#FFFFFF' },
+    },
+  },
+  {
+    id: 'cyber-neon',
+    name: 'Neon',
+    bg: 'linear-gradient(180deg, #0C0C0C 0%, #1A1A2E 100%)',
+    textColor: '#00FF88',
+    btnBg: 'transparent',
+    btnText: '#00FF88',
+    btnRadius: '0px',
+    font: 'Source Code Pro, monospace',
+    config: {
+      background: { type: 'gradient' as const, colors: ['#0C0C0C', '#1A1A2E'] },
+      buttonStyle: { type: 'outline' as const, color: '#00FF88', borderRadius: 'none' as const },
+      font: { family: 'source-code-pro' as const, size: 'md' as const, weight: 'bold' as const },
+      colors: { primary: '#00FF88', secondary: '#00CCFF', accent: '#FF0066', text: '#FFFFFF' },
+    },
+  },
+  {
+    id: 'rose-elegant',
+    name: 'Rose',
+    bg: 'linear-gradient(180deg, #FFF1F2 0%, #FFE4E6 100%)',
+    textColor: '#881337',
+    btnBg: '#FB7185',
+    btnText: '#FFFFFF',
+    btnRadius: '999px',
+    font: 'Lora, serif',
+    config: {
+      background: { type: 'gradient' as const, colors: ['#FFF1F2', '#FFE4E6'] },
+      buttonStyle: { type: 'solid' as const, color: '#FB7185', borderRadius: 'full' as const },
+      font: { family: 'lora' as const, size: 'md' as const, weight: 'medium' as const },
+      colors: { primary: '#881337', secondary: '#BE185D', accent: '#FB7185', text: '#881337' },
+    },
+  },
+  {
+    id: 'sand-cream',
+    name: 'Sand',
+    bg: 'linear-gradient(180deg, #FEF3C7 0%, #FDE68A 100%)',
+    textColor: '#78350F',
+    btnBg: '#D97706',
+    btnText: '#FFFBEB',
+    btnRadius: '12px',
+    font: 'Poppins, sans-serif',
+    config: {
+      background: { type: 'gradient' as const, colors: ['#FEF3C7', '#FDE68A'] },
+      buttonStyle: { type: 'solid' as const, color: '#D97706', borderRadius: 'lg' as const },
+      font: { family: 'poppins' as const, size: 'md' as const, weight: 'medium' as const },
+      colors: { primary: '#78350F', secondary: '#92400E', accent: '#D97706', text: '#78350F' },
+    },
+  },
+  {
+    id: 'purple-haze',
+    name: 'Purple',
+    bg: 'linear-gradient(180deg, #7C3AED 0%, #C026D3 100%)',
+    textColor: '#FFFFFF',
+    btnBg: 'rgba(255,255,255,0.2)',
+    btnText: '#FFFFFF',
+    btnRadius: '8px',
+    font: 'Montserrat, sans-serif',
+    config: {
+      background: { type: 'gradient' as const, colors: ['#7C3AED', '#C026D3'] },
+      buttonStyle: { type: 'solid' as const, color: '#FFFFFF', borderRadius: 'md' as const },
+      font: { family: 'montserrat' as const, size: 'md' as const, weight: 'bold' as const },
+      colors: { primary: '#FFFFFF', secondary: '#E9D5FF', accent: '#D946EF', text: '#FFFFFF' },
+    },
+  },
+];
+
+// Mini phone mockup component for template preview
+const PhoneMockup: React.FC<{
+  template: typeof ONBOARDING_TEMPLATES[number];
+  isSelected: boolean;
+  onClick: () => void;
+}> = ({ template, isSelected, onClick }) => {
+  const btnBorderStyle = template.config.buttonStyle.type === 'outline'
+    ? { border: `2px solid ${template.btnText}`, background: 'transparent' }
+    : { background: template.btnBg };
+
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        'relative rounded-2xl overflow-hidden transition-all duration-300 flex-shrink-0 snap-center',
+        'w-[140px] h-[240px] sm:w-[150px] sm:h-[260px]',
+        'hover:scale-105 hover:shadow-xl',
+        isSelected
+          ? 'ring-3 ring-primary shadow-xl scale-105'
+          : 'ring-1 ring-border/30 hover:ring-primary/50'
+      )}
+    >
+      {/* Phone body */}
+      <div
+        className="w-full h-full flex flex-col items-center pt-6 px-3 pb-3"
+        style={{ background: template.bg }}
+      >
+        {/* Avatar placeholder */}
+        <div className="w-10 h-10 rounded-full bg-white/30 border-2 border-white/50 mb-2" />
+        {/* Name */}
+        <div
+          className="text-[10px] font-bold mb-0.5 truncate w-full text-center"
+          style={{ color: template.textColor, fontFamily: template.font }}
+        >
+          Seu Nome
+        </div>
+        {/* Bio */}
+        <div
+          className="text-[7px] opacity-70 mb-3 truncate w-full text-center"
+          style={{ color: template.textColor }}
+        >
+          Sua bio aqui
+        </div>
+        {/* Buttons */}
+        <div className="w-full space-y-1.5">
+          {['Meu site', 'YouTube', 'Instagram'].map((label) => (
+            <div
+              key={label}
+              className="w-full h-5 flex items-center justify-center text-[7px] font-medium"
+              style={{
+                ...btnBorderStyle,
+                color: template.btnText,
+                borderRadius: template.btnRadius,
+                fontFamily: template.font,
+              }}
+            >
+              {label}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Selected check */}
+      {isSelected && (
+        <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-primary flex items-center justify-center">
+          <Check className="h-3 w-3 text-primary-foreground" />
+        </div>
+      )}
+
+      {/* Label */}
+      <div className="absolute bottom-0 inset-x-0 bg-black/50 backdrop-blur-sm py-1">
+        <p className="text-[9px] text-white text-center font-medium">{template.name}</p>
+      </div>
+    </button>
+  );
+};
+
 export const OnboardingDialog: React.FC<OnboardingDialogProps> = ({ open, onComplete }) => {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [selected, setSelected] = useState<string | null>(null);
+  const [step, setStep] = useState<1 | 2>(1);
+  const [selectedType, setSelectedType] = useState<string | null>(null);
+  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   const handleConfirm = async () => {
-    if (!selected || !user) return;
+    if (step === 1) {
+      if (!selectedType) return;
+      setStep(2);
+      return;
+    }
+
+    // Step 2: save both user_type and template
+    if (!user) return;
 
     setSaving(true);
     try {
+      const template = ONBOARDING_TEMPLATES.find(t => t.id === selectedTemplate);
+      const themeOptions = template
+        ? { themeId: template.id, custom: template.config }
+        : undefined;
+
+      const updateData: any = { user_type: selectedType };
+      if (themeOptions) {
+        updateData.theme_options = themeOptions;
+      }
+
       const { error } = await supabase
         .from('profiles')
-        .update({ user_type: selected })
+        .update(updateData)
         .eq('id', user.id);
 
       if (error) throw error;
 
-      onComplete(selected);
+      onComplete(selectedType!);
       toast({ title: 'Bem-vindo!', description: 'Sua experiência foi personalizada.' });
     } catch (error) {
-      console.error('Error saving user type:', error);
+      console.error('Error saving onboarding:', error);
       toast({ title: 'Erro', description: 'Não foi possível salvar. Tente novamente.', variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSkipTemplate = async () => {
+    if (!user || !selectedType) return;
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ user_type: selectedType })
+        .eq('id', user.id);
+      if (error) throw error;
+      onComplete(selectedType);
+      toast({ title: 'Bem-vindo!', description: 'Você pode personalizar o visual depois.' });
+    } catch {
+      toast({ title: 'Erro', description: 'Tente novamente.', variant: 'destructive' });
     } finally {
       setSaving(false);
     }
@@ -72,55 +344,109 @@ export const OnboardingDialog: React.FC<OnboardingDialogProps> = ({ open, onComp
 
   return (
     <Dialog open={open}>
-      <DialogContent className="sm:max-w-md [&>button]:hidden" onPointerDownOutside={(e) => e.preventDefault()}>
+      <DialogContent
+        className={cn(
+          '[&>button]:hidden',
+          step === 2 ? 'sm:max-w-2xl' : 'sm:max-w-md'
+        )}
+        onPointerDownOutside={(e) => e.preventDefault()}
+      >
         <DialogHeader className="text-center">
-          <div className="flex justify-center mb-2">
-            <div className="h-1.5 w-12 rounded-full bg-primary" />
+          {/* Progress indicator */}
+          <div className="flex justify-center gap-2 mb-2">
+            <div className={cn('h-1.5 w-8 rounded-full transition-colors', step >= 1 ? 'bg-primary' : 'bg-muted')} />
+            <div className={cn('h-1.5 w-8 rounded-full transition-colors', step >= 2 ? 'bg-primary' : 'bg-muted')} />
           </div>
-          <DialogTitle className="text-xl">Como você pretende usar o LinkHub?</DialogTitle>
-          <DialogDescription>
-            Isso nos ajuda a personalizar sua experiência.
-          </DialogDescription>
+
+          {step === 1 ? (
+            <>
+              <DialogTitle className="text-xl">Como você pretende usar o LinkHub?</DialogTitle>
+              <DialogDescription>Isso nos ajuda a personalizar sua experiência.</DialogDescription>
+            </>
+          ) : (
+            <>
+              <DialogTitle className="text-xl">Selecione um modelo</DialogTitle>
+              <DialogDescription>Escolha o estilo que lhe parece adequado — você pode alterar depois.</DialogDescription>
+            </>
+          )}
         </DialogHeader>
 
-        <div className="space-y-3 mt-4">
-          {USER_TYPES.map((type) => {
-            const Icon = type.icon;
-            const isSelected = selected === type.id;
+        {/* Step 1: User Type */}
+        {step === 1 && (
+          <div className="space-y-3 mt-4">
+            {USER_TYPES.map((type) => {
+              const Icon = type.icon;
+              const isSelected = selectedType === type.id;
+              return (
+                <button
+                  key={type.id}
+                  onClick={() => setSelectedType(type.id)}
+                  className={cn(
+                    'w-full flex items-center gap-4 p-4 rounded-xl border-2 transition-all text-left',
+                    'hover:shadow-md hover:scale-[1.01]',
+                    isSelected
+                      ? 'border-primary bg-primary/5 shadow-md scale-[1.01]'
+                      : 'border-border bg-card hover:border-primary/40'
+                  )}
+                >
+                  <div className="flex-1">
+                    <p className="font-semibold text-foreground">{type.title}</p>
+                    <p className="text-sm text-muted-foreground mt-0.5">{type.description}</p>
+                  </div>
+                  <div className={cn('w-12 h-12 rounded-lg flex items-center justify-center shrink-0', type.bgIcon)}>
+                    <Icon className="h-6 w-6 text-white" />
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
 
-            return (
-              <button
-                key={type.id}
-                onClick={() => setSelected(type.id)}
-                className={cn(
-                  'w-full flex items-center gap-4 p-4 rounded-xl border-2 transition-all text-left',
-                  'hover:shadow-md hover:scale-[1.01]',
-                  isSelected
-                    ? 'border-primary bg-primary/5 shadow-md scale-[1.01]'
-                    : 'border-border bg-card hover:border-primary/40'
-                )}
-              >
-                <div className="flex-1">
-                  <p className="font-semibold text-foreground">{type.title}</p>
-                  <p className="text-sm text-muted-foreground mt-0.5">{type.description}</p>
-                </div>
-                <div className={cn('w-12 h-12 rounded-lg flex items-center justify-center shrink-0', type.bgIcon)}>
-                  <Icon className="h-6 w-6 text-white" />
-                </div>
-              </button>
-            );
-          })}
+        {/* Step 2: Template Selection */}
+        {step === 2 && (
+          <div className="mt-4">
+            <div className="flex gap-3 overflow-x-auto pb-3 snap-x snap-mandatory scrollbar-thin scrollbar-thumb-muted">
+              {ONBOARDING_TEMPLATES.map((template) => (
+                <PhoneMockup
+                  key={template.id}
+                  template={template}
+                  isSelected={selectedTemplate === template.id}
+                  onClick={() => setSelectedTemplate(template.id)}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Actions */}
+        <div className="flex gap-2 mt-4">
+          {step === 2 && (
+            <Button variant="ghost" size="lg" onClick={() => setStep(1)} className="gap-1">
+              <ArrowLeft className="h-4 w-4" />
+              Voltar
+            </Button>
+          )}
+
+          {step === 2 && (
+            <Button variant="ghost" size="lg" onClick={handleSkipTemplate} disabled={saving} className="ml-auto">
+              Pular
+            </Button>
+          )}
+
+          <Button
+            className={cn(step === 1 ? 'w-full' : '')}
+            size="lg"
+            disabled={(step === 1 && !selectedType) || (step === 2 && !selectedTemplate) || saving}
+            onClick={handleConfirm}
+          >
+            {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+            {step === 1 ? (
+              <>Continuar <ArrowRight className="h-4 w-4 ml-1" /></>
+            ) : (
+              'Usar este modelo'
+            )}
+          </Button>
         </div>
-
-        <Button
-          className="w-full mt-4"
-          size="lg"
-          disabled={!selected || saving}
-          onClick={handleConfirm}
-        >
-          {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-          Continuar
-        </Button>
       </DialogContent>
     </Dialog>
   );
