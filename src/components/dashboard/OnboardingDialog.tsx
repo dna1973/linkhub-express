@@ -5,8 +5,9 @@ import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Megaphone, Briefcase, User, ArrowLeft, ArrowRight, Check } from 'lucide-react';
+import { Loader2, Megaphone, Briefcase, User, ArrowLeft, ArrowRight, Check, Instagram, Youtube, Facebook, Linkedin, Github, Globe, Mail, Music, MessageCircle, ShoppingBag } from 'lucide-react';
 import { ThemeConfig } from '@/stores/useDesignStore';
+import { Input } from '@/components/ui/input';
 
 interface OnboardingDialogProps {
   open: boolean;
@@ -277,45 +278,90 @@ const PhoneMockup: React.FC<{
   );
 };
 
+const PLATFORMS = [
+  { id: 'instagram', label: 'Instagram', icon: Instagram, placeholder: 'https://instagram.com/seuusuario', color: 'from-purple-500 to-pink-500' },
+  { id: 'youtube', label: 'YouTube', icon: Youtube, placeholder: 'https://youtube.com/@seucanal', color: 'from-red-500 to-red-600' },
+  { id: 'tiktok', label: 'TikTok', icon: Music, placeholder: 'https://tiktok.com/@seuusuario', color: 'from-gray-800 to-gray-900' },
+  { id: 'whatsapp', label: 'WhatsApp', icon: MessageCircle, placeholder: 'https://wa.me/5511999999999', color: 'from-green-500 to-green-600' },
+  { id: 'website', label: 'Site', icon: Globe, placeholder: 'https://seusite.com', color: 'from-blue-500 to-cyan-500' },
+  { id: 'facebook', label: 'Facebook', icon: Facebook, placeholder: 'https://facebook.com/seuusuario', color: 'from-blue-600 to-blue-700' },
+  { id: 'linkedin', label: 'LinkedIn', icon: Linkedin, placeholder: 'https://linkedin.com/in/seuusuario', color: 'from-blue-700 to-blue-800' },
+  { id: 'github', label: 'GitHub', icon: Github, placeholder: 'https://github.com/seuusuario', color: 'from-gray-700 to-gray-900' },
+  { id: 'spotify', label: 'Spotify', icon: Music, placeholder: 'https://open.spotify.com/...', color: 'from-green-400 to-green-600' },
+  { id: 'email', label: 'Email', icon: Mail, placeholder: 'mailto:seu@email.com', color: 'from-amber-500 to-orange-500' },
+  { id: 'shopee', label: 'Loja Online', icon: ShoppingBag, placeholder: 'https://sualoja.com', color: 'from-orange-500 to-red-500' },
+  { id: 'pinterest', label: 'Pinterest', icon: Globe, placeholder: 'https://pinterest.com/seuusuario', color: 'from-red-600 to-red-700' },
+];
+
 export const OnboardingDialog: React.FC<OnboardingDialogProps> = ({ open, onComplete }) => {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [step, setStep] = useState<1 | 2>(1);
+  const [step, setStep] = useState<1 | 2 | 3>(1);
   const [selectedType, setSelectedType] = useState<string | null>(null);
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
+  const [selectedPlatforms, setSelectedPlatforms] = useState<Set<string>>(new Set());
+  const [platformUrls, setPlatformUrls] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
 
-  const handleConfirm = async () => {
-    if (step === 1) {
-      if (!selectedType) return;
-      setStep(2);
-      return;
-    }
+  const togglePlatform = (id: string) => {
+    setSelectedPlatforms(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
 
-    // Step 2: save both user_type and template
-    if (!user) return;
+  const handleNext = () => {
+    if (step === 1 && selectedType) setStep(2);
+    else if (step === 2) setStep(3);
+  };
+
+  const handleFinish = async () => {
+    if (!user || !selectedType) return;
 
     setSaving(true);
     try {
+      // 1. Save user_type + template
       const template = ONBOARDING_TEMPLATES.find(t => t.id === selectedTemplate);
       const themeOptions = template
         ? { themeId: template.id, custom: template.config }
         : undefined;
 
       const updateData: any = { user_type: selectedType };
-      if (themeOptions) {
-        updateData.theme_options = themeOptions;
-      }
+      if (themeOptions) updateData.theme_options = themeOptions;
 
-      const { error } = await supabase
+      const { error: profileError } = await supabase
         .from('profiles')
         .update(updateData)
         .eq('id', user.id);
+      if (profileError) throw profileError;
 
-      if (error) throw error;
+      // 2. Create links for selected platforms
+      if (selectedPlatforms.size > 0) {
+        const linksToCreate = Array.from(selectedPlatforms).map((platformId, index) => {
+          const platform = PLATFORMS.find(p => p.id === platformId)!;
+          const url = platformUrls[platformId]?.trim() || platform.placeholder;
+          return {
+            user_id: user.id,
+            title: platform.label,
+            url,
+            position: index,
+            is_visible: true,
+          };
+        });
 
-      onComplete(selectedType!);
-      toast({ title: 'Bem-vindo!', description: 'Sua experiência foi personalizada.' });
+        const { error: linksError } = await supabase
+          .from('links')
+          .insert(linksToCreate);
+        if (linksError) throw linksError;
+      }
+
+      onComplete(selectedType);
+      toast({ title: 'Bem-vindo!', description: 'Seu perfil está pronto para personalizar!' });
     } catch (error) {
       console.error('Error saving onboarding:', error);
       toast({ title: 'Erro', description: 'Não foi possível salvar. Tente novamente.', variant: 'destructive' });
@@ -324,17 +370,24 @@ export const OnboardingDialog: React.FC<OnboardingDialogProps> = ({ open, onComp
     }
   };
 
-  const handleSkipTemplate = async () => {
+  const handleSkip = async () => {
+    if (step === 2) {
+      setStep(3);
+      return;
+    }
+    // Skip step 3 — finish without platforms
     if (!user || !selectedType) return;
     setSaving(true);
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ user_type: selectedType })
-        .eq('id', user.id);
+      const template = ONBOARDING_TEMPLATES.find(t => t.id === selectedTemplate);
+      const themeOptions = template ? { themeId: template.id, custom: template.config } : undefined;
+      const updateData: any = { user_type: selectedType };
+      if (themeOptions) updateData.theme_options = themeOptions;
+
+      const { error } = await supabase.from('profiles').update(updateData).eq('id', user.id);
       if (error) throw error;
       onComplete(selectedType);
-      toast({ title: 'Bem-vindo!', description: 'Você pode personalizar o visual depois.' });
+      toast({ title: 'Bem-vindo!', description: 'Você pode adicionar seus links depois.' });
     } catch {
       toast({ title: 'Erro', description: 'Tente novamente.', variant: 'destructive' });
     } finally {
@@ -342,31 +395,41 @@ export const OnboardingDialog: React.FC<OnboardingDialogProps> = ({ open, onComp
     }
   };
 
+  const totalSteps = 3;
+
   return (
     <Dialog open={open}>
       <DialogContent
         className={cn(
           '[&>button]:hidden',
-          step === 2 ? 'sm:max-w-2xl' : 'sm:max-w-md'
+          step === 2 ? 'sm:max-w-2xl' : 'sm:max-w-lg'
         )}
         onPointerDownOutside={(e) => e.preventDefault()}
       >
         <DialogHeader className="text-center">
           {/* Progress indicator */}
           <div className="flex justify-center gap-2 mb-2">
-            <div className={cn('h-1.5 w-8 rounded-full transition-colors', step >= 1 ? 'bg-primary' : 'bg-muted')} />
-            <div className={cn('h-1.5 w-8 rounded-full transition-colors', step >= 2 ? 'bg-primary' : 'bg-muted')} />
+            {Array.from({ length: totalSteps }).map((_, i) => (
+              <div key={i} className={cn('h-1.5 w-8 rounded-full transition-colors', step >= i + 1 ? 'bg-primary' : 'bg-muted')} />
+            ))}
           </div>
 
-          {step === 1 ? (
+          {step === 1 && (
             <>
               <DialogTitle className="text-xl">Como você pretende usar o LinkHub?</DialogTitle>
               <DialogDescription>Isso nos ajuda a personalizar sua experiência.</DialogDescription>
             </>
-          ) : (
+          )}
+          {step === 2 && (
             <>
               <DialogTitle className="text-xl">Selecione um modelo</DialogTitle>
               <DialogDescription>Escolha o estilo que lhe parece adequado — você pode alterar depois.</DialogDescription>
+            </>
+          )}
+          {step === 3 && (
+            <>
+              <DialogTitle className="text-xl">Em quais plataformas você está?</DialogTitle>
+              <DialogDescription>Selecione para começar. Você pode atualizar a qualquer momento.</DialogDescription>
             </>
           )}
         </DialogHeader>
@@ -418,34 +481,102 @@ export const OnboardingDialog: React.FC<OnboardingDialogProps> = ({ open, onComp
           </div>
         )}
 
+        {/* Step 3: Platform Selection */}
+        {step === 3 && (
+          <div className="mt-4 space-y-4">
+            <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+              {PLATFORMS.map((platform) => {
+                const Icon = platform.icon;
+                const isSelected = selectedPlatforms.has(platform.id);
+                return (
+                  <button
+                    key={platform.id}
+                    onClick={() => togglePlatform(platform.id)}
+                    className={cn(
+                      'relative flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all',
+                      'hover:shadow-md hover:scale-[1.02]',
+                      isSelected
+                        ? 'border-primary bg-primary/5 shadow-md'
+                        : 'border-border bg-card hover:border-primary/40'
+                    )}
+                  >
+                    <div className={cn(
+                      'w-11 h-11 rounded-xl flex items-center justify-center bg-gradient-to-br',
+                      isSelected ? platform.color : 'from-muted to-muted'
+                    )}>
+                      <Icon className={cn('h-5 w-5', isSelected ? 'text-white' : 'text-muted-foreground')} />
+                    </div>
+                    <span className="text-xs font-medium text-foreground">{platform.label}</span>
+                    {isSelected && (
+                      <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-primary flex items-center justify-center">
+                        <Check className="h-2.5 w-2.5 text-primary-foreground" />
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* URL inputs for selected platforms */}
+            {selectedPlatforms.size > 0 && (
+              <div className="space-y-2 pt-2 border-t border-border/50">
+                <p className="text-xs text-muted-foreground">Cole os links das plataformas selecionadas (opcional):</p>
+                {Array.from(selectedPlatforms).map((platformId) => {
+                  const platform = PLATFORMS.find(p => p.id === platformId)!;
+                  const Icon = platform.icon;
+                  return (
+                    <div key={platformId} className="flex items-center gap-2">
+                      <div className={cn('w-8 h-8 rounded-lg flex items-center justify-center shrink-0 bg-gradient-to-br', platform.color)}>
+                        <Icon className="h-4 w-4 text-white" />
+                      </div>
+                      <Input
+                        placeholder={platform.placeholder}
+                        value={platformUrls[platformId] || ''}
+                        onChange={(e) => setPlatformUrls(prev => ({ ...prev, [platformId]: e.target.value }))}
+                        className="h-9 text-sm"
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Actions */}
         <div className="flex gap-2 mt-4">
-          {step === 2 && (
-            <Button variant="ghost" size="lg" onClick={() => setStep(1)} className="gap-1">
+          {step > 1 && (
+            <Button variant="ghost" size="lg" onClick={() => setStep((step - 1) as 1 | 2 | 3)} className="gap-1">
               <ArrowLeft className="h-4 w-4" />
               Voltar
             </Button>
           )}
 
-          {step === 2 && (
-            <Button variant="ghost" size="lg" onClick={handleSkipTemplate} disabled={saving} className="ml-auto">
+          {(step === 2 || step === 3) && (
+            <Button variant="ghost" size="lg" onClick={handleSkip} disabled={saving} className="ml-auto">
               Pular
             </Button>
           )}
 
-          <Button
-            className={cn(step === 1 ? 'w-full' : '')}
-            size="lg"
-            disabled={(step === 1 && !selectedType) || (step === 2 && !selectedTemplate) || saving}
-            onClick={handleConfirm}
-          >
-            {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-            {step === 1 ? (
-              <>Continuar <ArrowRight className="h-4 w-4 ml-1" /></>
-            ) : (
-              'Usar este modelo'
-            )}
-          </Button>
+          {step < 3 ? (
+            <Button
+              className={cn(step === 1 ? 'w-full' : '')}
+              size="lg"
+              disabled={(step === 1 && !selectedType) || (step === 2 && !selectedTemplate)}
+              onClick={handleNext}
+            >
+              Continuar <ArrowRight className="h-4 w-4 ml-1" />
+            </Button>
+          ) : (
+            <Button
+              size="lg"
+              disabled={saving}
+              onClick={handleFinish}
+            >
+              {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              {selectedPlatforms.size > 0 ? 'Finalizar' : 'Começar sem links'}
+            </Button>
+          )}
         </div>
       </DialogContent>
     </Dialog>
