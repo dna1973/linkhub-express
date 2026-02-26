@@ -191,6 +191,8 @@ const PublicProfile = () => {
           ? `linear-gradient(135deg, ${resolved.background.colors?.[0] || '#111827'}, ${resolved.background.colors?.[1] || '#1f2937'})`
           : resolved.background?.color || resolved.background?.colors?.[0] || '#111827',
         buttonStyle: resolved.buttonStyle?.type || 'glass',
+        buttonSize: (resolved.buttonStyle as any)?.size || 'md',
+        buttonBorderRadius: resolved.buttonStyle?.borderRadius || 'md',
         font: resolved.font,
         colors: resolved.colors,
       };
@@ -437,8 +439,11 @@ const PublicProfile = () => {
                   <Button
                     key={link.id}
                     onClick={() => handleLinkClick(link.id, link.url)}
-                    className={`w-full h-14 ${getButtonClassName(themeStyles.buttonStyle, themeStyles.colors)} hover-bounce flex items-center justify-center space-x-3 transition-all duration-200 text-lg`}
-                    style={getButtonStyle(themeStyles.buttonStyle, themeStyles.colors)}
+                    className={`w-full ${(themeStyles as any).buttonSize === 'sm' ? 'h-10' : (themeStyles as any).buttonSize === 'lg' ? 'h-14' : 'h-12'} ${getButtonClassName(themeStyles.buttonStyle, themeStyles.colors)} hover-bounce flex items-center justify-center space-x-3 transition-all duration-200 text-lg`}
+                    style={{
+                      ...getButtonStyle(themeStyles.buttonStyle, themeStyles.colors),
+                      borderRadius: (themeStyles as any).buttonBorderRadius === 'none' ? '0px' : (themeStyles as any).buttonBorderRadius === 'sm' ? '4px' : (themeStyles as any).buttonBorderRadius === 'lg' ? '16px' : (themeStyles as any).buttonBorderRadius === 'full' ? '9999px' : '8px',
+                    }}
                   >
                     <IconComponent className="h-6 w-6" />
                     <span className="font-medium">{link.title}</span>
