@@ -162,26 +162,28 @@ export function AppSidebar({ activeTab, onTabChange, profile }: AppSidebarProps)
             {!isCollapsed && <span className="ml-2">Admin</span>}
           </Button>
         )}
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleViewProfile}
-          className="w-full justify-start"
-          disabled={!profile?.username}
-        >
-          <Eye className="h-4 w-4" />
-          {!isCollapsed && <span className="ml-2">Ver Perfil</span>}
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleCopyLink}
-          className="w-full justify-start"
-          disabled={!profile?.username}
-        >
-          <Copy className="h-4 w-4" />
-          {!isCollapsed && <span className="ml-2">Copiar Link</span>}
-        </Button>
+        <div className="flex items-center w-full">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleViewProfile}
+            className="flex-1 justify-start"
+            disabled={!profile?.username}
+          >
+            <Eye className="h-4 w-4" />
+            {!isCollapsed && <span className="ml-2">Ver Perfil</span>}
+          </Button>
+          {!isCollapsed && profile?.username && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 shrink-0"
+              onClick={(e) => { e.stopPropagation(); handleCopyLink(); }}
+            >
+              <Copy className="h-3.5 w-3.5 text-muted-foreground" />
+            </Button>
+          )}
+        </div>
         
         <Button
           variant="ghost"
