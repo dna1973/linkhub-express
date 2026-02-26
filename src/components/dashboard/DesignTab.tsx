@@ -198,9 +198,7 @@ export const DesignTab: React.FC<DesignTabProps> = ({ profile, onProfileUpdate }
     setCustomConfig(newConfig);
     
     // Atualizar o store imediatamente para pré-visualização em tempo real
-    if (selectedTheme === 'custom') {
-      setCustomTheme(newConfig);
-    }
+    setCustomTheme(newConfig);
   };
 
   return (
