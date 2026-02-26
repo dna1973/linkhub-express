@@ -225,18 +225,18 @@ export const DesignTab: React.FC<DesignTabProps> = ({ profile, onProfileUpdate }
           )}
 
               {/* Sub-navigation */}
-              <div className="flex space-x-1 bg-muted/50 p-1 rounded-lg">
-                <Button variant={activeCustomTab === 'background' ? 'default' : 'ghost'} size="sm" onClick={() => { if (selectedTheme !== 'custom') handleThemeSelect('custom'); setActiveCustomTab('background'); }} className="flex-1 h-8 text-xs">
-                  <Image className="h-3 w-3 mr-1" /> Fundo
+              <div className="grid grid-cols-4 gap-1 bg-muted/50 p-1 rounded-lg">
+                <Button variant={activeCustomTab === 'background' ? 'default' : 'ghost'} size="sm" onClick={() => { if (selectedTheme !== 'custom') handleThemeSelect('custom'); setActiveCustomTab('background'); }} className="h-8 text-[10px] sm:text-xs px-1 sm:px-2.5 min-w-0">
+                  <Image className="h-3 w-3 shrink-0 mr-0.5 sm:mr-1" /> <span className="truncate">Fundo</span>
                 </Button>
-                <Button variant={activeCustomTab === 'typography' ? 'default' : 'ghost'} size="sm" onClick={() => { if (selectedTheme !== 'custom') handleThemeSelect('custom'); setActiveCustomTab('typography'); }} className="flex-1 h-8 text-xs">
-                  <Type className="h-3 w-3 mr-1" /> Tipografia
+                <Button variant={activeCustomTab === 'typography' ? 'default' : 'ghost'} size="sm" onClick={() => { if (selectedTheme !== 'custom') handleThemeSelect('custom'); setActiveCustomTab('typography'); }} className="h-8 text-[10px] sm:text-xs px-1 sm:px-2.5 min-w-0">
+                  <Type className="h-3 w-3 shrink-0 mr-0.5 sm:mr-1" /> <span className="truncate">Tipo</span>
                 </Button>
-                <Button variant={activeCustomTab === 'buttons' ? 'default' : 'ghost'} size="sm" onClick={() => { if (selectedTheme !== 'custom') handleThemeSelect('custom'); setActiveCustomTab('buttons'); }} className="flex-1 h-8 text-xs">
-                  <Zap className="h-3 w-3 mr-1" /> Botões
+                <Button variant={activeCustomTab === 'buttons' ? 'default' : 'ghost'} size="sm" onClick={() => { if (selectedTheme !== 'custom') handleThemeSelect('custom'); setActiveCustomTab('buttons'); }} className="h-8 text-[10px] sm:text-xs px-1 sm:px-2.5 min-w-0">
+                  <Zap className="h-3 w-3 shrink-0 mr-0.5 sm:mr-1" /> <span className="truncate">Botões</span>
                 </Button>
-                <Button variant={activeCustomTab === 'avatar' ? 'default' : 'ghost'} size="sm" onClick={() => { if (selectedTheme !== 'custom') handleThemeSelect('custom'); setActiveCustomTab('avatar'); }} className="flex-1 h-8 text-xs">
-                  <UserCircle className="h-3 w-3 mr-1" /> Avatar
+                <Button variant={activeCustomTab === 'avatar' ? 'default' : 'ghost'} size="sm" onClick={() => { if (selectedTheme !== 'custom') handleThemeSelect('custom'); setActiveCustomTab('avatar'); }} className="h-8 text-[10px] sm:text-xs px-1 sm:px-2.5 min-w-0">
+                  <UserCircle className="h-3 w-3 shrink-0 mr-0.5 sm:mr-1" /> <span className="truncate">Avatar</span>
                 </Button>
               </div>
 
