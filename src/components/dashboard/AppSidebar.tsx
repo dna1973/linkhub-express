@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Link as LinkIcon, Palette, User, Sun, Moon, LogOut, Eye, BarChart3, Sparkles, Shield } from 'lucide-react';
+import { Link as LinkIcon, Palette, User, Sun, Moon, LogOut, Eye, BarChart3, Sparkles, Shield, Copy } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { useTheme } from 'next-themes';
 import { useAuth } from '@/contexts/AuthContext';
@@ -39,6 +40,7 @@ export function AppSidebar({ activeTab, onTabChange, profile }: AppSidebarProps)
   const { theme, setTheme } = useTheme();
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
+  const { toast } = useToast();
   const isCollapsed = state === 'collapsed';
   const [isAdmin, setIsAdmin] = useState(false);
 
@@ -60,9 +62,24 @@ export function AppSidebar({ activeTab, onTabChange, profile }: AppSidebarProps)
     navigate('/');
   };
 
+  const getPublicUrl = () => {
+    if (!profile?.username) return '';
+    if (profile?.preferred_domain === 'custom' && profile?.custom_domain) {
+      return `https://${profile.custom_domain}/${profile.username}`;
+    }
+    return `${window.location.origin}/${profile.username}`;
+  };
+
   const handleViewProfile = () => {
-    if (profile?.username) {
-      window.open(`/${profile.username}`, '_blank');
+    const url = getPublicUrl();
+    if (url) window.open(url, '_blank');
+  };
+
+  const handleCopyLink = () => {
+    const url = getPublicUrl();
+    if (url) {
+      navigator.clipboard.writeText(url);
+      toast({ title: 'Link copiado!', description: url });
     }
   };
 
@@ -154,6 +171,16 @@ export function AppSidebar({ activeTab, onTabChange, profile }: AppSidebarProps)
         >
           <Eye className="h-4 w-4" />
           {!isCollapsed && <span className="ml-2">Ver Perfil</span>}
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleCopyLink}
+          className="w-full justify-start"
+          disabled={!profile?.username}
+        >
+          <Copy className="h-4 w-4" />
+          {!isCollapsed && <span className="ml-2">Copiar Link</span>}
         </Button>
         
         <Button
