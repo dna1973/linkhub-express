@@ -88,6 +88,7 @@ export const ProfilePreview: React.FC<ProfilePreviewProps> = ({ profile }) => {
         : custom.background?.color || '#111827',
       buttonStyle: custom.buttonStyle?.type || 'glass',
       buttonSize: (custom.buttonStyle as any)?.size || 'md',
+      buttonBorderRadius: custom.buttonStyle?.borderRadius || 'md',
       font: custom.font || { family: 'inter', size: 'md', weight: 'normal' },
       colors: custom.colors || { primary: '#ffffff', secondary: '#f3f4f6', accent: '#3b82f6', text: '#ffffff' },
     };
@@ -382,7 +383,10 @@ export const ProfilePreview: React.FC<ProfilePreviewProps> = ({ profile }) => {
                       key={link.id}
                       onClick={() => handleLinkClick(link.id, link.url)}
                       className={`w-full ${themeStyles.buttonSize === 'sm' ? 'h-10' : themeStyles.buttonSize === 'lg' ? 'h-14' : 'h-12'} ${getButtonClassName(themeStyles.buttonStyle)} hover-bounce flex items-center justify-center space-x-3 transition-all duration-200`}
-                      style={getButtonStyle(themeStyles.buttonStyle)}
+                      style={{
+                        ...getButtonStyle(themeStyles.buttonStyle),
+                        borderRadius: themeStyles.buttonBorderRadius === 'none' ? '0px' : themeStyles.buttonBorderRadius === 'sm' ? '4px' : themeStyles.buttonBorderRadius === 'lg' ? '16px' : themeStyles.buttonBorderRadius === 'full' ? '9999px' : '8px',
+                      }}
                     >
                       <IconComponent className="h-5 w-5" />
                       <span className="font-medium">{link.title}</span>
