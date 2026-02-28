@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Plus, GripVertical, Trash2, ExternalLink, Instagram, Youtube, Github, Globe, Mail, Facebook, Linkedin, Pencil, Loader2, CheckCircle2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
+import { LinkClicksDialog } from './LinkClicksDialog';
 import { useToast } from '@/hooks/use-toast';
 import { useAutosave } from '@/hooks/useAutosave';
 import { isValidUrl, sanitizeText } from '@/utils/sanitize';
@@ -65,9 +66,11 @@ interface SortableLinkProps {
   link: Link;
   onDelete: (id: number) => void;
   onEdit: (link: Link) => void;
+  profileId: string;
 }
 
-const SortableLink: React.FC<SortableLinkProps> = ({ link, onDelete, onEdit }) => {
+const SortableLink: React.FC<SortableLinkProps> = ({ link, onDelete, onEdit, profileId }) => {
+  const [showClicksDialog, setShowClicksDialog] = useState(false);
   const {
     attributes,
     listeners,
@@ -103,10 +106,18 @@ const SortableLink: React.FC<SortableLinkProps> = ({ link, onDelete, onEdit }) =
             </div>
             
             <div className="flex items-center space-x-1 sm:space-x-2 flex-shrink-0">
-              <Badge variant="secondary" className="text-xs hidden sm:inline-flex">
+              <Badge
+                variant="secondary"
+                className="text-xs cursor-pointer hover:bg-primary/20 transition-colors hidden sm:inline-flex"
+                onClick={() => setShowClicksDialog(true)}
+              >
                 {link.clicks} cliques
               </Badge>
-              <Badge variant="secondary" className="text-xs sm:hidden">
+              <Badge
+                variant="secondary"
+                className="text-xs cursor-pointer hover:bg-primary/20 transition-colors sm:hidden"
+                onClick={() => setShowClicksDialog(true)}
+              >
                 {link.clicks}
               </Badge>
               <Button
@@ -137,6 +148,14 @@ const SortableLink: React.FC<SortableLinkProps> = ({ link, onDelete, onEdit }) =
           </div>
         </CardContent>
       </Card>
+
+      <LinkClicksDialog
+        open={showClicksDialog}
+        onOpenChange={setShowClicksDialog}
+        linkId={link.id}
+        linkTitle={link.title}
+        profileId={profileId}
+      />
     </div>
   );
 };
@@ -488,7 +507,7 @@ export const LinksTab: React.FC<LinksTabProps> = ({ profile, onProfileUpdate }) 
           <SortableContext items={links.map(link => link.id)} strategy={verticalListSortingStrategy}>
             <div className="space-y-3">
               {links.map((link) => (
-                <SortableLink key={link.id} link={link} onDelete={handleDeleteLink} onEdit={handleEditLink} />
+                <SortableLink key={link.id} link={link} onDelete={handleDeleteLink} onEdit={handleEditLink} profileId={user!.id} />
               ))}
             </div>
           </SortableContext>
