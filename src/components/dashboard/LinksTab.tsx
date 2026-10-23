@@ -290,7 +290,7 @@ export const LinksTab: React.FC<LinksTabProps> = ({ profile, onProfileUpdate }) 
     window.dispatchEvent(new CustomEvent('linksUpdated'));
   }, [editingLink]);
 
-  const editAutosaveStatus = useAutosave(editLinkData, handleAutoSaveEdit, 1500, showEditDialog && !!editingLink);
+  const editAutosaveStatus = useAutosave(editLinkData, handleAutoSaveEdit, 1500, showEditDialog && !!editingLink, editingLink?.id);
 
   const selectLinkType = (linkType: any) => {
     setSelectedLinkType(linkType);
