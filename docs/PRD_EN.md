@@ -1,119 +1,58 @@
 # LinkHub Express — Product Requirements Document (PRD)
 
-**Version:** 1.0  
-**Date:** 2026-02-22  
-**Status:** Active
-
----
+**Version:** 2.0 · **Date:** 2026-10-23 · **Status:** Active
+**URLs:** https://linkhub.estudioai.site · https://linkhub-express.lovable.app
 
 ## 1. Overview
-
-**LinkHub Express** is a web platform that allows users to create a personalized link page (link-in-bio) to centralize and share their social media profiles, websites, and other online resources. Inspired by tools like Linktree and Bento, LinkHub Express stands out with advanced visual customization and detailed analytics.
-
-**Production URL:** https://linkhub-express.lovable.app
-
----
+LinkHub Express is a link-in-bio platform. Each user gets a public page (`/{username}`) that collects their social profiles, websites and other content. It stands out for deep visual customization, a fast guided onboarding and detailed visit and click analytics.
 
 ## 2. Problem
+Instagram, TikTok and similar networks allow only one bio link. Existing tools offer little visual customization or charge high fees for basics like analytics.
 
-Content creators, professionals, and businesses need to share multiple links on platforms that only allow one link in the bio (Instagram, TikTok, etc.). Existing solutions are limited in visual customization or charge high fees for basic features.
+## 3. Solution
+- A single fast, mobile-first public page.
+- A 4-step onboarding that gets the page ready in minutes.
+- Ready-made templates plus a custom editor (background, typography, buttons, avatar) with a live preview.
+- Profile and per-link analytics: location, device, referrer and time.
+- An admin panel for the master manager.
 
----
+## 4. Personas
+Personal, Creator, Business, and the Master admin.
 
-## 3. Target Audience
+## 5. User journey
+```text
+Landing -> Sign up/Login (email or Google) -> Email confirmation
+ -> Onboarding: 1) Usage type 2) Profile details 3) Template 4) Platforms
+ -> Dashboard (Links | Design | Analytics | Profile) -> View / Copy profile link
+ -> Visitor opens /{username} -> views and clicks are tracked
+```
 
-- Content creators and digital influencers
-- Freelancers and independent professionals
-- Small businesses and entrepreneurs
-- Students and academics
-- Anyone who wants to centralize their links
+## 6. Features
+- **Landing:** light/dark toggle and an example page inside a smartphone mockup.
+- **Auth:** email/password with required confirmation, Google login, persistent session.
+- **Onboarding:** usage type (required), avatar/name/bio (bio up to 160 characters), 10+ templates, 12 platforms that become links automatically.
+- **Links:** create, edit, delete and hide links; drag-and-drop ordering; automatic icons; click counter; a details dialog with the last 100 clicks.
+- **Design:** a Templates tab and a Custom tab (background, typography, button style, corners and size, avatar), with a live preview that matches the public page.
+- **Public page:** links open instantly (iOS-safe), and views and clicks are tracked.
+- **Analytics:** totals, activity heatmap, world map, devices, insights.
+- **Profile:** unique username, avatar crop, custom or preferred domain, copy link.
+- **Admin:** stats, user search, deactivate/reactivate users, delete a user with all their data; admins cannot deactivate or delete themselves.
 
----
+## 7. Success metrics
+Signup conversion, onboarding completion rate, average links per user, monthly views and clicks, retention.
 
-## 4. Core Features
+## 8. Roadmap
+| Phase | Delivery | Status |
+|---|---|---|
+| v1.0–1.3 | Core link-in-bio, design, analytics | Complete |
+| v2.0 | Onboarding, templates, admin, click details, custom domain | Complete |
+| v2.1 | Alternative layouts, CSV export, filters | Planned |
+| v3.0 | Paid plans, scheduling, integrations | Future |
 
-### 4.1 Authentication
-- Email/password sign up and login
-- Google social login (OAuth)
-- Mandatory email confirmation
-- Persistent sessions
+## 9. Risks
+LGPD compliance for visitor data, iOS link-opening rules, and the accuracy of the external geolocation service.
 
-### 4.2 Link Management
-- Create, edit, and delete links
-- Supported link types: Instagram, X (Twitter), TikTok, Facebook, LinkedIn, YouTube, GitHub, Google Drive, NotebookLM, Website, Email
-- Drag-and-drop reordering
-- Automatic icon detection by URL/title
-- Per-link click counter
+## 10. Stack
+React 18, TypeScript, Vite, Tailwind, shadcn/ui, dnd-kit, Recharts, Zustand, Lovable Cloud.
 
-### 4.3 Public Profile
-- Public page accessible via `/{username}`
-- Display of avatar, name, bio, and links
-- Profile view tracking
-- Link click tracking
-
-### 4.4 Visual Customization (Design System)
-- Customizable color themes
-- Button styles: glass, solid, outline, modern, rounded
-- Background image upload
-- Custom typography
-- Real-time preview in dashboard
-
-### 4.5 Analytics
-- Total profile views
-- Clicks per link
-- Activity heatmap
-- Geographic distribution (world map)
-- Device type detection
-- Insights panel
-
-### 4.6 Profile Settings
-- Unique username selection
-- Full name, bio, and avatar editing
-- Real-time username validation
-
----
-
-## 5. Non-Functional Requirements
-
-| Requirement | Specification |
-|-------------|--------------|
-| Performance | Load time < 3s (LCP) |
-| Responsiveness | Mobile-first, all breakpoints supported |
-| Security | Database RLS, auth required for CRUD |
-| Availability | 99.9% uptime via Lovable Cloud |
-| Accessibility | Semantic HTML, proper contrast |
-
----
-
-## 6. Success Metrics
-
-- Visitor → signup conversion rate
-- Average links per user
-- Total clicks on user links
-- Analytics engagement
-- Monthly user retention
-
----
-
-## 7. Roadmap
-
-| Phase | Feature | Status |
-|-------|---------|--------|
-| v1.0 | Authentication, link CRUD, public profile | ✅ Complete |
-| v1.1 | Design system, visual customization | ✅ Complete |
-| v1.2 | Advanced analytics, geolocation | ✅ Complete |
-| v1.3 | New link types (Drive, NotebookLM) | ✅ Complete |
-| v2.0 | Custom domains, templates | 🔜 Planned |
-
----
-
-## 8. Technology Stack
-
-- **Frontend:** React 18, TypeScript, Vite, Tailwind CSS
-- **UI:** shadcn/ui, Radix UI, Lucide Icons, Framer Motion
-- **Backend:** Lovable Cloud (Supabase)
-- **Database:** PostgreSQL with Row Level Security
-- **Authentication:** Email/password + Google OAuth
-- **Drag & Drop:** dnd-kit
-- **Charts:** Recharts
-- **State Management:** Zustand
+Detailed requirements: see `REQUISITOS.md` (Portuguese).
