@@ -77,7 +77,7 @@ const Admin = () => {
         Authorization: `Bearer ${session?.access_token}`,
         apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
       };
-      const base = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-users`;
+      const base = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/linkhub-admin-users`;
 
       const [usersRes, statsRes] = await Promise.all([
         fetch(`${base}?action=list`, { headers }).then(r => r.json()),
@@ -97,7 +97,7 @@ const Admin = () => {
     try {
       const session = (await supabase.auth.getSession()).data.session;
       const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-users?action=delete&userId=${userId}`,
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/linkhub-admin-users?action=delete&userId=${userId}`,
         {
           method: 'DELETE',
           headers: {
@@ -121,7 +121,7 @@ const Admin = () => {
     try {
       const session = (await supabase.auth.getSession()).data.session;
       const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-users?action=toggle-ban`,
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/linkhub-admin-users?action=toggle-ban`,
         {
           method: 'POST',
           headers: {
@@ -285,7 +285,7 @@ const Admin = () => {
                               <AlertDialogHeader>
                                 <AlertDialogTitle>Excluir usuário?</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                  Isso removerá permanentemente <strong>{u.email}</strong> e todos os seus dados (links, analytics, perfil). Esta ação não pode ser desfeita.
+                                  Isso removerá permanentemente todos os dados de <strong>{u.email}</strong> no LinkHub (links, analytics, perfil). A conta de login continua existindo. Esta ação não pode ser desfeita.
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>

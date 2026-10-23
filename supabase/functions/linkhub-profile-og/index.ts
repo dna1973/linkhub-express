@@ -19,7 +19,9 @@ Deno.serve(async (req) => {
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabaseKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-  const supabase = createClient(supabaseUrl, supabaseKey);
+  // Schema dedicado no self-hosted (edge runtime só expõe envs com prefixo SUPABASE_)
+  const schema = Deno.env.get("SUPABASE_LINKHUB_SCHEMA") ?? "linkhub";
+  const supabase = createClient(supabaseUrl, supabaseKey, { db: { schema } });
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -35,7 +37,7 @@ Deno.serve(async (req) => {
   const avatar = profile?.avatar_url || "";
   
   // Determine redirect URL based on user's preferred domain
-  const defaultSiteUrl = "https://linkhub-express.lovable.app";
+  const defaultSiteUrl = Deno.env.get("SUPABASE_LINKHUB_SITE_URL") ?? "https://linkhub.avila.ia.br";
   let siteUrl = defaultSiteUrl;
   if (profile?.preferred_domain === "custom" && profile?.custom_domain) {
     const domain = profile.custom_domain.startsWith("http")
@@ -71,7 +73,7 @@ Deno.serve(async (req) => {
 </head>
 <body>
   <p>Redirecionando para <a href="${escapeHtml(profileUrl)}">${escapeHtml(title)}</a>...</p>
-  <script>window.location.replace("${profileUrl}");</script>
+  <script>window.location.replace(${JSON.stringify(profileUrl).replace(/</g, "\\u003c")});</script>
 </body>
 </html>`;
 

@@ -16,6 +16,8 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    // Schema dedicado no self-hosted (edge runtime só expõe envs com prefixo SUPABASE_)
+    const schema = Deno.env.get("SUPABASE_LINKHUB_SCHEMA") ?? "linkhub";
 
     // Verify caller is admin
     const authHeader = req.headers.get("Authorization")!;
@@ -30,7 +32,7 @@ serve(async (req) => {
     }
 
     // Check admin role
-    const adminClient = createClient(supabaseUrl, serviceRoleKey);
+    const adminClient = createClient(supabaseUrl, serviceRoleKey, { db: { schema } });
     const { data: roleData } = await adminClient
       .from("user_roles")
       .select("role")
@@ -52,19 +54,23 @@ serve(async (req) => {
       const page = parseInt(url.searchParams.get("page") || "1");
       const perPage = 50;
 
-      const { data: { users }, error } = await adminClient.auth.admin.listUsers({
-        page,
-        perPage,
-      });
+      // auth.users é compartilhado com outros apps do Supabase: lista só quem tem perfil no linkhub
+      const from = (page - 1) * perPage;
+      const { data: profiles, error } = await adminClient
+        .from("profiles")
+        .select("id, username, full_name, avatar_url, created_at, user_type")
+        .order("created_at", { ascending: false })
+        .range(from, from + perPage - 1);
 
       if (error) throw error;
 
-      // Get profiles for these users
-      const userIds = users.map((u: any) => u.id);
-      const { data: profiles } = await adminClient
-        .from("profiles")
-        .select("id, username, full_name, avatar_url, created_at, user_type")
-        .in("id", userIds);
+      const userIds = (profiles || []).map((p: any) => p.id);
+      const authResults = await Promise.all(
+        userIds.map((id: string) => adminClient.auth.admin.getUserById(id)),
+      );
+      const users = authResults
+        .map((r: any) => r.data?.user)
+        .filter((u: any) => !!u);
 
       // Get roles
       const { data: roles } = await adminClient
@@ -120,9 +126,8 @@ serve(async (req) => {
       await adminClient.from("profiles").delete().eq("id", targetUserId);
       await adminClient.from("user_roles").delete().eq("user_id", targetUserId);
 
-      // Finally delete auth user
-      const { error } = await adminClient.auth.admin.deleteUser(targetUserId);
-      if (error) throw error;
+      // O usuário em auth.users é compartilhado com outros apps do Supabase,
+      // então só os dados do linkhub são removidos aqui.
 
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -158,13 +163,13 @@ serve(async (req) => {
 
     // STATS
     if (req.method === "GET" && action === "stats") {
-      const { data: { users } } = await adminClient.auth.admin.listUsers({ perPage: 1000 });
+      const { count: userCount } = await adminClient.from("profiles").select("*", { count: "exact", head: true });
       const { count: linkCount } = await adminClient.from("links").select("*", { count: "exact", head: true });
       const { count: viewCount } = await adminClient.from("profile_views").select("*", { count: "exact", head: true });
       const { count: clickCount } = await adminClient.from("link_clicks").select("*", { count: "exact", head: true });
 
       return new Response(JSON.stringify({
-        totalUsers: users?.length || 0,
+        totalUsers: userCount || 0,
         totalLinks: linkCount || 0,
         totalViews: viewCount || 0,
         totalClicks: clickCount || 0,

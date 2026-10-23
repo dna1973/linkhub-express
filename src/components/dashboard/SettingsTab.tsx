@@ -10,7 +10,7 @@ import { Switch } from '@/components/ui/switch';
 import { UsernameInput } from '@/components/ui/username-input';
 import { USER_TYPE_LABELS } from './OnboardingDialog';
 import { Copy, Check, Upload, ExternalLink, Trash2, Globe, Loader2, CheckCircle2, Megaphone, Briefcase, User } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { supabase, AVATARS_BUCKET, PUBLIC_SITE_URL } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { useUsernameValidation } from '@/hooks/useUsernameValidation';
@@ -40,7 +40,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
     bio: profile?.bio || '',
     avatar_url: profile?.avatar_url || '',
     custom_domain: profile?.custom_domain || '',
-    preferred_domain: profile?.preferred_domain || 'lovable',
+    preferred_domain: profile?.preferred_domain === 'custom' ? 'custom' : 'default',
     show_username: profile?.show_username ?? true,
     user_type: profile?.user_type || '',
   });
@@ -57,7 +57,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
         bio: profile.bio || '',
         avatar_url: profile.avatar_url || '',
         custom_domain: profile.custom_domain || '',
-        preferred_domain: profile.preferred_domain || 'lovable',
+        preferred_domain: profile.preferred_domain === 'custom' ? 'custom' : 'default',
         show_username: profile.show_username ?? true,
         user_type: profile.user_type || '',
       });
@@ -72,7 +72,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
         : `https://${formData.custom_domain}`;
       return domain;
     }
-    return 'https://linkhub-express.lovable.app';
+    return PUBLIC_SITE_URL;
   };
   
   const publicUrl = profile?.username 
@@ -81,7 +81,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
 
   // Shareable URL via edge function (serves proper OG meta tags for social previews)
   const shareableUrl = profile?.username
-    ? `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/profile-og?u=${profile.username}`
+    ? `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/linkhub-profile-og?u=${profile.username}`
     : publicUrl;
 
   const handleInputChange = (field: string, value: string | boolean) => {
@@ -158,7 +158,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
       if (formData.avatar_url && formData.avatar_url.includes('supabase')) {
         const oldFileName = formData.avatar_url.split('/').pop();
         if (oldFileName) {
-          await supabase.storage.from('avatars').remove([`${user.id}/${oldFileName}`]);
+          await supabase.storage.from(AVATARS_BUCKET).remove([`${user.id}/${oldFileName}`]);
         }
       }
 
@@ -166,10 +166,10 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
       const filePath = `${user.id}/${fileName}`;
       const file = new File([croppedBlob], fileName, { type: 'image/jpeg' });
 
-      const { error: uploadError } = await supabase.storage.from('avatars').upload(filePath, file);
+      const { error: uploadError } = await supabase.storage.from(AVATARS_BUCKET).upload(filePath, file);
       if (uploadError) throw uploadError;
 
-      const { data } = supabase.storage.from('avatars').getPublicUrl(filePath);
+      const { data } = supabase.storage.from(AVATARS_BUCKET).getPublicUrl(filePath);
       const newAvatarUrl = data.publicUrl;
 
       // Save directly to database (don't rely on autosave delay)
@@ -464,10 +464,10 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="lovable">
+                  <SelectItem value="default">
                     <div className="flex items-center space-x-2">
                       <Globe className="h-4 w-4" />
-                      <span>Lovable (linkhub-express.lovable.app)</span>
+                      <span>Padrão ({PUBLIC_SITE_URL.replace(/^https?:\/\//, '')})</span>
                     </div>
                   </SelectItem>
                   {formData.custom_domain && (

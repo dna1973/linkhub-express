@@ -9,6 +9,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { Link, Eye, EyeOff } from 'lucide-react';
 import { GoogleIcon } from '@/components/ui/google-icon';
+import { supabase } from '@/lib/supabase';
 
 
 const Auth = () => {
@@ -77,9 +78,9 @@ const Auth = () => {
   const handleGoogleLogin = async () => {
     setLoading(true);
     try {
-      const { lovable } = await import('@/integrations/lovable/index');
-      const { error } = await lovable.auth.signInWithOAuth("google", {
-        redirect_uri: window.location.origin,
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: `${window.location.origin}/auth/callback` },
       });
       if (error) {
         toast({

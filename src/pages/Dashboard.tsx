@@ -85,6 +85,7 @@ const Dashboard = () => {
 
       if (!createError && newProfile) {
         setProfile(newProfile);
+        setShowOnboarding(true);
       }
     }
   };

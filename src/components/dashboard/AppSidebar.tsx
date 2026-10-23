@@ -4,6 +4,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { useTheme } from 'next-themes';
 import { useAuth } from '@/contexts/AuthContext';
+import { PUBLIC_SITE_URL } from '@/lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import {
   Sidebar,
@@ -67,7 +68,7 @@ export function AppSidebar({ activeTab, onTabChange, profile }: AppSidebarProps)
     if (profile?.preferred_domain === 'custom' && profile?.custom_domain) {
       return `https://${profile.custom_domain}/${profile.username}`;
     }
-    return `${window.location.origin}/${profile.username}`;
+    return `${PUBLIC_SITE_URL}/${profile.username}`;
   };
 
   const handleViewProfile = () => {

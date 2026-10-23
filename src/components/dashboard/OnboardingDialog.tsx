@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { supabase } from '@/lib/supabase';
+import { supabase, AVATARS_BUCKET } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Megaphone, Briefcase, User, ArrowLeft, ArrowRight, Check, Instagram, Youtube, Facebook, Linkedin, Github, Globe, Mail, Music, MessageCircle, ShoppingBag, Plus } from 'lucide-react';
@@ -351,9 +351,9 @@ export const OnboardingDialog: React.FC<OnboardingDialogProps> = ({ open, onComp
     if (avatarFile) {
       const fileName = `avatar-${Date.now()}.jpg`;
       const filePath = `${user.id}/${fileName}`;
-      const { error: uploadError } = await supabase.storage.from('avatars').upload(filePath, avatarFile);
+      const { error: uploadError } = await supabase.storage.from(AVATARS_BUCKET).upload(filePath, avatarFile);
       if (uploadError) throw uploadError;
-      const { data } = supabase.storage.from('avatars').getPublicUrl(filePath);
+      const { data } = supabase.storage.from(AVATARS_BUCKET).getPublicUrl(filePath);
       return data.publicUrl;
     }
 
