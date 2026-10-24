@@ -46,6 +46,9 @@ export default defineConfig(({ mode }) => ({
         ],
       },
       workbox: {
+        // Explícitos porque injectRegister é false: o plugin não os liga sozinho nesse caso.
+        skipWaiting: true,
+        clientsClaim: true,
         globPatterns: ['**/*.{js,css,html,ico,png,svg,jpg,jpeg,woff,woff2}'],
         navigateFallbackDenylist: [/^\/~oauth/],
         runtimeCaching: [

@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,7 +6,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Palette, Sparkles, Save, Type, Zap, Image, UserCircle, LayoutTemplate, Check } from 'lucide-react';
+import { Palette, Sparkles, Save, Type, Zap, Image, UserCircle, LayoutTemplate } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
@@ -160,7 +159,7 @@ export const DesignTab: React.FC<DesignTabProps> = ({ profile, onProfileUpdate }
       buttonStyle: {
         ...customConfig.buttonStyle,
         color: resolveButtonColors(customConfig).bg,
-        textColor: normalizeHex(customConfig.buttonStyle.textColor) ?? 'auto',
+        textColor: normalizeHex(customConfig.buttonStyle?.textColor) ?? 'auto',
       },
     };
     const themeOptions = { themeId, custom };
@@ -212,8 +211,8 @@ export const DesignTab: React.FC<DesignTabProps> = ({ profile, onProfileUpdate }
 
   const buttonColors = resolveButtonColors(customConfig);
   // Só undefined e 'auto' contam como automático: apagar o campo manual não pode religar o interruptor
-  const isAutoButtonText = customConfig.buttonStyle.textColor === undefined || customConfig.buttonStyle.textColor === 'auto';
-  const manualButtonText = normalizeHex(customConfig.buttonStyle.textColor) ?? buttonColors.text;
+  const isAutoButtonText = customConfig.buttonStyle?.textColor === undefined || customConfig.buttonStyle?.textColor === 'auto';
+  const manualButtonText = normalizeHex(customConfig.buttonStyle?.textColor) ?? buttonColors.text;
 
   return (
     <div className="space-y-4">
