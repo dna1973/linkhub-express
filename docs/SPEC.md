@@ -122,7 +122,6 @@ src/
 ├── components/
 │   ├── analytics/       # Componentes de analytics
 │   ├── dashboard/       # Componentes do dashboard
-│   ├── design-system/   # Editor de design visual
 │   └── ui/              # Componentes shadcn/ui
 ├── contexts/            # AuthContext
 ├── hooks/               # Hooks customizados
