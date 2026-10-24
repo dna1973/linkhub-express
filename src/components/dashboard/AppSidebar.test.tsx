@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeAll } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
-import { afterEach } from 'vitest';
 import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { AppSidebar } from './AppSidebar';
 
@@ -28,6 +27,9 @@ vi.mock('@/lib/supabase', () => {
   };
 });
 
+const originalInnerWidth = window.innerWidth;
+const originalMatchMedia = window.matchMedia;
+
 beforeAll(() => {
   // Janela estreita: o shadcn usa o painel deslizante (Sheet)
   (window as any).innerWidth = 500;
@@ -43,10 +45,16 @@ beforeAll(() => {
   })) as any;
 });
 
+afterAll(() => {
+  (window as any).innerWidth = originalInnerWidth;
+  window.matchMedia = originalMatchMedia;
+});
+
 afterEach(() => cleanup());
 
 function renderSidebar(onTabChange = vi.fn()) {
   render(
+    // defaultOpen={false}: simula a barra de desktop recolhida antes de estreitar a janela (cenário do defeito)
     <SidebarProvider defaultOpen={false}>
       <SidebarTrigger />
       <AppSidebar activeTab="links" onTabChange={onTabChange} profile={{ username: 'dna' }} />
@@ -69,6 +77,12 @@ describe('AppSidebar em janela estreita', () => {
   it('fecha o painel ao escolher um item do menu', async () => {
     const onTabChange = renderSidebar();
     fireEvent.click(screen.getByRole('button', { name: /toggle sidebar/i }));
+    const painel = await waitFor(() => {
+      const el = document.querySelector('[data-mobile="true"]');
+      expect(el).not.toBeNull();
+      return el;
+    });
+    expect(painel).toBeTruthy();
     fireEvent.click(await screen.findByText('Design'));
     expect(onTabChange).toHaveBeenCalledWith('design');
     await waitFor(() => {
