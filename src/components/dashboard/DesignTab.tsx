@@ -19,7 +19,12 @@ import { TemplateMockup } from '@/components/dashboard/TemplateMockup';
 import { TemplateCategoryChips } from '@/components/dashboard/TemplateCategoryChips';
 import { Switch } from '@/components/ui/switch';
 import { normalizeHex, resolveButtonColors } from '@/utils/linkButtonStyle';
-import { FONT_FAMILY_CSS } from '@/utils/profileAppearance';
+import {
+  FONT_FAMILY_CSS,
+  getBackgroundEditorColors,
+  withBackgroundPrimaryColor,
+  withBackgroundSecondaryColor,
+} from '@/utils/profileAppearance';
 
 interface DesignTabProps {
   profile: any;
@@ -144,6 +149,8 @@ export const DesignTab: React.FC<DesignTabProps> = ({ profile, onProfileUpdate }
   };
 
   const buttonColors = resolveButtonColors(customConfig);
+  // As cores do fundo que o editor mostra são as que a página desenha (no gradiente, colors[0] e colors[1])
+  const backgroundColors = getBackgroundEditorColors(customConfig.background);
   // Só undefined e 'auto' contam como automático: apagar o campo manual não pode religar o interruptor
   const isAutoButtonText = customConfig.buttonStyle?.textColor === undefined || customConfig.buttonStyle?.textColor === 'auto';
   const manualButtonText = normalizeHex(customConfig.buttonStyle?.textColor) ?? buttonColors.text;
@@ -205,16 +212,16 @@ export const DesignTab: React.FC<DesignTabProps> = ({ profile, onProfileUpdate }
                     <div>
                       <Label className="text-sm">Cor Principal</Label>
                       <div className="flex items-center space-x-2 mt-2">
-                        <Input type="color" value={customConfig.background.color || '#111827'} onChange={(e) => updateCustomConfig('background', { color: e.target.value })} className="w-12 h-10 p-1 rounded" />
-                        <Input type="text" value={customConfig.background.color || '#111827'} onChange={(e) => updateCustomConfig('background', { color: e.target.value })} placeholder="#111827" className="flex-1" />
+                        <Input type="color" value={backgroundColors.primary} onChange={(e) => updateCustomConfig('background', withBackgroundPrimaryColor(customConfig.background, e.target.value))} className="w-12 h-10 p-1 rounded" />
+                        <Input type="text" value={backgroundColors.primary} onChange={(e) => updateCustomConfig('background', withBackgroundPrimaryColor(customConfig.background, e.target.value))} placeholder="#111827" className="flex-1" />
                       </div>
                     </div>
                     {customConfig.background.type === 'gradient' && (
                       <div>
                         <Label className="text-sm">Segunda Cor (Gradiente)</Label>
                         <div className="flex items-center space-x-2 mt-2">
-                          <Input type="color" value={customConfig.background.colors?.[1] || '#1f2937'} onChange={(e) => updateCustomConfig('background', { colors: [customConfig.background.color || '#111827', e.target.value] })} className="w-12 h-10 p-1 rounded" />
-                          <Input type="text" value={customConfig.background.colors?.[1] || '#1f2937'} onChange={(e) => updateCustomConfig('background', { colors: [customConfig.background.color || '#111827', e.target.value] })} placeholder="#1f2937" className="flex-1" />
+                          <Input type="color" value={backgroundColors.secondary} onChange={(e) => updateCustomConfig('background', withBackgroundSecondaryColor(customConfig.background, e.target.value))} className="w-12 h-10 p-1 rounded" />
+                          <Input type="text" value={backgroundColors.secondary} onChange={(e) => updateCustomConfig('background', withBackgroundSecondaryColor(customConfig.background, e.target.value))} placeholder="#1f2937" className="flex-1" />
                         </div>
                       </div>
                     )}

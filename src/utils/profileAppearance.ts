@@ -74,6 +74,37 @@ export function getBaseBackgroundColor(config: BackgroundSource): string {
   return background.color || background.colors?.[0] || DEFAULT_BACKGROUND;
 }
 
+type BackgroundConfig = Partial<ThemeConfig['background']> | undefined;
+
+/**
+ * Cores que o editor mostra em "Cor Principal" e "Segunda Cor": as mesmas que a página desenha.
+ * No gradiente a principal é colors[0]; no sólido, color (com reserva em colors[0]).
+ */
+export function getBackgroundEditorColors(background: BackgroundConfig): { primary: string; secondary: string } {
+  const primary = background
+    ? getBaseBackgroundColor({ background: background as ThemeConfig['background'] })
+    : DEFAULT_BACKGROUND;
+  return { primary, secondary: background?.colors?.[1] || DEFAULT_GRADIENT_END };
+}
+
+/** Nova cor principal: grava em color e em colors[0], para sólido e gradiente mostrarem a mesma cor. */
+export function withBackgroundPrimaryColor(
+  background: BackgroundConfig,
+  value: string,
+): Pick<ThemeConfig['background'], 'color' | 'colors'> {
+  const { secondary } = getBackgroundEditorColors(background);
+  return { color: value, colors: [value, secondary] };
+}
+
+/** Nova segunda cor do gradiente, preservando a primeira que a página desenha. */
+export function withBackgroundSecondaryColor(
+  background: BackgroundConfig,
+  value: string,
+): Pick<ThemeConfig['background'], 'colors'> {
+  const { primary } = getBackgroundEditorColors(background);
+  return { colors: [primary, value] };
+}
+
 /** Formato do avatar. Vale para a raiz do Avatar e para o AvatarFallback. */
 export function getAvatarShapeStyle(shape: string | undefined): CSSProperties {
   switch (shape) {

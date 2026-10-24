@@ -7,7 +7,43 @@ import {
   getFontWeight,
   getPatternLayerStyle,
   getTextSizeClasses,
+  getBackgroundEditorColors,
+  withBackgroundPrimaryColor,
+  withBackgroundSecondaryColor,
 } from './profileAppearance';
+
+describe('cores do fundo no editor', () => {
+  // Fundo real do perfil dna: gradiente sem background.color
+  const dna = { type: 'gradient' as const, colors: ['#0891B2', '#1E40AF'] };
+
+  it('mostra no gradiente as cores que a página desenha', () => {
+    expect(getBackgroundEditorColors(dna)).toEqual({ primary: '#0891B2', secondary: '#1E40AF' });
+  });
+
+  it('mudar a segunda cor preserva a primeira do gradiente', () => {
+    expect(withBackgroundSecondaryColor(dna, '#FF0000')).toEqual({ colors: ['#0891B2', '#FF0000'] });
+  });
+
+  it('mudar a cor principal no gradiente troca colors[0] e mantém a segunda', () => {
+    expect(withBackgroundPrimaryColor(dna, '#00FF00')).toEqual({ color: '#00FF00', colors: ['#00FF00', '#1E40AF'] });
+  });
+
+  it('a cor principal mudada aparece na página no gradiente e no sólido', () => {
+    const atualizado = { ...dna, ...withBackgroundPrimaryColor(dna, '#00FF00') };
+    expect(getBaseBackgroundColor({ background: atualizado })).toBe('#00FF00');
+    expect(getBaseBackgroundColor({ background: { ...atualizado, type: 'solid' } })).toBe('#00FF00');
+  });
+
+  it('sólido usa color, com reserva em colors[0] e no padrão', () => {
+    expect(getBackgroundEditorColors({ type: 'solid', color: '#abcdef' }).primary).toBe('#abcdef');
+    expect(getBackgroundEditorColors({ type: 'solid', colors: ['#FFFFFF'] }).primary).toBe('#FFFFFF');
+    expect(getBackgroundEditorColors(undefined)).toEqual({ primary: '#111827', secondary: '#1f2937' });
+  });
+
+  it('segunda cor sem gradiente prévio usa a cor principal do sólido como primeira', () => {
+    expect(withBackgroundSecondaryColor({ type: 'solid', color: '#abcdef' }, '#123456')).toEqual({ colors: ['#abcdef', '#123456'] });
+  });
+});
 
 describe('getPatternLayerStyle', () => {
   const colors = { text: '#0F172A' };
