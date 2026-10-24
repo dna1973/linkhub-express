@@ -5,7 +5,10 @@
 // O `npm run build:dev` (vite build --mode development) NÃO aciona o "prebuild": se precisar dele,
 // rode `node scripts/prepare-mediapipe.mjs` antes.
 //
-// Nunca derruba o build: se algo falhar, avisa no console e a remoção de fundo só fica indisponível no app.
+// No `npm run dev`, uma falha só avisa no console: a remoção de fundo fica indisponível, o resto funciona.
+// No `npm run build` (ou com REQUIRE_MEDIAPIPE=1), a falha derruba o build: um dist sem o modelo,
+// publicado por cima do servidor, apagaria a remoção de fundo em produção sem ninguém notar.
+// SKIP_MEDIAPIPE=1 continua pulando tudo, de propósito, também no build.
 import { createWriteStream } from 'node:fs';
 import { copyFile, mkdir, readFile, rename, rm, stat } from 'node:fs/promises';
 import os from 'node:os';
@@ -89,11 +92,16 @@ async function downloadModel() {
   // Baixa fora de public/: um download interrompido não pode virar arquivo corrompido nem subir no dist
   const temp = path.join(os.tmpdir(), `linkhub-${MODEL_NAME}.${process.pid}.part`);
   console.log(`[mediapipe] baixando o modelo (${(MODEL_SIZE / 1024 / 1024).toFixed(1)} MB)...`);
+  // Dois prazos: 60 s até a resposta começar (proxy que segura a conexão não prende o npm run dev)
+  // e 15 min para o corpo (16 MB a ~20 KB/s). Um prazo só para tudo derrubava conexões lentas.
+  const controller = new AbortController();
+  let timer = setTimeout(() => controller.abort(new Error('sem resposta em 60 s')), 60 * 1000);
   try {
-    // 60 s: numa rede com proxy que segura a conexão, o npm run dev não fica preso por minutos
-    const response = await fetch(MODEL_URL, { signal: AbortSignal.timeout(60 * 1000) });
+    const response = await fetch(MODEL_URL, { signal: controller.signal });
     if (!response.ok || !response.body) throw new Error(`HTTP ${response.status}`);
-    await pipeline(Readable.fromWeb(response.body), createWriteStream(temp));
+    clearTimeout(timer);
+    timer = setTimeout(() => controller.abort(new Error('download passou de 15 min')), 15 * 60 * 1000);
+    await pipeline(Readable.fromWeb(response.body), createWriteStream(temp), { signal: controller.signal });
     const size = await sizeOf(temp);
     if (size !== MODEL_SIZE) throw new Error(`tamanho ${size}, esperado ${MODEL_SIZE}`);
     await mkdir(destDir, { recursive: true });
@@ -101,8 +109,19 @@ async function downloadModel() {
     await moveFile(temp, dest);
     console.log('[mediapipe] modelo pronto.');
   } finally {
+    clearTimeout(timer);
     await rm(temp, { force: true });
   }
+}
+
+// Lista o que falta em public/mediapipe/: arquivo ausente ou modelo com tamanho diferente
+async function missingFiles() {
+  const missing = [];
+  for (const name of WASM_FILES) {
+    if ((await sizeOf(path.join(targetDir, 'wasm', name))) === null) missing.push(`wasm/${name}`);
+  }
+  if ((await sizeOf(path.join(targetDir, 'models', MODEL_NAME))) !== MODEL_SIZE) missing.push(`models/${MODEL_NAME}`);
+  return missing;
 }
 
 async function main() {
@@ -121,6 +140,15 @@ async function main() {
     await downloadModel();
   } catch (error) {
     console.warn(`[mediapipe] não foi possível baixar o modelo: ${error.message}. A remoção de fundo ficará indisponível.`);
+  }
+
+  const strict = process.env.npm_lifecycle_event === 'prebuild' || process.env.REQUIRE_MEDIAPIPE === '1';
+  if (!strict) return;
+  const missing = await missingFiles();
+  if (missing.length > 0) {
+    console.error(`[mediapipe] build interrompido: faltam ${missing.join(', ')} em public/mediapipe/${VERSION}/.`);
+    console.error('[mediapipe] Rode de novo com internet, ou use SKIP_MEDIAPIPE=1 para gerar um build sem a remoção de fundo.');
+    process.exitCode = 1;
   }
 }
 

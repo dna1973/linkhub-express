@@ -95,9 +95,26 @@ export function scaleCanvas(canvas: HTMLCanvasElement, maxSize: number): HTMLCan
   return out;
 }
 
+/**
+ * JPEG não tem transparência: sem um fundo, os pixels transparentes saem pretos. Isso acontece ao
+ * recortar de novo, sem remoção, um avatar PNG que já está sem fundo. A cópia ganha branco por baixo.
+ */
+function flattenOnWhite(canvas: HTMLCanvasElement): HTMLCanvasElement {
+  const out = document.createElement('canvas');
+  out.width = canvas.width;
+  out.height = canvas.height;
+  const ctx = out.getContext('2d');
+  if (!ctx) throw new Error('Canvas 2D indisponível');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, out.width, out.height);
+  ctx.drawImage(canvas, 0, 0);
+  return out;
+}
+
 export function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality?: number): Promise<Blob> {
   return new Promise((resolve, reject) => {
-    canvas.toBlob((blob) => {
+    const source = type === 'image/jpeg' ? flattenOnWhite(canvas) : canvas;
+    source.toBlob((blob) => {
       if (blob) resolve(blob);
       else reject(new Error('Canvas toBlob failed'));
     }, type, quality);

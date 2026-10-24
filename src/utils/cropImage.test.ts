@@ -42,6 +42,10 @@ describe('scaleCanvas', () => {
 
 describe('canvasToBlob', () => {
   it('repassa tipo e qualidade e resolve com o blob', async () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+      fillRect: vi.fn(),
+      drawImage: vi.fn(),
+    } as unknown as CanvasRenderingContext2D);
     const blob = new Blob(['x'], { type: 'image/jpeg' });
     const toBlob = vi
       .spyOn(HTMLCanvasElement.prototype, 'toBlob')
@@ -49,6 +53,52 @@ describe('canvasToBlob', () => {
 
     await expect(canvasToBlob(canvasOf(1, 1), 'image/jpeg', 0.9)).resolves.toBe(blob);
     expect(toBlob).toHaveBeenCalledWith(expect.any(Function), 'image/jpeg', 0.9);
+  });
+
+  it('JPEG: pinta de branco por baixo, porque o JPEG transformaria a transparência em preto', async () => {
+    const calls: string[] = [];
+    const ctx = {
+      fillStyle: '',
+      fillRect: vi.fn(() => calls.push(`fillRect ${ctx.fillStyle}`)),
+      drawImage: vi.fn(() => calls.push('drawImage')),
+    };
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(ctx as unknown as CanvasRenderingContext2D);
+    let exported: HTMLCanvasElement | null = null;
+    vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation(function (this: HTMLCanvasElement, callback: BlobCallback) {
+      exported = this;
+      callback(new Blob(['x'], { type: 'image/jpeg' }));
+    });
+    const source = canvasOf(300, 200);
+
+    await canvasToBlob(source, 'image/jpeg', 0.9);
+
+    // Exporta uma cópia opaca do mesmo tamanho: branco primeiro, a imagem por cima
+    expect(exported).not.toBe(source);
+    expect([exported!.width, exported!.height]).toEqual([300, 200]);
+    expect(calls).toEqual(['fillRect #ffffff', 'drawImage']);
+    expect(ctx.fillRect).toHaveBeenCalledWith(0, 0, 300, 200);
+    expect(ctx.drawImage).toHaveBeenCalledWith(source, 0, 0);
+  });
+
+  it('PNG: exporta o próprio canvas, com a transparência', async () => {
+    const getContext = vi.spyOn(HTMLCanvasElement.prototype, 'getContext');
+    let exported: HTMLCanvasElement | null = null;
+    vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation(function (this: HTMLCanvasElement, callback: BlobCallback) {
+      exported = this;
+      callback(new Blob(['x'], { type: 'image/png' }));
+    });
+    const source = canvasOf(10, 10);
+
+    await canvasToBlob(source, 'image/png');
+    expect(exported).toBe(source);
+    expect(getContext).not.toHaveBeenCalled();
+  });
+
+  it('JPEG sem canvas 2D: rejeita em vez de exportar com fundo preto', async () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+    const toBlob = vi.spyOn(HTMLCanvasElement.prototype, 'toBlob');
+    await expect(canvasToBlob(canvasOf(1, 1), 'image/jpeg', 0.9)).rejects.toThrow();
+    expect(toBlob).not.toHaveBeenCalled();
   });
 
   it('rejeita quando o blob vem null', async () => {

@@ -135,13 +135,56 @@ docker exec -i supabase-db psql -U postgres -d postgres -c "INSERT INTO linkhub.
 
 ## Atualizações futuras
 
-PowerShell (preserva o inode do bind mount):
+### Build
 
 ```powershell
 npm run build
-ssh avila@192.168.1.24 'find ~/docker/linkhub-frontend/html -mindepth 1 -delete'
-scp -r dist/* avila@192.168.1.24:~/docker/linkhub-frontend/html/
-ssh avila@192.168.1.24 'find ~/docker/linkhub-frontend/html -type d -exec chmod 755 {} + && find ~/docker/linkhub-frontend/html -type f -exec chmod 644 {} +'
 ```
+
+- O `prebuild` roda `scripts/prepare-mediapipe.mjs`, que prepara o motor e o modelo da remoção de fundo em `public/mediapipe/<versão>/`. O primeiro build numa máquina baixa o modelo (15,6 MB) uma vez; os seguintes reaproveitam.
+- Sem internet e sem o modelo, o build **para com erro**, de propósito: um `dist` sem `mediapipe/` publicado por cima do servidor tiraria a remoção de fundo do ar. Rode de novo com internet. Só use `SKIP_MEDIAPIPE=1` se quiser mesmo publicar sem a remoção de fundo.
+- Cada deploy envia cerca de 44 MB, quase todos do MediaPipe (`dist/mediapipe/`).
+
+### Publicar
+
+O build novo sobe para `html.new` e só então troca de lugar com o atual, que fica em `html.old` para voltar se precisar. Nada é apagado antes de o novo estar inteiro no servidor. Como a troca muda a pasta montada no contêiner, o `--force-recreate` é obrigatório.
+
+```powershell
+ssh avila@192.168.1.24 'cd ~/docker/linkhub-frontend && rm -rf html.new && mkdir html.new'
+scp -r dist/* avila@192.168.1.24:~/docker/linkhub-frontend/html.new/
+ssh avila@192.168.1.24 'find ~/docker/linkhub-frontend/html.new -type d -exec chmod 755 {} + && find ~/docker/linkhub-frontend/html.new -type f -exec chmod 644 {} +'
+ssh avila@192.168.1.24 'cd ~/docker/linkhub-frontend && rm -rf html.old && mv html html.old && mv html.new html && docker compose up -d --force-recreate && sleep 40 && docker inspect --format "{{.State.Health.Status}}" linkhub-nginx'
+```
+
+Esperado: `healthy`. Se vier `starting`, repita só o `docker inspect`.
+
+### Quando o `nginx.conf` mudar
+
+Teste o arquivo novo num contêiner descartável antes de tocar no que está em uso, e faça a troca junto com a publicação acima (o `--force-recreate` também é o que faz o nginx ler o arquivo novo):
+
+```powershell
+scp deploy/vpsavila/nginx.conf avila@192.168.1.24:~/docker/linkhub-frontend/nginx.conf.new
+ssh avila@192.168.1.24 'docker run --rm -v ~/docker/linkhub-frontend/nginx.conf.new:/etc/nginx/conf.d/default.conf:ro nginx:1.27-alpine nginx -t'
+ssh avila@192.168.1.24 'cd ~/docker/linkhub-frontend && cp nginx.conf nginx.conf.old && mv nginx.conf.new nginx.conf && chmod 644 nginx.conf'
+```
+
+Esperado no `nginx -t`: `syntax is ok` e `test is successful`. Se falhar, pare: o nginx em uso continua com o arquivo antigo.
+
+### Conferir
+
+```powershell
+curl.exe -s https://linkhub.avila.ia.br/ | Select-String -Pattern 'assets/index-[^"]+\.js'
+curl.exe -s -o NUL -w '%{http_code}\n' https://linkhub.avila.ia.br/mediapipe/1.1.1/models/selfie_multiclass_256x256.tflite
+```
+
+Esperado: o mesmo `index-*.js` do `dist/index.html`, e `200` no modelo.
+
+### Voltar à versão anterior
+
+```powershell
+ssh avila@192.168.1.24 'cd ~/docker/linkhub-frontend && mv html html.new && mv html.old html && docker compose up -d --force-recreate'
+```
+
+Se o `nginx.conf` também mudou, volte com `cp nginx.conf.old nginx.conf` antes do `docker compose`.
 
 Como é PWA, quem já abriu o app recebe a versão nova no próximo carregamento (o `sw.js` não fica em cache).

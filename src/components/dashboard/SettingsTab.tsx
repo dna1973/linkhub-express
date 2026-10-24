@@ -36,7 +36,6 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
   const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
-  const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [cropRemoveBackground, setCropRemoveBackground] = useState(false);
   const [isOpeningCurrentAvatar, setIsOpeningCurrentAvatar] = useState(false);
   // Cores do tema para os atalhos de "Atrás da pessoa" na janela de recorte
@@ -171,7 +170,6 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
       return;
     }
 
-    setPendingFile(file);
     setCropRemoveBackground(false);
     replaceCropImageSrc(URL.createObjectURL(file));
 
@@ -181,7 +179,6 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   // Fecha a janela de recorte e libera o objectURL da imagem aberta nela
   const closeCropDialog = () => {
     replaceCropImageSrc(null);
-    setPendingFile(null);
     setCropRemoveBackground(false);
   };
 
@@ -199,7 +196,6 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
       if (!blob.type.startsWith('image/')) throw new Error(`Resposta não é imagem: ${blob.type || 'sem tipo'}`);
       // A aba saiu durante a busca: não cria um objectURL que ninguém revogaria
       if (!mountedRef.current) return;
-      setPendingFile(null);
       setCropRemoveBackground(true);
       // objectURL: o canvas do recorte não fica "sujo" com imagem de outra origem
       replaceCropImageSrc(URL.createObjectURL(blob));
