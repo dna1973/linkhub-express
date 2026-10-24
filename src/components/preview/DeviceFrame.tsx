@@ -41,6 +41,7 @@ const StatusBar: React.FC<{ device: DeviceSpec; color: string }> = ({ device, co
   return (
     <div
       data-testid="device-status-bar"
+      aria-hidden="true"
       className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-center justify-between font-semibold"
       style={{
         height,
@@ -66,6 +67,7 @@ const CameraCutout: React.FC<{ device: DeviceSpec }> = ({ device }) => {
     return (
       <div
         data-testid="device-cutout"
+        aria-hidden="true"
         className="pointer-events-none absolute left-1/2 z-10 -translate-x-1/2 rounded-full bg-black"
         style={{ top: 11, width: 126, height: 37 }}
       />
@@ -75,6 +77,7 @@ const CameraCutout: React.FC<{ device: DeviceSpec }> = ({ device }) => {
     return (
       <div
         data-testid="device-cutout"
+        aria-hidden="true"
         className="pointer-events-none absolute left-1/2 z-10 -translate-x-1/2 rounded-full bg-black"
         style={{ top: 12, width: 10, height: 10 }}
       />
@@ -126,6 +129,7 @@ export const DeviceFrame: React.FC<DeviceFrameProps> = ({ device, statusBarColor
             {device.fold && (
               <div
                 data-testid="device-fold"
+                aria-hidden="true"
                 className="pointer-events-none absolute inset-x-0 z-10 h-px bg-black/20"
                 style={{ top: '50%' }}
               />
@@ -134,6 +138,7 @@ export const DeviceFrame: React.FC<DeviceFrameProps> = ({ device, statusBarColor
           {device.cutout === 'home-button' && (
             <div
               data-testid="device-home-button"
+              aria-hidden="true"
               className="absolute left-1/2 -translate-x-1/2 rounded-full border-2 border-neutral-600"
               style={{ width: 44, height: 44, bottom: (bezel.bottom - 44) / 2 }}
             />
