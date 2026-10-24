@@ -131,7 +131,7 @@ Não importa nada do MediaPipe no topo. O carregamento é dinâmico, para não p
   - fazer o mesmo com cor sólida;
   - usar o botão "Remover fundo" na foto atual;
   - simular falha com os arquivos indisponíveis.
-- **Antes de testar em produção**, guardar o `avatar_url` atual e o arquivo do avatar, e restaurar depois.
+- **Em produção não se salva nada sobre o avatar do usuário:** a verificação abre a janela, confere carregamento, miniatura, CORS da foto atual e atalhos de cor, e termina em "Cancelar". O salvamento é coberto pelos testes; um teste completo de salvamento só com conta de teste criada pelo usuário.
 
 ## Fora do escopo
 
