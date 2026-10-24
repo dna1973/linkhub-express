@@ -17,6 +17,7 @@ import { ONBOARDING_TEMPLATES } from '@/components/dashboard/onboardingTemplates
 import { TemplateMockup } from '@/components/dashboard/TemplateMockup';
 import { Switch } from '@/components/ui/switch';
 import { normalizeHex, resolveButtonColors } from '@/utils/linkButtonStyle';
+import { FONT_FAMILY_CSS } from '@/utils/profileAppearance';
 
 interface DesignTabProps {
   profile: any;
@@ -25,87 +26,16 @@ interface DesignTabProps {
 
 // PREDEFINED_THEMES imported from @/utils/themes
 
-const FONT_FAMILIES = [
-  { 
-    id: 'inter', 
-    name: 'Inter', 
-    category: 'Sans-serif',
-    preview: 'Aa Bb Cc',
-    description: 'Moderna e legível',
-    style: 'font-sans',
-    weight: 'font-normal',
-    cssFamily: 'Inter, system-ui, sans-serif'
-  },
-  { 
-    id: 'playfair', 
-    name: 'Playfair Display', 
-    category: 'Serif',
-    preview: 'Aa Bb Cc',
-    description: 'Elegante e sofisticada',
-    style: 'font-serif',
-    weight: 'font-normal',
-    cssFamily: 'Playfair Display, serif'
-  },
-  { 
-    id: 'poppins', 
-    name: 'Poppins', 
-    category: 'Sans-serif',
-    preview: 'Aa Bb Cc',
-    description: 'Amigável e arredondada',
-    style: 'font-sans',
-    weight: 'font-medium',
-    cssFamily: 'Poppins, sans-serif'
-  },
-  { 
-    id: 'roboto-mono', 
-    name: 'Roboto Mono', 
-    category: 'Monospace',
-    preview: 'Aa Bb Cc',
-    description: 'Técnica e precisa',
-    style: 'font-mono',
-    weight: 'font-normal',
-    cssFamily: 'Roboto Mono, monospace'
-  },
-  { 
-    id: 'dancing-script', 
-    name: 'Dancing Script', 
-    category: 'Handwriting',
-    preview: 'Aa Bb Cc',
-    description: 'Casual e divertida',
-    style: 'font-serif italic',
-    weight: 'font-normal',
-    cssFamily: 'Dancing Script, cursive'
-  },
-  { 
-    id: 'montserrat', 
-    name: 'Montserrat', 
-    category: 'Sans-serif',
-    preview: 'Aa Bb Cc',
-    description: 'Forte e impactante',
-    style: 'font-sans',
-    weight: 'font-semibold',
-    cssFamily: 'Montserrat, sans-serif'
-  },
-  { 
-    id: 'lora', 
-    name: 'Lora', 
-    category: 'Serif',
-    preview: 'Aa Bb Cc',
-    description: 'Clássica e confortável',
-    style: 'font-serif',
-    weight: 'font-normal',
-    cssFamily: 'Lora, serif'
-  },
-  { 
-    id: 'source-code-pro', 
-    name: 'Source Code Pro', 
-    category: 'Monospace',
-    preview: 'Aa Bb Cc',
-    description: 'Profissional e limpa',
-    style: 'font-mono',
-    weight: 'font-normal',
-    cssFamily: 'Source Code Pro, monospace'
-  }
+// A família CSS de cada fonte vem de FONT_FAMILY_CSS, a mesma lista do perfil público e da prévia
+const FONT_FAMILIES: { id: ThemeConfig['font']['family']; name: string; category: string; preview: string; description: string }[] = [
+  { id: 'inter', name: 'Inter', category: 'Sans-serif', preview: 'Aa Bb Cc', description: 'Moderna e legível' },
+  { id: 'playfair', name: 'Playfair Display', category: 'Serif', preview: 'Aa Bb Cc', description: 'Elegante e sofisticada' },
+  { id: 'poppins', name: 'Poppins', category: 'Sans-serif', preview: 'Aa Bb Cc', description: 'Amigável e arredondada' },
+  { id: 'roboto-mono', name: 'Roboto Mono', category: 'Monospace', preview: 'Aa Bb Cc', description: 'Técnica e precisa' },
+  { id: 'dancing-script', name: 'Dancing Script', category: 'Handwriting', preview: 'Aa Bb Cc', description: 'Casual e divertida' },
+  { id: 'montserrat', name: 'Montserrat', category: 'Sans-serif', preview: 'Aa Bb Cc', description: 'Forte e impactante' },
+  { id: 'lora', name: 'Lora', category: 'Serif', preview: 'Aa Bb Cc', description: 'Clássica e confortável' },
+  { id: 'source-code-pro', name: 'Source Code Pro', category: 'Monospace', preview: 'Aa Bb Cc', description: 'Profissional e limpa' },
 ];
 
 const BUTTON_STYLES = [
@@ -116,11 +46,12 @@ const BUTTON_STYLES = [
   { id: 'rounded', name: 'Arredondado', preview: 'bg-primary text-white rounded-full' },
 ];
 
-const BACKGROUND_PATTERNS = [
+const BACKGROUND_PATTERNS: { id: NonNullable<ThemeConfig['background']['pattern']>; name: string; preview: string }[] = [
   { id: 'none', name: 'Nenhum', preview: '' },
   { id: 'dots', name: 'Pontos', preview: 'radial-gradient(circle, rgba(255,255,255,0.1) 1px, transparent 1px)' },
   { id: 'grid', name: 'Grade', preview: 'linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)' },
   { id: 'waves', name: 'Ondas', preview: 'repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255,255,255,0.1) 10px, rgba(255,255,255,0.1) 20px)' },
+  { id: 'stripes', name: 'Listras', preview: 'linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)' },
 ];
 
 export const DesignTab: React.FC<DesignTabProps> = ({ profile, onProfileUpdate }) => {
@@ -259,12 +190,12 @@ export const DesignTab: React.FC<DesignTabProps> = ({ profile, onProfileUpdate }
                   <div className="space-y-4">
                     <div>
                       <Label className="text-sm">Tipo de Fundo</Label>
-                      <Select value={customConfig.background.type} onValueChange={(value: 'solid' | 'gradient' | 'pattern') => updateCustomConfig('background', { type: value })}>
+                      {/* 'pattern' é valor legado: o fundo é desenhado como sólido, então o seletor mostra "Sólido" */}
+                      <Select value={customConfig.background.type === 'gradient' ? 'gradient' : 'solid'} onValueChange={(value: 'solid' | 'gradient') => updateCustomConfig('background', { type: value })}>
                         <SelectTrigger className="mt-2"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="solid">Cor Sólida</SelectItem>
+                          <SelectItem value="solid">Sólido</SelectItem>
                           <SelectItem value="gradient">Gradiente</SelectItem>
-                          <SelectItem value="pattern">Padrão</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -284,18 +215,27 @@ export const DesignTab: React.FC<DesignTabProps> = ({ profile, onProfileUpdate }
                         </div>
                       </div>
                     )}
-                    {customConfig.background.type === 'pattern' && (
-                      <div>
-                        <Label className="text-sm">Padrão</Label>
-                        <div className="grid grid-cols-2 gap-2 mt-2">
-                          {BACKGROUND_PATTERNS.map((pattern) => (
-                            <Button key={pattern.id} variant={customConfig.background.pattern === pattern.id ? "default" : "outline"} className="h-12 text-xs" onClick={() => updateCustomConfig('background', { pattern: pattern.id })}>
-                              {pattern.name}
-                            </Button>
-                          ))}
-                        </div>
+                    {customConfig.background.type === 'gradient' && (
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="background-animated" className="text-sm">Animado</Label>
+                        <Switch
+                          id="background-animated"
+                          checked={customConfig.background.animated === true}
+                          onCheckedChange={(checked) => updateCustomConfig('background', { animated: checked })}
+                        />
                       </div>
                     )}
+                    {/* O padrão é uma camada sobre qualquer tipo de fundo */}
+                    <div>
+                      <Label className="text-sm">Padrão</Label>
+                      <div className="grid grid-cols-3 gap-2 mt-2">
+                        {BACKGROUND_PATTERNS.map((pattern) => (
+                          <Button key={pattern.id} variant={(customConfig.background.pattern || 'none') === pattern.id ? "default" : "outline"} className="h-12 text-xs" onClick={() => updateCustomConfig('background', { pattern: pattern.id })}>
+                            {pattern.name}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 )}
 
@@ -317,7 +257,7 @@ export const DesignTab: React.FC<DesignTabProps> = ({ profile, onProfileUpdate }
                           >
                             <div className="flex items-center justify-between mb-2">
                               <div className="flex items-center space-x-3">
-                                <div className="text-2xl font-medium" style={{ fontFamily: font.cssFamily }}>{font.preview}</div>
+                                <div className="text-2xl font-medium" style={{ fontFamily: FONT_FAMILY_CSS[font.id] }}>{font.preview}</div>
                                 <div>
                                   <h4 className="font-medium text-sm">{font.name}</h4>
                                   <p className="text-xs text-muted-foreground">{font.category}</p>
@@ -377,6 +317,19 @@ export const DesignTab: React.FC<DesignTabProps> = ({ profile, onProfileUpdate }
                       </div>
                       <p className="text-xs text-muted-foreground mt-1">Cor do círculo ao redor da foto de perfil</p>
                     </div>
+                    <div>
+                      <Label className="text-sm">Formato</Label>
+                      {/* avatar pode não existir: o merge de updateCustomConfig cria o bloco */}
+                      <Select value={customConfig.avatar?.shape || 'circle'} onValueChange={(value: 'circle' | 'rounded' | 'hexagon') => updateCustomConfig('avatar', { shape: value })}>
+                        <SelectTrigger className="mt-2"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="circle">Círculo</SelectItem>
+                          <SelectItem value="rounded">Arredondado</SelectItem>
+                          <SelectItem value="hexagon">Hexágono</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground mt-1">No hexágono, a borda não aparece.</p>
+                    </div>
                   </div>
                 )}
 
@@ -433,6 +386,19 @@ export const DesignTab: React.FC<DesignTabProps> = ({ profile, onProfileUpdate }
                           </Button>
                         ))}
                       </div>
+                    </div>
+                    <div>
+                      <Label className="text-sm">Sombra</Label>
+                      {/* shadowColor não tem controle: o merge de updateCustomConfig preserva o valor vindo do modelo */}
+                      <Select value={customConfig.buttonStyle.shadow || 'none'} onValueChange={(value: 'none' | 'soft' | 'hard' | 'glow') => updateCustomConfig('buttonStyle', { shadow: value })}>
+                        <SelectTrigger className="mt-2"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Nenhuma</SelectItem>
+                          <SelectItem value="soft">Suave</SelectItem>
+                          <SelectItem value="hard">Dura</SelectItem>
+                          <SelectItem value="glow">Brilho</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div>
                       <div className="flex items-center justify-between">
