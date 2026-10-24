@@ -163,3 +163,29 @@
     transform: translateY(-2px) scale(1.02);
   }
 }
+
+/*
+ * Gradiente animado do perfil (getBackgroundLayer em src/utils/profileAppearance.ts).
+ * Fora de @layer de propósito: a classe é aplicada por código e não pode ser descartada.
+ */
+@keyframes linkhub-gradient-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.linkhub-gradient-animated {
+  animation: linkhub-gradient-shift 18s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .linkhub-gradient-animated {
+    animation: none;
+  }
+}
