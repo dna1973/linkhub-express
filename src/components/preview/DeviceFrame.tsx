@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useLayoutEffect, useRef, useState } from 'react';
 import { BatteryFull, Signal, Wifi } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getDeviceOuterSize, getDeviceScale } from './devices';
@@ -15,13 +15,28 @@ interface DeviceFrameProps {
 
 type Size = { width: number; height: number };
 
-/** Tamanho do conteúdo do elemento. null enquanto não medir ou quando não há ResizeObserver (jsdom). */
+/** Área útil (sem padding) do elemento, ou null se ainda não tem tamanho. */
+function measureContentBox(element: HTMLElement): Size | null {
+  const style = getComputedStyle(element);
+  const width = element.clientWidth - (parseFloat(style.paddingLeft) || 0) - (parseFloat(style.paddingRight) || 0);
+  const height = element.clientHeight - (parseFloat(style.paddingTop) || 0) - (parseFloat(style.paddingBottom) || 0);
+  return width > 0 && height > 0 ? { width, height } : null;
+}
+
+/**
+ * Tamanho do conteúdo do elemento. null enquanto não medir ou quando não há tamanho (jsdom).
+ * Mede já na montagem, antes da pintura, para o aparelho não aparecer no tamanho real e cortado
+ * até a primeira notificação do ResizeObserver; depois acompanha as mudanças pelo observer.
+ */
 function useElementSize(ref: React.RefObject<HTMLElement>): Size | null {
   const [size, setSize] = useState<Size | null>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const element = ref.current;
-    if (!element || typeof ResizeObserver === 'undefined') return;
+    if (!element) return;
+    const initial = measureContentBox(element);
+    if (initial) setSize(initial);
+    if (typeof ResizeObserver === 'undefined') return;
     const observer = new ResizeObserver((entries) => {
       const rect = entries[0]?.contentRect;
       if (rect) setSize({ width: rect.width, height: rect.height });

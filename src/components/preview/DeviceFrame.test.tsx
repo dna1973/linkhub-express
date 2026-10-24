@@ -49,6 +49,32 @@ describe('DeviceFrame com ResizeObserver simulado', () => {
     vi.unstubAllGlobals();
     expect(typeof ResizeObserver).toBe('undefined');
   });
+
+  it('mede a área já na montagem, sem esperar o ResizeObserver: o aparelho nunca aparece no tamanho real e cortado', () => {
+    // Sem ResizeObserver: só a medida síncrona da montagem pode reduzir o aparelho
+    const largura = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientWidth');
+    const altura = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientHeight');
+    Object.defineProperty(HTMLElement.prototype, 'clientWidth', { configurable: true, get: () => 324 });
+    Object.defineProperty(HTMLElement.prototype, 'clientHeight', { configurable: true, get: () => 524 });
+    try {
+      render(
+        <DeviceFrame device={getDevice('iphone-16-pro')} statusBarColor="#ffffff">
+          <p>conteúdo</p>
+        </DeviceFrame>,
+      );
+      // jsdom não aplica o padding do Tailwind: a área útil é 324×524 e f = min(324/426, 524/898)
+      const f = 524 / 898;
+      const slot = screen.getByTestId('device-slot');
+      expect(parseFloat(slot.style.height)).toBeCloseTo(898 * f, 3);
+      expect(parseFloat(slot.style.width)).toBeCloseTo(426 * f, 3);
+    } finally {
+      // No jsdom essas propriedades vivem em Element.prototype: sem descritor próprio, basta remover o falso
+      if (largura) Object.defineProperty(HTMLElement.prototype, 'clientWidth', largura);
+      else delete (HTMLElement.prototype as any).clientWidth;
+      if (altura) Object.defineProperty(HTMLElement.prototype, 'clientHeight', altura);
+      else delete (HTMLElement.prototype as any).clientHeight;
+    }
+  });
 });
 
 describe('DeviceFrame', () => {
