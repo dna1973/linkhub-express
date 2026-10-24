@@ -157,7 +157,11 @@ export const DesignTab: React.FC<DesignTabProps> = ({ profile, onProfileUpdate }
     // Grava a cor efetiva do botão em buttonStyle.color, inclusive quando ela vinha da reserva colors.primary
     const custom = {
       ...customConfig,
-      buttonStyle: { ...customConfig.buttonStyle, color: resolveButtonColors(customConfig).bg },
+      buttonStyle: {
+        ...customConfig.buttonStyle,
+        color: resolveButtonColors(customConfig).bg,
+        textColor: normalizeHex(customConfig.buttonStyle.textColor) ?? 'auto',
+      },
     };
     const themeOptions = { themeId, custom };
 
@@ -395,7 +399,7 @@ export const DesignTab: React.FC<DesignTabProps> = ({ profile, onProfileUpdate }
                         <Label className="text-sm">Cor do Botão</Label>
                         <div className="flex items-center space-x-2 mt-2">
                           <Input type="color" value={buttonColors.bg} onChange={(e) => updateCustomConfig('buttonStyle', { color: e.target.value })} className="w-12 h-10 p-1 rounded" />
-                          <Input type="text" value={customConfig.buttonStyle.color ?? buttonColors.bg}onChange={(e) => updateCustomConfig('buttonStyle', { color: e.target.value })} className="flex-1" />
+                          <Input type="text" value={customConfig.buttonStyle.color ?? buttonColors.bg} onChange={(e) => updateCustomConfig('buttonStyle', { color: e.target.value })} className="flex-1" />
                         </div>
                       </div>
                       <div>
@@ -452,7 +456,7 @@ export const DesignTab: React.FC<DesignTabProps> = ({ profile, onProfileUpdate }
                       ) : (
                         <div className="flex items-center space-x-2 mt-2">
                           <Input type="color" value={manualButtonText} onChange={(e) => updateCustomConfig('buttonStyle', { textColor: e.target.value })} className="w-12 h-10 p-1 rounded" />
-                          <Input type="text" value={customConfig.buttonStyle.textColor} onChange={(e) => updateCustomConfig('buttonStyle', { textColor: e.target.value })} className="flex-1" />
+                          <Input type="text" value={customConfig.buttonStyle.textColor ?? ''} onChange={(e) => updateCustomConfig('buttonStyle', { textColor: e.target.value })} className="flex-1" />
                         </div>
                       )}
                     </div>
