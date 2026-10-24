@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { UsernameInput } from '@/components/ui/username-input';
 import { USER_TYPE_LABELS } from './OnboardingDialog';
-import { Copy, Check, Upload, ExternalLink, Trash2, Globe, Loader2, CheckCircle2, Megaphone, Briefcase, User } from 'lucide-react';
+import { Copy, Check, Upload, ExternalLink, Trash2, Globe, Loader2, CheckCircle2, Megaphone, Briefcase, User, Eraser } from 'lucide-react';
 import { supabase, AVATARS_BUCKET, PUBLIC_SITE_URL } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -17,6 +17,9 @@ import { useUsernameValidation } from '@/hooks/useUsernameValidation';
 import { useAutosave } from '@/hooks/useAutosave';
 import { AuthProviderInfo } from './AuthProviderInfo';
 import { ImageCropDialog } from './ImageCropDialog';
+import { useDesignStore } from '@/stores/useDesignStore';
+import { getBaseBackgroundColor } from '@/utils/profileAppearance';
+import { resolveButtonColors } from '@/utils/linkButtonStyle';
 
 interface SettingsTabProps {
   profile: any;
@@ -34,6 +37,14 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   const [isCopied, setIsCopied] = useState(false);
   const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [cropRemoveBackground, setCropRemoveBackground] = useState(false);
+  const [isOpeningCurrentAvatar, setIsOpeningCurrentAvatar] = useState(false);
+  // Cores do tema para os atalhos de "Atrás da pessoa" na janela de recorte
+  const customTheme = useDesignStore((state) => state.customTheme);
+  const themeColors = useMemo(
+    () => ({ background: getBaseBackgroundColor(customTheme), button: resolveButtonColors(customTheme).bg }),
+    [customTheme],
+  );
   const [formData, setFormData] = useState({
     username: profile?.username || '',
     full_name: profile?.full_name || '',
@@ -141,15 +152,46 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
     }
 
     setPendingFile(file);
+    setCropRemoveBackground(false);
     const objectUrl = URL.createObjectURL(file);
     setCropImageSrc(objectUrl);
 
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const handleCropComplete = async (croppedBlob: Blob) => {
+  // Fecha a janela de recorte e libera o objectURL da imagem aberta nela
+  const closeCropDialog = () => {
+    if (cropImageSrc) URL.revokeObjectURL(cropImageSrc);
     setCropImageSrc(null);
     setPendingFile(null);
+    setCropRemoveBackground(false);
+  };
+
+  const handleRemoveCurrentBackground = async () => {
+    if (!formData.avatar_url) return;
+    setIsOpeningCurrentAvatar(true);
+    try {
+      // no-store: não reaproveita a resposta que o <img> guardou sem cabeçalho CORS
+      const response = await fetch(formData.avatar_url, { cache: 'no-store' });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const blob = await response.blob();
+      // objectURL: o canvas do recorte não fica "sujo" com imagem de outra origem
+      setCropRemoveBackground(true);
+      setCropImageSrc(URL.createObjectURL(blob));
+    } catch (error) {
+      console.error('Error opening current avatar:', error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível abrir a foto atual. Envie a foto de novo para remover o fundo.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsOpeningCurrentAvatar(false);
+    }
+  };
+
+  const handleCropComplete = async (croppedBlob: Blob) => {
+    closeCropDialog();
     if (!user) return;
 
     setIsUploadingImage(true);
@@ -162,9 +204,11 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
         }
       }
 
-      const fileName = `${Date.now()}.jpg`;
+      // PNG quando o fundo foi removido; o resto continua JPEG
+      const isPng = croppedBlob.type === 'image/png';
+      const fileName = `${Date.now()}.${isPng ? 'png' : 'jpg'}`;
       const filePath = `${user.id}/${fileName}`;
-      const file = new File([croppedBlob], fileName, { type: 'image/jpeg' });
+      const file = new File([croppedBlob], fileName, { type: isPng ? 'image/png' : 'image/jpeg' });
 
       const { error: uploadError } = await supabase.storage.from(AVATARS_BUCKET).upload(filePath, file);
       if (uploadError) throw uploadError;
@@ -200,7 +244,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
         const fileName = formData.avatar_url.split('/').pop();
         if (fileName) {
           await supabase.storage
-            .from('avatars')
+            .from(AVATARS_BUCKET)
             .remove([`${user.id}/${fileName}`]);
         }
       }
@@ -265,7 +309,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 space-y-2">
-                <div className="flex space-x-2">
+                <div className="flex flex-wrap gap-2">
                   <Button
                     type="button"
                     variant="outline"
@@ -277,6 +321,19 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                     <Upload className="h-4 w-4" />
                     <span>{isUploadingImage ? 'Carregando...' : 'Upload'}</span>
                   </Button>
+                  {formData.avatar_url && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleRemoveCurrentBackground}
+                      disabled={isUploadingImage || isOpeningCurrentAvatar}
+                      className="flex items-center space-x-2"
+                    >
+                      {isOpeningCurrentAvatar ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eraser className="h-4 w-4" />}
+                      <span>Remover fundo</span>
+                    </Button>
+                  )}
                   {formData.avatar_url && (
                     <Button
                       type="button"
@@ -526,7 +583,9 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
         <ImageCropDialog
           open={!!cropImageSrc}
           imageSrc={cropImageSrc}
-          onClose={() => { setCropImageSrc(null); setPendingFile(null); }}
+          initialRemoveBackground={cropRemoveBackground}
+          themeColors={themeColors}
+          onClose={closeCropDialog}
           onCropComplete={handleCropComplete}
         />
       )}
