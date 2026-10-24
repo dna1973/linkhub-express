@@ -8,6 +8,7 @@ import notebookLmIcon from '@/assets/notebook-lm.svg';
 import { supabase } from '@/lib/supabase';
 import { safeOpenUrl, isValidUrl } from '@/utils/sanitize';
 import { resolveThemeConfig } from '@/utils/themes';
+import { getBackgroundStyle, getLinkButtonClassName, getLinkButtonStyle } from '@/utils/linkButtonStyle';
 
 const ICON_MAP: Record<string, any> = {
   instagram: Instagram,
@@ -182,82 +183,17 @@ const PublicProfile = () => {
   };
 
   const getThemeStyles = () => {
-    const themeOptions = profile?.theme_options;
-    const resolved = resolveThemeConfig(themeOptions as Record<string, any> | null);
-    
-    if (resolved) {
-      return {
-        background: resolved.background?.type === 'gradient' 
-          ? `linear-gradient(135deg, ${resolved.background.colors?.[0] || '#111827'}, ${resolved.background.colors?.[1] || '#1f2937'})`
-          : resolved.background?.color || resolved.background?.colors?.[0] || '#111827',
-        buttonStyle: resolved.buttonStyle?.type || 'glass',
-        buttonSize: (resolved.buttonStyle as any)?.size || 'md',
-        buttonBorderRadius: resolved.buttonStyle?.borderRadius || 'md',
-        font: resolved.font,
-        colors: resolved.colors,
-      };
-    }
+    const resolved = resolveThemeConfig(profile?.theme_options as Record<string, any> | null);
+    const config = resolved ?? { colors: { text: '#ffffff' } };
 
     return {
-      background: '#111827',
-      buttonStyle: 'glass',
-      colors: { text: '#ffffff' },
+      background: getBackgroundStyle(resolved),
+      buttonStyle: resolved?.buttonStyle?.type || 'glass',
+      buttonSize: resolved?.buttonStyle?.size || 'md',
+      linkButtonStyle: getLinkButtonStyle(config),
+      font: resolved?.font,
+      colors: config.colors,
     };
-  };
-
-  const getButtonClassName = (buttonStyle: string, themeColors?: any) => {
-    const textColor = themeColors?.text || '#ffffff';
-    const isLightText = textColor === '#ffffff' || textColor.startsWith('#fff');
-    
-    switch (buttonStyle) {
-      case 'solid':
-        return `bg-white/90 ${isLightText ? 'text-gray-900' : 'text-white'} hover:bg-white border-0`;
-      case 'outline':
-        return `bg-transparent border-2 hover:bg-white/10 ${isLightText ? 'text-white' : 'text-gray-900'}`;
-      case 'modern':
-        return `bg-white/20 border hover:bg-white/30 backdrop-blur-sm ${isLightText ? 'text-white' : 'text-gray-900'}`;
-      case 'rounded':
-        return `bg-white/20 border hover:bg-white/30 backdrop-blur-sm rounded-full ${isLightText ? 'text-white' : 'text-gray-900'}`;
-      case 'glass':
-      default:
-        return `bg-white/10 backdrop-blur border border-white/20 hover:bg-white/20 ${isLightText ? 'text-white' : 'text-gray-900'}`;
-    }
-  };
-
-  const getButtonStyle = (buttonStyle: string, themeColors?: any) => {
-    const primaryColor = themeColors?.primary || '#ffffff';
-    const textColor = themeColors?.text || '#ffffff';
-    
-    switch (buttonStyle) {
-      case 'solid':
-        return {
-          backgroundColor: primaryColor,
-          color: primaryColor === '#ffffff' ? '#000000' : '#ffffff',
-          borderColor: primaryColor
-        };
-      case 'outline':
-        return {
-          borderColor: primaryColor,
-          color: primaryColor
-        };
-      case 'modern':
-        return {
-          background: `linear-gradient(135deg, ${primaryColor}20, ${primaryColor}40)`,
-          borderColor: `${primaryColor}50`,
-          color: textColor
-        };
-      case 'rounded':
-        return {
-          background: `linear-gradient(135deg, ${primaryColor}20, ${primaryColor}40)`,
-          borderColor: `${primaryColor}50`,
-          color: textColor
-        };
-      case 'glass':
-      default:
-        return {
-          color: textColor
-        };
-    }
   };
 
   const getIconComponent = (title: string, url?: string) => {
@@ -439,11 +375,8 @@ const PublicProfile = () => {
                   <Button
                     key={link.id}
                     onClick={() => handleLinkClick(link.id, link.url)}
-                    className={`w-full ${(themeStyles as any).buttonSize === 'sm' ? 'h-10' : (themeStyles as any).buttonSize === 'lg' ? 'h-14' : 'h-12'} ${getButtonClassName(themeStyles.buttonStyle, themeStyles.colors)} hover-bounce flex items-center justify-center space-x-3 transition-all duration-200 text-lg`}
-                    style={{
-                      ...getButtonStyle(themeStyles.buttonStyle, themeStyles.colors),
-                      borderRadius: (themeStyles as any).buttonBorderRadius === 'none' ? '0px' : (themeStyles as any).buttonBorderRadius === 'sm' ? '4px' : (themeStyles as any).buttonBorderRadius === 'lg' ? '16px' : (themeStyles as any).buttonBorderRadius === 'full' ? '9999px' : '8px',
-                    }}
+                    className={`w-full ${themeStyles.buttonSize === 'sm' ? 'h-10' : themeStyles.buttonSize === 'lg' ? 'h-14' : 'h-12'} ${getLinkButtonClassName(themeStyles.buttonStyle)} hover-bounce flex items-center justify-center space-x-3 transition-all duration-200 text-lg`}
+                    style={themeStyles.linkButtonStyle}
                   >
                     <IconComponent className="h-6 w-6" />
                     <span className="font-medium">{link.title}</span>

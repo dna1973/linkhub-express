@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase';
 import { safeOpenUrl } from '@/utils/sanitize';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDesignStore } from '@/stores/useDesignStore';
+import { getBackgroundStyle, getLinkButtonClassName, getLinkButtonStyle } from '@/utils/linkButtonStyle';
 
 interface ProfilePreviewProps {
   profile: any;
@@ -79,73 +80,16 @@ export const ProfilePreview: React.FC<ProfilePreviewProps> = ({ profile }) => {
 
   const getThemeStyles = () => {
     // Sempre usar o customTheme do store para preview em tempo real
-    // Isso garante que todas as customizações sejam refletidas imediatamente
     const custom = customTheme;
-    
+
     return {
-      background: custom.background?.type === 'gradient' 
-        ? `linear-gradient(135deg, ${custom.background.colors?.[0] || '#111827'}, ${custom.background.colors?.[1] || '#1f2937'})`
-        : custom.background?.color || '#111827',
+      background: getBackgroundStyle(custom),
       buttonStyle: custom.buttonStyle?.type || 'glass',
-      buttonSize: (custom.buttonStyle as any)?.size || 'md',
-      buttonBorderRadius: custom.buttonStyle?.borderRadius || 'md',
+      buttonSize: custom.buttonStyle?.size || 'md',
+      linkButtonStyle: getLinkButtonStyle(custom),
       font: custom.font || { family: 'inter', size: 'md', weight: 'normal' },
       colors: custom.colors || { primary: '#ffffff', secondary: '#f3f4f6', accent: '#3b82f6', text: '#ffffff' },
     };
-  };
-
-  const getButtonClassName = (buttonStyle: string) => {
-    const buttonColor = themeStyles.colors?.primary || '#ffffff';
-    const textColor = themeStyles.colors?.text || '#ffffff';
-    
-    switch (buttonStyle) {
-      case 'solid':
-        return `border-0 hover:opacity-90`;
-      case 'outline':
-        return `bg-transparent border-2 hover:bg-white/10`;
-      case 'modern':
-        return `border backdrop-blur-sm hover:opacity-90`;
-      case 'rounded':
-        return `border backdrop-blur-sm hover:opacity-90 rounded-full`;
-      case 'glass':
-      default:
-        return `bg-white/10 backdrop-blur border border-white/20 hover:bg-white/20`;
-    }
-  };
-
-  const getButtonStyle = (buttonStyle: string) => {
-    const buttonColor = themeStyles.colors?.primary || '#ffffff';
-    const textColor = themeStyles.colors?.text || '#ffffff';
-    
-    switch (buttonStyle) {
-      case 'solid':
-        return {
-          backgroundColor: buttonColor,
-          color: buttonColor === '#ffffff' ? '#000000' : '#ffffff'
-        };
-      case 'outline':
-        return {
-          borderColor: buttonColor,
-          color: buttonColor
-        };
-      case 'modern':
-        return {
-          background: `linear-gradient(135deg, ${buttonColor}20, ${buttonColor}40)`,
-          borderColor: `${buttonColor}50`,
-          color: textColor
-        };
-      case 'rounded':
-        return {
-          background: `linear-gradient(135deg, ${buttonColor}20, ${buttonColor}40)`,
-          borderColor: `${buttonColor}50`,
-          color: textColor
-        };
-      case 'glass':
-      default:
-        return {
-          color: textColor
-        };
-    }
   };
 
   const getIconComponent = (title: string, url?: string) => {
@@ -382,11 +326,8 @@ export const ProfilePreview: React.FC<ProfilePreviewProps> = ({ profile }) => {
                     <Button
                       key={link.id}
                       onClick={() => handleLinkClick(link.id, link.url)}
-                      className={`w-full ${themeStyles.buttonSize === 'sm' ? 'h-10' : themeStyles.buttonSize === 'lg' ? 'h-14' : 'h-12'} ${getButtonClassName(themeStyles.buttonStyle)} hover-bounce flex items-center justify-center space-x-3 transition-all duration-200`}
-                      style={{
-                        ...getButtonStyle(themeStyles.buttonStyle),
-                        borderRadius: themeStyles.buttonBorderRadius === 'none' ? '0px' : themeStyles.buttonBorderRadius === 'sm' ? '4px' : themeStyles.buttonBorderRadius === 'lg' ? '16px' : themeStyles.buttonBorderRadius === 'full' ? '9999px' : '8px',
-                      }}
+                      className={`w-full ${themeStyles.buttonSize === 'sm' ? 'h-10' : themeStyles.buttonSize === 'lg' ? 'h-14' : 'h-12'} ${getLinkButtonClassName(themeStyles.buttonStyle)} hover-bounce flex items-center justify-center space-x-3 transition-all duration-200`}
+                      style={themeStyles.linkButtonStyle}
                     >
                       <IconComponent className="h-5 w-5" />
                       <span className="font-medium">{link.title}</span>
