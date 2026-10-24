@@ -122,4 +122,158 @@ export const ONBOARDING_TEMPLATES: OnboardingTemplate[] = [
       colors: { primary: '#D946EF', secondary: '#3D2B5E', accent: '#D946EF', text: '#2D1B4E' },
     },
   },
+
+  // Profissional
+  {
+    id: 'pro-navy',
+    name: 'Marinho',
+    category: 'profissional',
+    config: {
+      background: { type: 'gradient', colors: ['#0B1F3A', '#132F55'] },
+      buttonStyle: { type: 'solid', color: '#FFFFFF', textColor: 'auto', borderRadius: 'md', shadow: 'soft' },
+      font: { family: 'inter', size: 'md', weight: 'medium' },
+      colors: { primary: '#FFFFFF', text: '#F1F5F9' },
+      avatar: { shape: 'circle' },
+    },
+  },
+  {
+    id: 'pro-slate',
+    name: 'Grafite',
+    category: 'profissional',
+    config: {
+      background: { type: 'solid', color: '#F8FAFC', pattern: 'grid' },
+      buttonStyle: { type: 'outline', color: '#1E293B', textColor: 'auto', borderRadius: 'sm', shadow: 'none' },
+      font: { family: 'inter', size: 'md', weight: 'normal' },
+      colors: { primary: '#1E293B', text: '#0F172A' },
+      avatar: { shape: 'rounded' },
+    },
+  },
+  {
+    id: 'pro-olive',
+    name: 'Oliva',
+    category: 'profissional',
+    config: {
+      background: { type: 'gradient', colors: ['#1F3B2D', '#2F5D46'] },
+      buttonStyle: { type: 'solid', color: '#E9F5EC', textColor: '#1F3B2D', borderRadius: 'lg', shadow: 'soft' },
+      font: { family: 'lora', size: 'md', weight: 'medium' },
+      colors: { primary: '#E9F5EC', text: '#F0FDF4' },
+      avatar: { shape: 'circle' },
+    },
+  },
+
+  // Neo-brutalista
+  {
+    id: 'brut-yellow',
+    name: 'Amarelo',
+    category: 'brutalista',
+    config: {
+      background: { type: 'solid', color: '#FDE047' },
+      buttonStyle: { type: 'solid', color: '#FFFFFF', textColor: 'auto', borderRadius: 'none', shadow: 'hard', shadowColor: '#000000' },
+      font: { family: 'poppins', size: 'md', weight: 'bold' },
+      colors: { primary: '#FFFFFF', text: '#111111' },
+      avatar: { shape: 'rounded' },
+    },
+  },
+  {
+    id: 'brut-pink',
+    name: 'Chiclete',
+    category: 'brutalista',
+    config: {
+      background: { type: 'solid', color: '#F9A8D4', pattern: 'dots' },
+      buttonStyle: { type: 'solid', color: '#A3E635', textColor: 'auto', borderRadius: 'sm', shadow: 'hard', shadowColor: '#000000' },
+      font: { family: 'montserrat', size: 'md', weight: 'bold' },
+      colors: { primary: '#A3E635', text: '#111111' },
+      avatar: { shape: 'hexagon' },
+    },
+  },
+  {
+    id: 'brut-cobalt',
+    name: 'Cobalto',
+    category: 'brutalista',
+    config: {
+      background: { type: 'solid', color: '#2563EB' },
+      buttonStyle: { type: 'solid', color: '#FFFFFF', textColor: 'auto', borderRadius: 'none', shadow: 'hard', shadowColor: '#000000' },
+      font: { family: 'poppins', size: 'md', weight: 'bold' },
+      colors: { primary: '#FFFFFF', text: '#FFFFFF' },
+      avatar: { shape: 'rounded' },
+    },
+  },
+
+  // Neon / tech
+  {
+    id: 'neon-cyber',
+    name: 'Cyber',
+    category: 'neon',
+    config: {
+      background: { type: 'gradient', colors: ['#0F0C29', '#302B63'], pattern: 'grid', animated: true },
+      buttonStyle: { type: 'outline', color: '#00F0FF', textColor: 'auto', borderRadius: 'sm', shadow: 'glow' },
+      font: { family: 'source-code-pro', size: 'md', weight: 'medium' },
+      colors: { primary: '#00F0FF', text: '#E0F7FF' },
+      avatar: { shape: 'hexagon' },
+    },
+  },
+  {
+    id: 'neon-synth',
+    name: 'Synthwave',
+    category: 'neon',
+    config: {
+      background: { type: 'gradient', colors: ['#2B1055', '#D53369'], animated: true },
+      // Texto branco mantido por escolha de estilo (contraste ~3,4:1), como no Rose. Ver especificação, seção 5.
+      buttonStyle: { type: 'solid', color: '#FF2E97', textColor: '#FFFFFF', borderRadius: 'full', shadow: 'glow' },
+      font: { family: 'montserrat', size: 'md', weight: 'bold' },
+      colors: { primary: '#FF2E97', text: '#FFE3F1' },
+      avatar: { shape: 'circle' },
+    },
+  },
+  {
+    id: 'neon-terminal',
+    name: 'Terminal',
+    category: 'neon',
+    config: {
+      background: { type: 'solid', color: '#050505', pattern: 'stripes' },
+      buttonStyle: { type: 'outline', color: '#39FF14', textColor: 'auto', borderRadius: 'none', shadow: 'glow' },
+      font: { family: 'roboto-mono', size: 'md', weight: 'normal' },
+      colors: { primary: '#39FF14', text: '#39FF14' },
+      avatar: { shape: 'rounded' },
+    },
+  },
+
+  // Suave
+  {
+    id: 'soft-lavender',
+    name: 'Lavanda',
+    category: 'suave',
+    config: {
+      background: { type: 'gradient', colors: ['#E9D5FF', '#FBCFE8'], pattern: 'dots' },
+      buttonStyle: { type: 'solid', color: '#FFFFFF', textColor: '#6B21A8', borderRadius: 'full', shadow: 'soft' },
+      font: { family: 'poppins', size: 'md', weight: 'medium' },
+      colors: { primary: '#FFFFFF', text: '#4C1D95' },
+      avatar: { shape: 'circle' },
+    },
+  },
+  {
+    id: 'soft-mint',
+    name: 'Menta',
+    category: 'suave',
+    config: {
+      background: { type: 'gradient', colors: ['#D1FAE5', '#CFFAFE'], pattern: 'waves', animated: true },
+      // modern em vez de glass: o glass ignora a cor e some sobre o fundo claro
+      buttonStyle: { type: 'modern', color: '#10B981', textColor: 'auto', borderRadius: 'lg', shadow: 'soft' },
+      font: { family: 'lora', size: 'md', weight: 'normal' },
+      colors: { primary: '#10B981', text: '#065F46' },
+      avatar: { shape: 'rounded' },
+    },
+  },
+  {
+    id: 'soft-blush',
+    name: 'Blush',
+    category: 'suave',
+    config: {
+      background: { type: 'solid', color: '#FFF7ED', pattern: 'grid' },
+      buttonStyle: { type: 'solid', color: '#FDBA74', textColor: '#7C2D12', borderRadius: 'lg', shadow: 'soft' },
+      font: { family: 'dancing-script', size: 'lg', weight: 'medium' },
+      colors: { primary: '#FDBA74', text: '#7C2D12' },
+      avatar: { shape: 'rounded' },
+    },
+  },
 ];
