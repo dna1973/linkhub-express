@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Motor e modelo do MediaPipe, preparados por scripts/prepare-mediapipe.mjs
+public/mediapipe/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

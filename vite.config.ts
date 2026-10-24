@@ -50,6 +50,8 @@ export default defineConfig(({ mode }) => ({
         skipWaiting: true,
         clientsClaim: true,
         globPatterns: ['**/*.{js,css,html,ico,png,svg,jpg,jpeg,woff,woff2}'],
+        // Motor e modelo da remoção de fundo (~43 MB): carregados sob demanda, nunca no pré-cache
+        globIgnores: ['**/mediapipe/**'],
         navigateFallbackDenylist: [/^\/~oauth/],
         runtimeCaching: [
           {
