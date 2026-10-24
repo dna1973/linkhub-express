@@ -14,6 +14,10 @@ import { OnboardingDialog } from '@/components/dashboard/OnboardingDialog';
 import { supabase } from '@/lib/supabase';
 import { useDesignStore } from '@/stores/useDesignStore';
 import { resolveThemeConfig } from '@/utils/themes';
+import { Dialog, DialogClose, DialogContent, DialogTitle } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Eye } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 const Dashboard = () => {
   // Dashboard component
@@ -22,6 +26,7 @@ const Dashboard = () => {
   const [profile, setProfile] = useState<any>(null);
   const [activeTab, setActiveTab] = useState('links');
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const { setCurrentTheme, setCustomTheme } = useDesignStore();
 
   useEffect(() => {
@@ -113,7 +118,7 @@ const Dashboard = () => {
               </span>
             </header>
 
-            <div className="p-3 sm:p-4 md:p-6">
+            <div className="p-3 pb-20 sm:p-4 sm:pb-20 md:p-6 md:pb-20 lg:pb-6">
               <div className={activeTab === 'analytics' ? 'w-full' : 'lg:grid lg:grid-cols-2 lg:gap-6'}>
                 {/* Left Panel - Dashboard */}
                 <div className={activeTab === 'analytics' ? 'w-full' : 'space-y-4 md:space-y-6'}>
@@ -143,7 +148,8 @@ const Dashboard = () => {
                 {/* Right Panel - Device Preview - Hidden on mobile/tablet */}
                 {activeTab !== 'analytics' && (
                   <div className="hidden lg:block">
-                    <div className="sticky top-6">
+                    {/* Altura definida (48 px do cabeçalho + paddings da página + top-6): é ela que limita a escala do aparelho */}
+                    <div className="sticky top-6 h-[calc(100dvh-6rem)]">
                       <ProfilePreview profile={profile} />
                     </div>
                   </div>
@@ -152,6 +158,45 @@ const Dashboard = () => {
             </div>
           </div>
         </main>
+
+        {/* Tela estreita: a prévia lateral some e o botão abre a mesma prévia em tela cheia */}
+        {activeTab !== 'analytics' && (
+          <Button
+            type="button"
+            onClick={() => setPreviewOpen(true)}
+            className="fixed bottom-4 right-4 z-40 h-11 rounded-full px-4 shadow-lg lg:hidden"
+          >
+            <Eye className="h-4 w-4 mr-2" />
+            Prévia
+          </Button>
+        )}
+
+        <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+          <DialogContent
+            aria-describedby={undefined}
+            className={cn(
+              // Tela cheia: sobrescreve posição, tamanho, raio e espaçamento padrão do DialogContent
+              'max-w-none w-screen h-[100dvh] p-0 gap-0 left-0 top-0 translate-x-0 translate-y-0 rounded-none sm:rounded-none border-0 flex flex-col',
+              // Sem deslizar nem zoom: só o fade padrão
+              '![--tw-enter-scale:1] ![--tw-exit-scale:1] ![--tw-enter-translate-x:0] ![--tw-enter-translate-y:0] ![--tw-exit-translate-x:0] ![--tw-exit-translate-y:0]',
+              // Esconde o X padrão (filho direto); o cabeçalho próprio está dentro de um div
+              '[&>button]:hidden'
+            )}
+          >
+            <DialogTitle className="sr-only">Prévia do perfil</DialogTitle>
+            <ProfilePreview
+              profile={profile}
+              className="p-3"
+              headerEnd={
+                <DialogClose asChild>
+                  <Button type="button" variant="outline" size="sm">
+                    Fechar
+                  </Button>
+                </DialogClose>
+              }
+            />
+          </DialogContent>
+        </Dialog>
 
         <OnboardingDialog
           open={showOnboarding}

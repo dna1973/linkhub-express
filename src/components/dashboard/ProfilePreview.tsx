@@ -1,19 +1,33 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { cn } from '@/lib/utils';
 import { safeOpenUrl } from '@/utils/sanitize';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDesignStore } from '@/stores/useDesignStore';
 import { ProfileView } from '@/components/profile/ProfileView';
+import { DeviceFrame } from '@/components/preview/DeviceFrame';
+import { DeviceSelect } from '@/components/preview/DeviceSelect';
+import { useSelectedDevice } from '@/hooks/useSelectedDevice';
+import { getContrastText } from '@/utils/linkButtonStyle';
+import { getBaseBackgroundColor } from '@/utils/profileAppearance';
 
 interface ProfilePreviewProps {
   profile: any;
+  /** Conteúdo à direita do seletor de aparelho (no Dialog de tela estreita, o botão Fechar) */
+  headerEnd?: React.ReactNode;
+  className?: string;
 }
 
-export const ProfilePreview: React.FC<ProfilePreviewProps> = ({ profile }) => {
+/**
+ * Prévia do perfil dentro do aparelho escolhido. Coluna de altura definida pelo pai:
+ * seletor no topo e, embaixo, a área medida onde o aparelho é reduzido para caber.
+ */
+export const ProfilePreview: React.FC<ProfilePreviewProps> = ({ profile, headerEnd, className }) => {
   const { user } = useAuth();
   const userId = user?.id;
   // Sempre o customTheme do store, para a prévia acompanhar o editor em tempo real
   const customTheme = useDesignStore((state) => state.customTheme);
+  const { device, setDeviceId } = useSelectedDevice();
   const [links, setLinks] = useState<any[]>([]);
 
   // Links: ao montar, quando o usuário muda e no evento linksUpdated. Mudar o tema não busca de novo.
@@ -43,28 +57,28 @@ export const ProfilePreview: React.FC<ProfilePreviewProps> = ({ profile }) => {
   }, [userId]);
 
   const previewProfile = { ...profile, full_name: profile?.full_name || user?.email?.split('@')[0] };
+  // Horário e ícones legíveis também em fundo claro (Grafite, Blush)
+  const statusBarColor = getContrastText(getBaseBackgroundColor(customTheme));
 
   return (
-    <div className="w-full h-full flex items-center justify-center p-2">
-      <div className="relative">
-        <div className="absolute inset-0 rounded-[3rem] bg-black/20 blur-lg transform translate-y-2"></div>
-        <div className="relative w-[320px] h-[640px] bg-black rounded-[3rem] p-3 shadow-2xl">
-          <div className="w-full h-full rounded-[2.5rem] overflow-hidden relative">
-            <div className="absolute inset-0 overflow-y-auto">
-              <ProfileView
-                variant="device"
-                topInset={24}
-                profile={previewProfile}
-                links={links}
-                theme={customTheme}
-                // Prévia: só abre o link, sem registrar clique
-                onLinkClick={(link) => safeOpenUrl(link.url)}
-                emptyMessage="Seus links aparecerão aqui"
-              />
-            </div>
-          </div>
-        </div>
+    <div className={cn('flex h-full flex-col gap-3', className)}>
+      {/* Linha própria (um div): no Dialog, o seletor [&>button]:hidden não alcança os botões daqui */}
+      <div className="flex items-center justify-between gap-2">
+        <DeviceSelect value={device.id} onChange={setDeviceId} />
+        {headerEnd}
       </div>
+      <DeviceFrame device={device} statusBarColor={statusBarColor} className="flex-1 min-h-0">
+        <ProfileView
+          variant="device"
+          topInset={device.statusBar.height}
+          profile={previewProfile}
+          links={links}
+          theme={customTheme}
+          // Prévia: só abre o link, sem registrar clique
+          onLinkClick={(link) => safeOpenUrl(link.url)}
+          emptyMessage="Seus links aparecerão aqui"
+        />
+      </DeviceFrame>
     </div>
   );
 };
