@@ -18,6 +18,7 @@ import { Dialog, DialogClose, DialogContent, DialogTitle } from '@/components/ui
 import { Button } from '@/components/ui/button';
 import { Eye } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 
 const Dashboard = () => {
   // Dashboard component
@@ -27,6 +28,13 @@ const Dashboard = () => {
   const [activeTab, setActiveTab] = useState('links');
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  // Mesmo ponto de corte do lg: a prévia lateral só existe em tela larga, o Dialog só abaixo dela
+  const isDesktop = useMediaQuery('(min-width: 1024px)');
+
+  // Ao alargar a janela com o Dialog aberto, ele fecha e a prévia lateral assume
+  useEffect(() => {
+    if (isDesktop) setPreviewOpen(false);
+  }, [isDesktop]);
   const { setCurrentTheme, setCustomTheme } = useDesignStore();
 
   useEffect(() => {
@@ -150,7 +158,8 @@ const Dashboard = () => {
                   <div className="hidden lg:block">
                     {/* Altura definida (48 px do cabeçalho + paddings da página + top-6): é ela que limita a escala do aparelho */}
                     <div className="sticky top-6 h-[calc(100dvh-6rem)]">
-                      <ProfilePreview profile={profile} />
+                      {/* Montada só em tela larga: abaixo de lg a prévia vive no Dialog, sem segunda instância */}
+                      {isDesktop && <ProfilePreview profile={profile} />}
                     </div>
                   </div>
                 )}
@@ -163,6 +172,7 @@ const Dashboard = () => {
         {activeTab !== 'analytics' && (
           <Button
             type="button"
+            aria-haspopup="dialog"
             onClick={() => setPreviewOpen(true)}
             className="fixed bottom-4 right-4 z-40 h-11 rounded-full px-4 shadow-lg lg:hidden"
           >
