@@ -277,3 +277,19 @@ export const ONBOARDING_TEMPLATES: OnboardingTemplate[] = [
     },
   },
 ];
+
+export type TemplateFilter = 'todos' | TemplateCategory;
+
+/** Chips de filtro, na ordem em que aparecem no onboarding e na aba Modelos */
+export const TEMPLATE_FILTERS: { id: TemplateFilter; label: string }[] = [
+  { id: 'todos', label: 'Todos' },
+  { id: 'classico', label: 'Clássico' },
+  { id: 'profissional', label: 'Profissional' },
+  { id: 'brutalista', label: 'Neo-brutalista' },
+  { id: 'neon', label: 'Neon' },
+  { id: 'suave', label: 'Suave' },
+];
+
+export function filterTemplates(templates: OnboardingTemplate[], filter: TemplateFilter): OnboardingTemplate[] {
+  return filter === 'todos' ? templates : templates.filter((t) => t.category === filter);
+}

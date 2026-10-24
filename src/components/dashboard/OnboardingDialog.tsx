@@ -6,8 +6,10 @@ import { supabase, AVATARS_BUCKET } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Megaphone, Briefcase, User, ArrowLeft, ArrowRight, Check, Instagram, Youtube, Facebook, Linkedin, Github, Globe, Mail, Music, MessageCircle, ShoppingBag, Plus } from 'lucide-react';
-import { ONBOARDING_TEMPLATES } from './onboardingTemplates';
+import { ONBOARDING_TEMPLATES, filterTemplates } from './onboardingTemplates';
+import type { TemplateFilter } from './onboardingTemplates';
 import { TemplateMockup } from './TemplateMockup';
+import { TemplateCategoryChips } from './TemplateCategoryChips';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
@@ -69,6 +71,7 @@ export const OnboardingDialog: React.FC<OnboardingDialogProps> = ({ open, onComp
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [selectedType, setSelectedType] = useState<string | null>(null);
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
+  const [templateFilter, setTemplateFilter] = useState<TemplateFilter>('todos');
   const [selectedPlatforms, setSelectedPlatforms] = useState<Set<string>>(new Set());
   const [platformUrls, setPlatformUrls] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
@@ -389,9 +392,10 @@ export const OnboardingDialog: React.FC<OnboardingDialogProps> = ({ open, onComp
 
         {/* Step 3: Template Selection */}
         {step === 3 && (
-          <div className="mt-4">
+          <div className="mt-4 space-y-4">
+            <TemplateCategoryChips value={templateFilter} onChange={setTemplateFilter} />
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3 justify-items-center">
-              {ONBOARDING_TEMPLATES.map((template) => (
+              {filterTemplates(ONBOARDING_TEMPLATES, templateFilter).map((template) => (
                 <TemplateMockup
                   key={template.id}
                   template={template}

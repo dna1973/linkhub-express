@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ONBOARDING_TEMPLATES } from './onboardingTemplates';
+import { ONBOARDING_TEMPLATES, TEMPLATE_FILTERS, filterTemplates } from './onboardingTemplates';
 import { resolveButtonColors } from '@/utils/linkButtonStyle';
 
 // Cores dos 10 modelos clássicos (especificação de 2026-10-23, seção 3) e dos 12 novos
@@ -185,5 +185,22 @@ describe('ONBOARDING_TEMPLATES', () => {
 
   it.each(['profissional', 'brutalista', 'neon', 'suave'])('existem 3 modelos na categoria %s', (categoria) => {
     expect(ONBOARDING_TEMPLATES.filter((t) => t.category === categoria)).toHaveLength(3);
+  });
+});
+
+describe('filtros de modelo', () => {
+  it('chips na ordem da especificação, com "Todos" primeiro', () => {
+    expect(TEMPLATE_FILTERS.map((f) => f.label)).toEqual(['Todos', 'Clássico', 'Profissional', 'Neo-brutalista', 'Neon', 'Suave']);
+    expect(TEMPLATE_FILTERS[0].id).toBe('todos');
+  });
+
+  it('"todos" devolve a lista inteira, na mesma ordem', () => {
+    expect(filterTemplates(ONBOARDING_TEMPLATES, 'todos')).toEqual(ONBOARDING_TEMPLATES);
+  });
+
+  it('uma categoria devolve só os modelos dela', () => {
+    const neon = filterTemplates(ONBOARDING_TEMPLATES, 'neon');
+    expect(neon.map((t) => t.id)).toEqual(['neon-cyber', 'neon-synth', 'neon-terminal']);
+    expect(filterTemplates(ONBOARDING_TEMPLATES, 'classico')).toHaveLength(10);
   });
 });

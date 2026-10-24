@@ -13,8 +13,10 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { useDesignStore, ThemeConfig } from '@/stores/useDesignStore';
 import { PREDEFINED_THEMES } from '@/utils/themes';
-import { ONBOARDING_TEMPLATES } from '@/components/dashboard/onboardingTemplates';
+import { ONBOARDING_TEMPLATES, filterTemplates } from '@/components/dashboard/onboardingTemplates';
+import type { TemplateFilter } from '@/components/dashboard/onboardingTemplates';
 import { TemplateMockup } from '@/components/dashboard/TemplateMockup';
+import { TemplateCategoryChips } from '@/components/dashboard/TemplateCategoryChips';
 import { Switch } from '@/components/ui/switch';
 import { normalizeHex, resolveButtonColors } from '@/utils/linkButtonStyle';
 import { FONT_FAMILY_CSS } from '@/utils/profileAppearance';
@@ -62,6 +64,7 @@ export const DesignTab: React.FC<DesignTabProps> = ({ profile, onProfileUpdate }
   const [customConfig, setCustomConfig] = useState<ThemeConfig>(customTheme);
   const [loading, setLoading] = useState(false);
   const [activeCustomTab, setActiveCustomTab] = useState<'background' | 'typography' | 'buttons' | 'avatar'>('background');
+  const [templateFilter, setTemplateFilter] = useState<TemplateFilter>('todos');
 
   useEffect(() => {
     if (profile?.theme_options) {
@@ -439,8 +442,10 @@ export const DesignTab: React.FC<DesignTabProps> = ({ profile, onProfileUpdate }
         <TabsContent value="templates" className="mt-4 space-y-4">
           <p className="text-sm text-muted-foreground">Escolha um modelo visual para seu perfil. Clique para aplicar.</p>
           
+          <TemplateCategoryChips value={templateFilter} onChange={setTemplateFilter} />
+
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-            {ONBOARDING_TEMPLATES.map((template) => (
+            {filterTemplates(ONBOARDING_TEMPLATES, templateFilter).map((template) => (
               <TemplateMockup
                 key={template.id}
                 template={template}
