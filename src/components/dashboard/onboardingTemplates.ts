@@ -1,10 +1,12 @@
 import type { ThemeConfig } from '@/stores/useDesignStore';
 
+export type TemplateCategory = 'classico' | 'profissional' | 'brutalista' | 'neon' | 'suave';
+
 export interface OnboardingTemplate {
   id: string;
   name: string;
-  /** Família CSS usada só no desenho em miniatura */
-  font: string;
+  category: TemplateCategory;
+  /** A miniatura usa a mesma config: a fonte vem de FONT_FAMILY_CSS[config.font.family] */
   config: ThemeConfig;
 }
 
@@ -12,7 +14,7 @@ export const ONBOARDING_TEMPLATES: OnboardingTemplate[] = [
   {
     id: 'warm-peach',
     name: 'Peach',
-    font: 'Poppins, sans-serif',
+    category: 'classico',
     config: {
       background: { type: 'gradient', colors: ['#FDDCB5', '#F8C4A0'] },
       buttonStyle: { type: 'solid', color: '#F5A876', textColor: '#3D2B1F', borderRadius: 'lg' },
@@ -23,7 +25,7 @@ export const ONBOARDING_TEMPLATES: OnboardingTemplate[] = [
   {
     id: 'clean-white',
     name: 'Clean',
-    font: 'Inter, sans-serif',
+    category: 'classico',
     config: {
       background: { type: 'solid', color: '#FFFFFF', colors: ['#FFFFFF', '#F9FAFB'] },
       buttonStyle: { type: 'outline', color: '#1A1A1A', textColor: 'auto', borderRadius: 'full' },
@@ -34,7 +36,7 @@ export const ONBOARDING_TEMPLATES: OnboardingTemplate[] = [
   {
     id: 'ocean-deep',
     name: 'Ocean',
-    font: 'Montserrat, sans-serif',
+    category: 'classico',
     config: {
       background: { type: 'gradient', colors: ['#0891B2', '#1E40AF'] },
       buttonStyle: { type: 'glass', color: '#22D3EE', textColor: 'auto', borderRadius: 'md' },
@@ -45,7 +47,7 @@ export const ONBOARDING_TEMPLATES: OnboardingTemplate[] = [
   {
     id: 'sunset-warm',
     name: 'Sunset',
-    font: 'Playfair Display, serif',
+    category: 'classico',
     config: {
       background: { type: 'gradient', colors: ['#F59E0B', '#DC2626'] },
       buttonStyle: { type: 'outline', color: '#FFFFFF', textColor: 'auto', borderRadius: 'full' },
@@ -56,7 +58,7 @@ export const ONBOARDING_TEMPLATES: OnboardingTemplate[] = [
   {
     id: 'midnight-dark',
     name: 'Midnight',
-    font: 'Inter, sans-serif',
+    category: 'classico',
     config: {
       background: { type: 'gradient', colors: ['#0F172A', '#1E293B'] },
       buttonStyle: { type: 'glass', color: '#3B82F6', textColor: 'auto', borderRadius: 'lg' },
@@ -67,7 +69,7 @@ export const ONBOARDING_TEMPLATES: OnboardingTemplate[] = [
   {
     id: 'forest-green',
     name: 'Forest',
-    font: 'Roboto Mono, monospace',
+    category: 'classico',
     config: {
       background: { type: 'gradient', colors: ['#065F46', '#064E3B'] },
       buttonStyle: { type: 'glass', color: '#10B981', textColor: '#6EE7B7', borderRadius: 'lg' },
@@ -78,7 +80,7 @@ export const ONBOARDING_TEMPLATES: OnboardingTemplate[] = [
   {
     id: 'cyber-neon',
     name: 'Neon',
-    font: 'Source Code Pro, monospace',
+    category: 'classico',
     config: {
       background: { type: 'gradient', colors: ['#0C0C0C', '#1A1A2E'] },
       buttonStyle: { type: 'outline', color: '#00FF88', textColor: 'auto', borderRadius: 'none' },
@@ -89,7 +91,7 @@ export const ONBOARDING_TEMPLATES: OnboardingTemplate[] = [
   {
     id: 'rose-elegant',
     name: 'Rose',
-    font: 'Lora, serif',
+    category: 'classico',
     config: {
       background: { type: 'gradient', colors: ['#FFF1F2', '#FFE4E6'] },
       // Texto branco mantido por escolha de desenho (contraste ~2,7:1). Ver especificação, seção 3.
@@ -101,7 +103,7 @@ export const ONBOARDING_TEMPLATES: OnboardingTemplate[] = [
   {
     id: 'sand-cream',
     name: 'Sand',
-    font: 'Poppins, sans-serif',
+    category: 'classico',
     config: {
       background: { type: 'gradient', colors: ['#FEF3C7', '#FDE68A'] },
       buttonStyle: { type: 'solid', color: '#D97706', textColor: '#FFFBEB', borderRadius: 'lg' },
@@ -112,7 +114,7 @@ export const ONBOARDING_TEMPLATES: OnboardingTemplate[] = [
   {
     id: 'purple-haze',
     name: 'Purple',
-    font: 'Montserrat, sans-serif',
+    category: 'classico',
     config: {
       background: { type: 'gradient', colors: ['#7C3AED', '#C026D3'] },
       buttonStyle: { type: 'glass', color: '#D946EF', textColor: 'auto', borderRadius: 'md' },

@@ -1,7 +1,8 @@
 import React from 'react';
 import { Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { getBackgroundStyle, getLinkButtonStyle } from '@/utils/linkButtonStyle';
+import { getLinkButtonStyle } from '@/utils/linkButtonStyle';
+import { FONT_FAMILY_CSS, getAvatarShapeStyle, getBackgroundLayer, getPatternLayerStyle } from '@/utils/profileAppearance';
 import type { OnboardingTemplate } from './onboardingTemplates';
 
 interface TemplateMockupProps {
@@ -12,10 +13,18 @@ interface TemplateMockupProps {
   className?: string;
 }
 
-/** Miniatura de celular gerada da própria config do modelo: o que aparece aqui é o que o perfil publica. */
+/**
+ * Miniatura de celular gerada da própria config do modelo, com as mesmas funções do perfil:
+ * fundo (inclusive animado), padrão, sombra do botão, fonte e formato do avatar.
+ */
 export const TemplateMockup: React.FC<TemplateMockupProps> = ({ template, isSelected, onClick, className }) => {
-  const textColor = template.config.colors.text || '#ffffff';
-  const buttonStyle = getLinkButtonStyle(template.config, { radiusScale: 0.4 });
+  const { config } = template;
+  const textColor = config.colors.text || '#ffffff';
+  const fontFamily = FONT_FAMILY_CSS[config.font.family];
+  const buttonStyle = getLinkButtonStyle(config, { radiusScale: 0.4 });
+  const background = getBackgroundLayer(config);
+  const pattern = getPatternLayerStyle(config);
+  const avatarShape = getAvatarShapeStyle(config.avatar?.shape);
 
   return (
     <button
@@ -31,25 +40,23 @@ export const TemplateMockup: React.FC<TemplateMockupProps> = ({ template, isSele
       )}
     >
       <div
-        className="w-full h-full flex flex-col items-center pt-6 px-3 pb-3"
-        style={{ background: getBackgroundStyle(template.config) }}
+        className={cn('relative w-full h-full flex flex-col items-center pt-6 px-3 pb-3', background.className)}
+        style={{ ...background.style, fontFamily }}
       >
-        <div className="w-10 h-10 rounded-full bg-white/30 border-2 border-white/50 mb-2" />
-        <div
-          className="text-[10px] font-bold mb-0.5 truncate w-full text-center"
-          style={{ color: textColor, fontFamily: template.font }}
-        >
+        {pattern && <div aria-hidden className="pointer-events-none absolute inset-0" style={pattern} />}
+        <div className="relative w-10 h-10 bg-white/30 border-2 border-white/50 mb-2" style={avatarShape} />
+        <div className="relative text-[10px] font-bold mb-0.5 truncate w-full text-center" style={{ color: textColor }}>
           Seu Nome
         </div>
-        <div className="text-[7px] opacity-70 mb-3 truncate w-full text-center" style={{ color: textColor }}>
+        <div className="relative text-[7px] opacity-70 mb-3 truncate w-full text-center" style={{ color: textColor }}>
           Sua bio aqui
         </div>
-        <div className="w-full space-y-1.5">
+        <div className="relative w-full space-y-1.5">
           {['Meu site', 'YouTube', 'Instagram'].map((label) => (
             <div
               key={label}
               className="w-full h-5 flex items-center justify-center text-[7px] font-medium"
-              style={{ ...buttonStyle, fontFamily: template.font }}
+              style={buttonStyle}
             >
               {label}
             </div>

@@ -42,9 +42,25 @@ describe('ONBOARDING_TEMPLATES', () => {
 
   it('não carrega campos antigos de desenho', () => {
     for (const t of ONBOARDING_TEMPLATES as any[]) {
-      for (const campo of ['bg', 'textColor', 'btnBg', 'btnText', 'btnRadius']) {
+      for (const campo of ['bg', 'textColor', 'btnBg', 'btnText', 'btnRadius', 'font']) {
         expect(t[campo]).toBeUndefined();
       }
+    }
+  });
+
+  it('todo modelo tem uma categoria válida', () => {
+    for (const t of ONBOARDING_TEMPLATES) {
+      expect(['classico', 'profissional', 'brutalista', 'neon', 'suave']).toContain(t.category);
+    }
+  });
+
+  it('os 10 modelos originais ficam em classico', () => {
+    const originais = [
+      'warm-peach', 'clean-white', 'ocean-deep', 'sunset-warm', 'midnight-dark',
+      'forest-green', 'cyber-neon', 'rose-elegant', 'sand-cream', 'purple-haze',
+    ];
+    for (const id of originais) {
+      expect(ONBOARDING_TEMPLATES.find((t) => t.id === id)?.category).toBe('classico');
     }
   });
 });
