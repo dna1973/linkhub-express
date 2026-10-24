@@ -17,6 +17,7 @@ import {
   SidebarMenuButton,
   SidebarHeader,
   SidebarFooter,
+  SidebarTrigger,
   useSidebar,
 } from '@/components/ui/sidebar';
 
@@ -92,18 +93,27 @@ export function AppSidebar({ activeTab, onTabChange, profile }: AppSidebarProps)
 
   return (
     <Sidebar collapsible="icon">
-      <SidebarHeader className="p-4">
-        <div className="flex items-center space-x-3">
-          <div className="w-8 h-8 rounded-full btn-gradient-primary flex items-center justify-center">
+      {/* Recolhida, a barra tem 3rem: p-2 deixa o logo de 2rem caber, com o botão de recolher logo abaixo */}
+      <SidebarHeader className={isCollapsed ? 'p-2' : 'p-4'}>
+        <div className={isCollapsed ? 'flex flex-col items-center gap-2' : 'flex items-center gap-3'}>
+          <div className="w-8 h-8 shrink-0 rounded-full btn-gradient-primary flex items-center justify-center">
             <LinkIcon className="h-4 w-4 text-white" />
           </div>
           {!isCollapsed && (
-            <div>
+            <div className="min-w-0 flex-1">
               <h1 className="text-lg font-bold">LinkHub</h1>
               {profile?.username && (
-                <p className="text-xs text-muted-foreground">@{profile.username}</p>
+                <p className="text-xs text-muted-foreground truncate">@{profile.username}</p>
               )}
             </div>
+          )}
+          {/* No celular a sidebar é um painel deslizante: fecha clicando fora, e quem abre é a barra superior */}
+          {!isMobile && (
+            <SidebarTrigger
+              className="shrink-0 text-muted-foreground hover:text-foreground"
+              title={isCollapsed ? 'Expandir menu' : 'Recolher menu'}
+              aria-label={isCollapsed ? 'Expandir menu' : 'Recolher menu'}
+            />
           )}
         </div>
       </SidebarHeader>

@@ -117,11 +117,12 @@ const Dashboard = () => {
         />
         
         <main className="flex-1 flex min-w-0">
-          {/* Header with trigger */}
+          {/* Barra superior só no celular: lá a sidebar é um painel deslizante e precisa deste botão para abrir.
+              Em tela larga o botão de recolher fica dentro da própria sidebar, e a página ganha a altura da barra. */}
           <div className="flex-1 min-w-0">
-            <header className="h-12 flex items-center border-b bg-card/30 backdrop-blur-sm px-3 md:px-4">
+            <header className="h-12 flex items-center border-b bg-card/30 backdrop-blur-sm px-3 md:hidden">
               <SidebarTrigger />
-              <span className="ml-3 text-sm font-medium md:hidden truncate">
+              <span className="ml-3 text-sm font-medium truncate">
                 {activeTab === 'links' ? 'Links' : activeTab === 'design' ? 'Design' : activeTab === 'settings' ? 'Perfil' : activeTab === 'analytics' ? 'Analytics' : 'Dashboard'}
               </span>
             </header>
@@ -156,8 +157,8 @@ const Dashboard = () => {
                 {/* Right Panel - Device Preview - Hidden on mobile/tablet */}
                 {activeTab !== 'analytics' && (
                   <div className="hidden lg:block">
-                    {/* Altura definida (48 px do cabeçalho + paddings da página + top-6): é ela que limita a escala do aparelho */}
-                    <div className="sticky top-6 h-[calc(100dvh-6rem)]">
+                    {/* Altura definida (padding da página + top-6; sem barra superior em tela larga): é ela que limita a escala do aparelho */}
+                    <div className="sticky top-6 h-[calc(100dvh-3rem)]">
                       {/* Montada só em tela larga: abaixo de lg a prévia vive no Dialog, sem segunda instância */}
                       {isDesktop && <ProfilePreview profile={profile} />}
                     </div>

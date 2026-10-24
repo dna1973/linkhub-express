@@ -86,26 +86,27 @@ const SortableLink: React.FC<SortableLinkProps> = ({ link, onDelete, onEdit, pro
 
   return (
     <div ref={setNodeRef} style={style} {...attributes}>
+      {/* Card compacto: cabem mais links na tela; a alça de arrastar mantém área de toque maior que o ícone */}
       <Card className="bg-card/30 border-border/50 hover-bounce">
-        <CardContent className="p-4">
+        <CardContent className="px-3 py-2">
           <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center space-x-2 sm:space-x-3 min-w-0 flex-1">
+            <div className="flex items-center gap-2 min-w-0 flex-1">
               <div
                 {...listeners}
-                className="cursor-move flex-shrink-0 p-2 -m-2 rounded-md active:bg-muted/50"
+                className="cursor-move flex-shrink-0 p-1.5 -m-1.5 rounded-md active:bg-muted/50"
                 style={{ touchAction: 'none' }}
               >
-                <GripVertical className="h-5 w-5 text-muted-foreground" />
+                <GripVertical className="h-4 w-4 text-muted-foreground" />
               </div>
               <div className="min-w-0 flex-1">
-                <h4 className="font-medium text-sm sm:text-base truncate">{link.title}</h4>
-                <p className="text-xs sm:text-sm text-muted-foreground truncate">
+                <h4 className="font-medium text-sm truncate leading-tight">{link.title}</h4>
+                <p className="text-xs text-muted-foreground truncate leading-tight">
                   {link.url}
                 </p>
               </div>
             </div>
-            
-            <div className="flex items-center space-x-1 sm:space-x-2 flex-shrink-0">
+
+            <div className="flex items-center gap-0.5 sm:gap-1 flex-shrink-0">
               <Badge
                 variant="secondary"
                 className="text-xs cursor-pointer hover:bg-primary/20 transition-colors hidden sm:inline-flex"
@@ -124,25 +125,25 @@ const SortableLink: React.FC<SortableLinkProps> = ({ link, onDelete, onEdit, pro
                 variant="ghost"
                 size="sm"
                 onClick={() => onEdit(link)}
-                className="h-8 w-8 p-0"
+                className="h-7 w-7 p-0"
               >
-                <Pencil className="h-4 w-4" />
+                <Pencil className="h-3.5 w-3.5" />
               </Button>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => window.open(link.url, '_blank')}
-                className="h-8 w-8 p-0"
+                className="h-7 w-7 p-0"
               >
-                <ExternalLink className="h-4 w-4" />
+                <ExternalLink className="h-3.5 w-3.5" />
               </Button>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => onDelete(link.id)}
-                className="text-destructive hover:text-destructive h-8 w-8 p-0"
+                className="text-destructive hover:text-destructive h-7 w-7 p-0"
               >
-                <Trash2 className="h-4 w-4" />
+                <Trash2 className="h-3.5 w-3.5" />
               </Button>
             </div>
           </div>
@@ -505,7 +506,7 @@ export const LinksTab: React.FC<LinksTabProps> = ({ profile, onProfileUpdate }) 
           onDragEnd={handleDragEnd}
         >
           <SortableContext items={links.map(link => link.id)} strategy={verticalListSortingStrategy}>
-            <div className="space-y-3">
+            <div className="space-y-2">
               {links.map((link) => (
                 <SortableLink key={link.id} link={link} onDelete={handleDeleteLink} onEdit={handleEditLink} profileId={user!.id} />
               ))}
