@@ -5,65 +5,13 @@ import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
 import { RotateCcw, ZoomIn } from 'lucide-react';
+import { canvasToBlob, getCroppedCanvas } from '@/utils/cropImage';
 
 interface ImageCropDialogProps {
   open: boolean;
   imageSrc: string;
   onClose: () => void;
   onCropComplete: (croppedBlob: Blob) => void;
-}
-
-async function getCroppedImg(imageSrc: string, pixelCrop: Area, rotation = 0): Promise<Blob> {
-  const image = new Image();
-  image.crossOrigin = 'anonymous';
-  await new Promise<void>((resolve, reject) => {
-    image.onload = () => resolve();
-    image.onerror = reject;
-    image.src = imageSrc;
-  });
-
-  const radians = (rotation * Math.PI) / 180;
-  const sin = Math.abs(Math.sin(radians));
-  const cos = Math.abs(Math.cos(radians));
-
-  // Calculate bounding box of the rotated image
-  const rotatedWidth = image.width * cos + image.height * sin;
-  const rotatedHeight = image.width * sin + image.height * cos;
-
-  // Draw the full rotated image onto an offscreen canvas
-  const rotCanvas = document.createElement('canvas');
-  rotCanvas.width = rotatedWidth;
-  rotCanvas.height = rotatedHeight;
-  const rotCtx = rotCanvas.getContext('2d')!;
-
-  rotCtx.translate(rotatedWidth / 2, rotatedHeight / 2);
-  rotCtx.rotate(radians);
-  rotCtx.drawImage(image, -image.width / 2, -image.height / 2);
-
-  // Now crop from the rotated canvas
-  const canvas = document.createElement('canvas');
-  canvas.width = pixelCrop.width;
-  canvas.height = pixelCrop.height;
-  const ctx = canvas.getContext('2d')!;
-
-  ctx.drawImage(
-    rotCanvas,
-    pixelCrop.x,
-    pixelCrop.y,
-    pixelCrop.width,
-    pixelCrop.height,
-    0,
-    0,
-    pixelCrop.width,
-    pixelCrop.height
-  );
-
-  return new Promise((resolve, reject) => {
-    canvas.toBlob((blob) => {
-      if (blob) resolve(blob);
-      else reject(new Error('Canvas toBlob failed'));
-    }, 'image/jpeg', 0.9);
-  });
 }
 
 export const ImageCropDialog: React.FC<ImageCropDialogProps> = ({
@@ -86,7 +34,8 @@ export const ImageCropDialog: React.FC<ImageCropDialogProps> = ({
     if (!croppedAreaPixels) return;
     setIsSaving(true);
     try {
-      const croppedBlob = await getCroppedImg(imageSrc, croppedAreaPixels, rotation);
+      const canvas = await getCroppedCanvas(imageSrc, croppedAreaPixels, rotation);
+      const croppedBlob = await canvasToBlob(canvas, 'image/jpeg', 0.9);
       onCropComplete(croppedBlob);
     } catch (err) {
       console.error('Crop error:', err);
