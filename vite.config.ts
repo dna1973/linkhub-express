@@ -12,6 +12,8 @@ export default defineConfig(({ mode }) => ({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      // O registro é feito em src/registerServiceWorker.ts, só fora do perfil público
+      injectRegister: false,
       includeAssets: ['favicon.ico', 'icons/icon-192x192.png', 'icons/icon-512x512.png'],
       manifest: {
         name: 'LinkHub Express',
