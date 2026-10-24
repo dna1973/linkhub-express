@@ -138,3 +138,48 @@ describe('getBackgroundStyle', () => {
     expect(getBackgroundStyle(null)).toBe('#111827');
   });
 });
+
+describe('getLinkButtonStyle, sombra', () => {
+  it('sem shadow ou com none não gera boxShadow', () => {
+    expect(getLinkButtonStyle({ buttonStyle: { type: 'solid', color: '#ffffff' } }).boxShadow).toBeUndefined();
+    expect(getLinkButtonStyle({ buttonStyle: { type: 'solid', color: '#ffffff', shadow: 'none' } }).boxShadow).toBeUndefined();
+  });
+  it('soft: sombra difusa fixa e borda do estilo mantida', () => {
+    const style = getLinkButtonStyle({ buttonStyle: { type: 'outline', color: '#1E293B', shadow: 'soft' } });
+    expect(style.boxShadow).toBe('0 4px 14px rgba(0,0,0,0.18)');
+    expect(style.borderWidth).toBe('2px');
+    expect(style.borderColor).toBe('#1e293b');
+  });
+  it('hard: borda de 2px e sombra deslocada, preta por padrão, sobrepondo a borda do estilo', () => {
+    const style = getLinkButtonStyle({ buttonStyle: { type: 'solid', color: '#FFFFFF', shadow: 'hard' } });
+    expect(style.borderWidth).toBe('2px');
+    expect(style.borderStyle).toBe('solid');
+    expect(style.borderColor).toBe('#000000');
+    expect(style.boxShadow).toBe('4px 4px 0 #000000');
+    const glass = getLinkButtonStyle({ buttonStyle: { type: 'glass', shadow: 'hard', shadowColor: '#FF0000' } });
+    expect(glass.borderColor).toBe('#ff0000');
+    expect(glass.boxShadow).toBe('4px 4px 0 #ff0000');
+  });
+  it('hard com shadowColor inválido usa preto', () => {
+    expect(getLinkButtonStyle({ buttonStyle: { type: 'solid', shadow: 'hard', shadowColor: 'vermelho' } }).boxShadow).toBe('4px 4px 0 #000000');
+  });
+  it('glow: usa a cor do botão como reserva e shadowColor quando houver', () => {
+    expect(getLinkButtonStyle({ buttonStyle: { type: 'outline', color: '#00F0FF', shadow: 'glow' } }).boxShadow).toBe(
+      '0 0 18px #00f0ff99, 0 0 4px #00f0ff',
+    );
+    expect(getLinkButtonStyle({ buttonStyle: { type: 'outline', color: '#00F0FF', shadow: 'glow', shadowColor: '#F0F' } }).boxShadow).toBe(
+      '0 0 18px #ff00ff99, 0 0 4px #ff00ff',
+    );
+  });
+  it('glow não mexe na borda do estilo', () => {
+    const style = getLinkButtonStyle({ buttonStyle: { type: 'outline', color: '#39FF14', shadow: 'glow' } });
+    expect(style.borderWidth).toBe('2px');
+    expect(style.borderColor).toBe('#39ff14');
+  });
+  it('radiusScale escala os deslocamentos de hard e glow', () => {
+    expect(getLinkButtonStyle({ buttonStyle: { type: 'solid', shadow: 'hard' } }, { radiusScale: 0.5 }).boxShadow).toBe('2px 2px 0 #000000');
+    expect(getLinkButtonStyle({ buttonStyle: { type: 'solid', color: '#ff2e97', shadow: 'glow' } }, { radiusScale: 0.4 }).boxShadow).toBe(
+      '0 0 7.2px #ff2e9799, 0 0 1.6px #ff2e97',
+    );
+  });
+});

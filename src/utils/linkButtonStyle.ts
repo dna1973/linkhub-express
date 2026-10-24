@@ -67,12 +67,8 @@ export function getButtonRadius(radius: string | undefined, radiusScale = 1): st
   return `${px * radiusScale}px`;
 }
 
-/** Estilo inline completo do botão de link. Única fonte de verdade para fundo, borda e cor. */
-export function getLinkButtonStyle(config: LinkButtonConfig, options: { radiusScale?: number } = {}): CSSProperties {
-  const { bg, text } = resolveButtonColors(config);
-  const borderRadius = getButtonRadius(config.buttonStyle?.borderRadius, options.radiusScale ?? 1);
-
-  switch (config.buttonStyle?.type) {
+function getBaseButtonStyle(type: string | undefined, bg: string, text: string, borderRadius: string): CSSProperties {
+  switch (type) {
     case 'solid':
       return { background: bg, borderWidth: '0px', borderStyle: 'solid', borderColor: bg, color: text, borderRadius };
     case 'outline':
@@ -96,6 +92,46 @@ export function getLinkButtonStyle(config: LinkButtonConfig, options: { radiusSc
         color: text,
         borderRadius,
       };
+  }
+}
+
+/** Arredonda para 2 casas, para evitar valores como 7.200000000000001px */
+function scaledPx(value: number, scale: number): string {
+  return `${Math.round(value * scale * 100) / 100}px`;
+}
+
+/**
+ * Estilo inline completo do botão de link. Única fonte de verdade para fundo, borda, cor e sombra.
+ *
+ * `options.radiusScale` reduz o raio da borda (exceto `full`) e também os deslocamentos e o
+ * desfoque das sombras `hard` e `glow`, para a miniatura dos modelos ficar proporcional.
+ */
+export function getLinkButtonStyle(config: LinkButtonConfig, options: { radiusScale?: number } = {}): CSSProperties {
+  const { bg, text } = resolveButtonColors(config);
+  const scale = options.radiusScale ?? 1;
+  const borderRadius = getButtonRadius(config.buttonStyle?.borderRadius, scale);
+  const style = getBaseButtonStyle(config.buttonStyle?.type, bg, text, borderRadius);
+
+  switch (config.buttonStyle?.shadow) {
+    case 'soft':
+      return { ...style, boxShadow: '0 4px 14px rgba(0,0,0,0.18)' };
+    case 'hard': {
+      // A borda dura sobrepõe a borda do estilo, para a sombra "colar" no botão
+      const color = normalizeHex(config.buttonStyle?.shadowColor) ?? '#000000';
+      return {
+        ...style,
+        borderWidth: '2px',
+        borderStyle: 'solid',
+        borderColor: color,
+        boxShadow: `${scaledPx(4, scale)} ${scaledPx(4, scale)} 0 ${color}`,
+      };
+    }
+    case 'glow': {
+      const color = normalizeHex(config.buttonStyle?.shadowColor) ?? bg;
+      return { ...style, boxShadow: `0 0 ${scaledPx(18, scale)} ${color}99, 0 0 ${scaledPx(4, scale)} ${color}` };
+    }
+    default:
+      return style;
   }
 }
 

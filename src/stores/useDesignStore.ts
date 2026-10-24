@@ -2,10 +2,14 @@ import { create } from 'zustand';
 
 export interface ThemeConfig {
   background: {
+    /** 'pattern' é valor legado do editor: é lido como sólido, com o padrão desenhado por cima */
     type: 'solid' | 'gradient' | 'pattern';
     color?: string;
     colors?: string[];
-    pattern?: string;
+    /** Camada desenhada sobre qualquer tipo de fundo. Ausente ou 'none': sem padrão */
+    pattern?: 'none' | 'dots' | 'grid' | 'waves' | 'stripes';
+    /** Só vale para gradiente */
+    animated?: boolean;
   };
   buttonStyle: {
     type: 'solid' | 'outline' | 'glass' | 'modern' | 'rounded';
@@ -14,6 +18,10 @@ export interface ThemeConfig {
     textColor?: string;
     borderRadius?: 'none' | 'sm' | 'md' | 'lg' | 'full';
     size?: 'sm' | 'md' | 'lg';
+    /** Ausente ou 'none': sem sombra */
+    shadow?: 'none' | 'soft' | 'hard' | 'glow';
+    /** Hex. Usado pelos modelos; o editor não tem controle e preserva o valor */
+    shadowColor?: string;
   };
   font: {
     family: 'inter' | 'playfair' | 'poppins' | 'roboto-mono' | 'dancing-script' | 'montserrat' | 'lora' | 'source-code-pro';
@@ -26,6 +34,10 @@ export interface ThemeConfig {
     accent?: string;
     text?: string;
     avatarBorder?: string;
+  };
+  /** Ausente: círculo */
+  avatar?: {
+    shape?: 'circle' | 'rounded' | 'hexagon';
   };
 }
 
