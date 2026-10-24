@@ -10,7 +10,10 @@ export interface ThemeConfig {
   buttonStyle: {
     type: 'solid' | 'outline' | 'glass' | 'modern' | 'rounded';
     color?: string;
+    /** 'auto' (padrão quando ausente) ou uma cor hex */
+    textColor?: string;
     borderRadius?: 'none' | 'sm' | 'md' | 'lg' | 'full';
+    size?: 'sm' | 'md' | 'lg';
   };
   font: {
     family: 'inter' | 'playfair' | 'poppins' | 'roboto-mono' | 'dancing-script' | 'montserrat' | 'lora' | 'source-code-pro';
