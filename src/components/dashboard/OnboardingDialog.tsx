@@ -6,7 +6,8 @@ import { supabase, AVATARS_BUCKET } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Megaphone, Briefcase, User, ArrowLeft, ArrowRight, Check, Instagram, Youtube, Facebook, Linkedin, Github, Globe, Mail, Music, MessageCircle, ShoppingBag, Plus } from 'lucide-react';
-import { ThemeConfig } from '@/stores/useDesignStore';
+import { ONBOARDING_TEMPLATES } from './onboardingTemplates';
+import { TemplateMockup } from './TemplateMockup';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
@@ -39,236 +40,6 @@ const USER_TYPES = [
     bgIcon: 'bg-gradient-to-br from-orange-300 to-blue-400',
   },
 ] as const;
-
-export const ONBOARDING_TEMPLATES = [
-  {
-    id: 'warm-peach',
-    name: 'Peach',
-    bg: 'linear-gradient(180deg, #FDDCB5 0%, #F8C4A0 100%)',
-    textColor: '#3D2B1F',
-    btnBg: '#F5A876',
-    btnText: '#3D2B1F',
-    btnRadius: '12px',
-    font: 'Poppins, sans-serif',
-    config: {
-      background: { type: 'gradient' as const, colors: ['#FDDCB5', '#F8C4A0'] },
-      buttonStyle: { type: 'solid' as const, color: '#F5A876', borderRadius: 'lg' as const },
-      font: { family: 'poppins' as const, size: 'md' as const, weight: 'medium' as const },
-      colors: { primary: '#3D2B1F', secondary: '#5C3D2E', accent: '#F5A876', text: '#3D2B1F' },
-    },
-  },
-  {
-    id: 'clean-white',
-    name: 'Clean',
-    bg: '#FFFFFF',
-    textColor: '#1A1A1A',
-    btnBg: '#F5F5F5',
-    btnText: '#1A1A1A',
-    btnRadius: '24px',
-    font: 'Inter, sans-serif',
-    config: {
-      background: { type: 'solid' as const, colors: ['#FFFFFF', '#F9FAFB'] },
-      buttonStyle: { type: 'outline' as const, color: '#E5E7EB', borderRadius: 'full' as const },
-      font: { family: 'inter' as const, size: 'md' as const, weight: 'normal' as const },
-      colors: { primary: '#1A1A1A', secondary: '#6B7280', accent: '#3B82F6', text: '#1A1A1A' },
-    },
-  },
-  {
-    id: 'ocean-deep',
-    name: 'Ocean',
-    bg: 'linear-gradient(180deg, #0891B2 0%, #1E40AF 100%)',
-    textColor: '#FFFFFF',
-    btnBg: 'rgba(255,255,255,0.15)',
-    btnText: '#FFFFFF',
-    btnRadius: '8px',
-    font: 'Montserrat, sans-serif',
-    config: {
-      background: { type: 'gradient' as const, colors: ['#0891B2', '#1E40AF'] },
-      buttonStyle: { type: 'glass' as const, color: '#22D3EE', borderRadius: 'md' as const },
-      font: { family: 'montserrat' as const, size: 'md' as const, weight: 'medium' as const },
-      colors: { primary: '#22D3EE', secondary: '#67E8F9', accent: '#0EA5E9', text: '#FFFFFF' },
-    },
-  },
-  {
-    id: 'sunset-warm',
-    name: 'Sunset',
-    bg: 'linear-gradient(180deg, #F59E0B 0%, #DC2626 100%)',
-    textColor: '#FFFFFF',
-    btnBg: 'rgba(255,255,255,0.2)',
-    btnText: '#FFFFFF',
-    btnRadius: '999px',
-    font: 'Playfair Display, serif',
-    config: {
-      background: { type: 'gradient' as const, colors: ['#F59E0B', '#DC2626'] },
-      buttonStyle: { type: 'outline' as const, color: '#FFFFFF', borderRadius: 'full' as const },
-      font: { family: 'playfair' as const, size: 'lg' as const, weight: 'bold' as const },
-      colors: { primary: '#FFFFFF', secondary: '#FEF3C7', accent: '#FBBF24', text: '#FFFFFF' },
-    },
-  },
-  {
-    id: 'midnight-dark',
-    name: 'Midnight',
-    bg: 'linear-gradient(180deg, #0F172A 0%, #1E293B 100%)',
-    textColor: '#E2E8F0',
-    btnBg: '#334155',
-    btnText: '#E2E8F0',
-    btnRadius: '12px',
-    font: 'Inter, sans-serif',
-    config: {
-      background: { type: 'gradient' as const, colors: ['#0F172A', '#1E293B'] },
-      buttonStyle: { type: 'glass' as const, color: '#3B82F6', borderRadius: 'lg' as const },
-      font: { family: 'inter' as const, size: 'md' as const, weight: 'normal' as const },
-      colors: { primary: '#3B82F6', secondary: '#64748B', accent: '#06B6D4', text: '#FFFFFF' },
-    },
-  },
-  {
-    id: 'forest-green',
-    name: 'Forest',
-    bg: 'linear-gradient(180deg, #065F46 0%, #064E3B 100%)',
-    textColor: '#D1FAE5',
-    btnBg: 'rgba(16,185,129,0.25)',
-    btnText: '#6EE7B7',
-    btnRadius: '12px',
-    font: 'Roboto Mono, monospace',
-    config: {
-      background: { type: 'gradient' as const, colors: ['#065F46', '#064E3B'] },
-      buttonStyle: { type: 'glass' as const, color: '#10B981', borderRadius: 'lg' as const },
-      font: { family: 'roboto-mono' as const, size: 'md' as const, weight: 'normal' as const },
-      colors: { primary: '#10B981', secondary: '#6EE7B7', accent: '#34D399', text: '#FFFFFF' },
-    },
-  },
-  {
-    id: 'cyber-neon',
-    name: 'Neon',
-    bg: 'linear-gradient(180deg, #0C0C0C 0%, #1A1A2E 100%)',
-    textColor: '#00FF88',
-    btnBg: 'transparent',
-    btnText: '#00FF88',
-    btnRadius: '0px',
-    font: 'Source Code Pro, monospace',
-    config: {
-      background: { type: 'gradient' as const, colors: ['#0C0C0C', '#1A1A2E'] },
-      buttonStyle: { type: 'outline' as const, color: '#00FF88', borderRadius: 'none' as const },
-      font: { family: 'source-code-pro' as const, size: 'md' as const, weight: 'bold' as const },
-      colors: { primary: '#00FF88', secondary: '#00CCFF', accent: '#FF0066', text: '#FFFFFF' },
-    },
-  },
-  {
-    id: 'rose-elegant',
-    name: 'Rose',
-    bg: 'linear-gradient(180deg, #FFF1F2 0%, #FFE4E6 100%)',
-    textColor: '#881337',
-    btnBg: '#FB7185',
-    btnText: '#FFFFFF',
-    btnRadius: '999px',
-    font: 'Lora, serif',
-    config: {
-      background: { type: 'gradient' as const, colors: ['#FFF1F2', '#FFE4E6'] },
-      buttonStyle: { type: 'solid' as const, color: '#FB7185', borderRadius: 'full' as const },
-      font: { family: 'lora' as const, size: 'md' as const, weight: 'medium' as const },
-      colors: { primary: '#881337', secondary: '#BE185D', accent: '#FB7185', text: '#881337' },
-    },
-  },
-  {
-    id: 'sand-cream',
-    name: 'Sand',
-    bg: 'linear-gradient(180deg, #FEF3C7 0%, #FDE68A 100%)',
-    textColor: '#78350F',
-    btnBg: '#D97706',
-    btnText: '#FFFBEB',
-    btnRadius: '12px',
-    font: 'Poppins, sans-serif',
-    config: {
-      background: { type: 'gradient' as const, colors: ['#FEF3C7', '#FDE68A'] },
-      buttonStyle: { type: 'solid' as const, color: '#D97706', borderRadius: 'lg' as const },
-      font: { family: 'poppins' as const, size: 'md' as const, weight: 'medium' as const },
-      colors: { primary: '#78350F', secondary: '#92400E', accent: '#D97706', text: '#78350F' },
-    },
-  },
-  {
-    id: 'purple-haze',
-    name: 'Purple',
-    bg: 'linear-gradient(180deg, #7C3AED 0%, #C026D3 100%)',
-    textColor: '#2D1B4E',
-    btnBg: 'rgba(255,255,255,0.2)',
-    btnText: '#2D1B4E',
-    btnRadius: '8px',
-    font: 'Montserrat, sans-serif',
-    config: {
-      background: { type: 'gradient' as const, colors: ['#7C3AED', '#C026D3'] },
-      buttonStyle: { type: 'glass' as const, color: '#D946EF', borderRadius: 'md' as const },
-      font: { family: 'montserrat' as const, size: 'md' as const, weight: 'bold' as const },
-      colors: { primary: '#2D1B4E', secondary: '#3D2B5E', accent: '#D946EF', text: '#2D1B4E' },
-    },
-  },
-];
-
-const PhoneMockup: React.FC<{
-  template: typeof ONBOARDING_TEMPLATES[number];
-  isSelected: boolean;
-  onClick: () => void;
-}> = ({ template, isSelected, onClick }) => {
-  const btnBorderStyle = template.config.buttonStyle.type === 'outline'
-    ? { border: `2px solid ${template.btnText}`, background: 'transparent' }
-    : { background: template.btnBg };
-
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        'relative rounded-2xl overflow-hidden transition-all duration-300 flex-shrink-0',
-        'w-full max-w-[130px] h-[220px] sm:max-w-[140px] sm:h-[240px]',
-        'hover:scale-105 hover:shadow-xl',
-        isSelected
-          ? 'ring-3 ring-primary shadow-xl scale-105'
-          : 'ring-1 ring-border/30 hover:ring-primary/50'
-      )}
-    >
-      <div
-        className="w-full h-full flex flex-col items-center pt-6 px-3 pb-3"
-        style={{ background: template.bg }}
-      >
-        <div className="w-10 h-10 rounded-full bg-white/30 border-2 border-white/50 mb-2" />
-        <div
-          className="text-[10px] font-bold mb-0.5 truncate w-full text-center"
-          style={{ color: template.textColor, fontFamily: template.font }}
-        >
-          Seu Nome
-        </div>
-        <div
-          className="text-[7px] opacity-70 mb-3 truncate w-full text-center"
-          style={{ color: template.textColor }}
-        >
-          Sua bio aqui
-        </div>
-        <div className="w-full space-y-1.5">
-          {['Meu site', 'YouTube', 'Instagram'].map((label) => (
-            <div
-              key={label}
-              className="w-full h-5 flex items-center justify-center text-[7px] font-medium"
-              style={{
-                ...btnBorderStyle,
-                color: template.btnText,
-                borderRadius: template.btnRadius,
-                fontFamily: template.font,
-              }}
-            >
-              {label}
-            </div>
-          ))}
-        </div>
-      </div>
-      {isSelected && (
-        <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-primary flex items-center justify-center">
-          <Check className="h-3 w-3 text-primary-foreground" />
-        </div>
-      )}
-      <div className="absolute bottom-0 inset-x-0 bg-black/50 backdrop-blur-sm py-1">
-        <p className="text-[9px] text-white text-center font-medium">{template.name}</p>
-      </div>
-    </button>
-  );
-};
 
 const PLATFORMS = [
   { id: 'instagram', label: 'Instagram', icon: Instagram, placeholder: 'https://instagram.com/seuusuario', color: 'from-purple-500 to-pink-500' },
@@ -621,11 +392,12 @@ export const OnboardingDialog: React.FC<OnboardingDialogProps> = ({ open, onComp
           <div className="mt-4">
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3 justify-items-center">
               {ONBOARDING_TEMPLATES.map((template) => (
-                <PhoneMockup
+                <TemplateMockup
                   key={template.id}
                   template={template}
                   isSelected={selectedTemplate === template.id}
                   onClick={() => setSelectedTemplate(template.id)}
+                  className="flex-shrink-0 w-full max-w-[130px] h-[220px] sm:max-w-[140px] sm:h-[240px]"
                 />
               ))}
             </div>

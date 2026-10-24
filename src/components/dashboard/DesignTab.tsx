@@ -14,7 +14,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { useDesignStore, ThemeConfig } from '@/stores/useDesignStore';
 import { PREDEFINED_THEMES } from '@/utils/themes';
-import { ONBOARDING_TEMPLATES } from '@/components/dashboard/OnboardingDialog';
+import { ONBOARDING_TEMPLATES } from '@/components/dashboard/onboardingTemplates';
+import { TemplateMockup } from '@/components/dashboard/TemplateMockup';
 
 interface DesignTabProps {
   profile: any;
@@ -458,75 +459,20 @@ export const DesignTab: React.FC<DesignTabProps> = ({ profile, onProfileUpdate }
           <p className="text-sm text-muted-foreground">Escolha um modelo visual para seu perfil. Clique para aplicar.</p>
           
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-            {ONBOARDING_TEMPLATES.map((template) => {
-              const isSelected = selectedTheme === template.id;
-              const btnBorderStyle = template.config.buttonStyle.type === 'outline'
-                ? { border: `2px solid ${template.btnText}`, background: 'transparent' }
-                : { background: template.btnBg };
-
-              return (
-                <button
-                  key={template.id}
-                  onClick={() => {
-                    setSelectedTheme(template.id);
-                    setCurrentTheme(template.id);
-                    setCustomTheme(template.config as ThemeConfig);
-                    setCustomConfig(template.config as ThemeConfig);
-                  }}
-                  className={cn(
-                    'relative rounded-2xl overflow-hidden transition-all duration-300',
-                    'w-full h-[220px] sm:h-[240px]',
-                    'hover:scale-105 hover:shadow-xl',
-                    isSelected
-                      ? 'ring-3 ring-primary shadow-xl scale-105'
-                      : 'ring-1 ring-border/30 hover:ring-primary/50'
-                  )}
-                >
-                  <div
-                    className="w-full h-full flex flex-col items-center pt-6 px-3 pb-3"
-                    style={{ background: template.bg }}
-                  >
-                    <div className="w-10 h-10 rounded-full bg-white/30 border-2 border-white/50 mb-2" />
-                    <div
-                      className="text-[10px] font-bold mb-0.5 truncate w-full text-center"
-                      style={{ color: template.textColor, fontFamily: template.font }}
-                    >
-                      Seu Nome
-                    </div>
-                    <div
-                      className="text-[7px] opacity-70 mb-3 truncate w-full text-center"
-                      style={{ color: template.textColor }}
-                    >
-                      Sua bio aqui
-                    </div>
-                    <div className="w-full space-y-1.5">
-                      {['Meu site', 'YouTube', 'Instagram'].map((label) => (
-                        <div
-                          key={label}
-                          className="w-full h-5 flex items-center justify-center text-[7px] font-medium"
-                          style={{
-                            ...btnBorderStyle,
-                            color: template.btnText,
-                            borderRadius: template.btnRadius,
-                            fontFamily: template.font,
-                          }}
-                        >
-                          {label}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  {isSelected && (
-                    <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-primary flex items-center justify-center">
-                      <Check className="h-3 w-3 text-primary-foreground" />
-                    </div>
-                  )}
-                  <div className="absolute bottom-0 inset-x-0 bg-black/50 backdrop-blur-sm py-1">
-                    <p className="text-[9px] text-white text-center font-medium">{template.name}</p>
-                  </div>
-                </button>
-              );
-            })}
+            {ONBOARDING_TEMPLATES.map((template) => (
+              <TemplateMockup
+                key={template.id}
+                template={template}
+                isSelected={selectedTheme === template.id}
+                onClick={() => {
+                  setSelectedTheme(template.id);
+                  setCurrentTheme(template.id);
+                  setCustomTheme(template.config);
+                  setCustomConfig(template.config);
+                }}
+                className="w-full h-[220px] sm:h-[240px]"
+              />
+            ))}
           </div>
 
           <Button onClick={handleSaveTheme} disabled={loading} className="w-full btn-gradient-primary hover-bounce">
