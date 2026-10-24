@@ -16,6 +16,8 @@ import { useDesignStore, ThemeConfig } from '@/stores/useDesignStore';
 import { PREDEFINED_THEMES } from '@/utils/themes';
 import { ONBOARDING_TEMPLATES } from '@/components/dashboard/onboardingTemplates';
 import { TemplateMockup } from '@/components/dashboard/TemplateMockup';
+import { Switch } from '@/components/ui/switch';
+import { normalizeHex, resolveButtonColors } from '@/utils/linkButtonStyle';
 
 interface DesignTabProps {
   profile: any;
@@ -145,17 +147,19 @@ export const DesignTab: React.FC<DesignTabProps> = ({ profile, onProfileUpdate }
     }
   }, [profile, setCurrentTheme, setCustomTheme]);
 
-  const handleSaveTheme = async () => {
+  // Recebe o id por parâmetro para não depender de estado ainda não atualizado.
+  // Grava sempre a config que está na tela (modelos e edição manual usam customConfig).
+  const handleSaveTheme = async (themeId: string) => {
     if (!user) return;
 
     setLoading(true);
 
-    // Always save custom config — onboarding templates also use it
-    const isPredefined = PREDEFINED_THEMES.some(t => t.id === selectedTheme);
-    const themeOptions = {
-      themeId: selectedTheme,
-      custom: selectedTheme === 'custom' || !isPredefined ? customConfig : (PREDEFINED_THEMES.find(t => t.id === selectedTheme)?.config || null),
+    // Grava a cor efetiva do botão em buttonStyle.color, inclusive quando ela vinha da reserva colors.primary
+    const custom = {
+      ...customConfig,
+      buttonStyle: { ...customConfig.buttonStyle, color: resolveButtonColors(customConfig).bg },
     };
+    const themeOptions = { themeId, custom };
 
     const { error } = await supabase
       .from('profiles')
@@ -201,6 +205,11 @@ export const DesignTab: React.FC<DesignTabProps> = ({ profile, onProfileUpdate }
     // Atualizar o store imediatamente para pré-visualização em tempo real
     setCustomTheme(newConfig);
   };
+
+  const buttonColors = resolveButtonColors(customConfig);
+  // Só undefined e 'auto' contam como automático: apagar o campo manual não pode religar o interruptor
+  const isAutoButtonText = customConfig.buttonStyle.textColor === undefined || customConfig.buttonStyle.textColor === 'auto';
+  const manualButtonText = normalizeHex(customConfig.buttonStyle.textColor) ?? buttonColors.text;
 
   return (
     <div className="space-y-4">
@@ -385,8 +394,8 @@ export const DesignTab: React.FC<DesignTabProps> = ({ profile, onProfileUpdate }
                       <div>
                         <Label className="text-sm">Cor do Botão</Label>
                         <div className="flex items-center space-x-2 mt-2">
-                          <Input type="color" value={customConfig.buttonStyle.color || '#3b82f6'} onChange={(e) => updateCustomConfig('buttonStyle', { color: e.target.value })} className="w-12 h-10 p-1 rounded" />
-                          <Input type="text" value={customConfig.buttonStyle.color || '#3b82f6'} onChange={(e) => updateCustomConfig('buttonStyle', { color: e.target.value })} className="flex-1" />
+                          <Input type="color" value={buttonColors.bg} onChange={(e) => updateCustomConfig('buttonStyle', { color: e.target.value })} className="w-12 h-10 p-1 rounded" />
+                          <Input type="text" value={customConfig.buttonStyle.color ?? buttonColors.bg}onChange={(e) => updateCustomConfig('buttonStyle', { color: e.target.value })} className="flex-1" />
                         </div>
                       </div>
                       <div>
@@ -422,33 +431,36 @@ export const DesignTab: React.FC<DesignTabProps> = ({ profile, onProfileUpdate }
                         ))}
                       </div>
                     </div>
-                    <div className="space-y-4">
-                      <h4 className="font-medium flex items-center">
-                        <Palette className="h-4 w-4 mr-2" />
-                        Cores do Tema
-                      </h4>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <Label className="text-sm">Cor Primária</Label>
-                          <div className="flex items-center space-x-2 mt-2">
-                            <Input type="color" value={customConfig.colors?.primary || '#3b82f6'} onChange={(e) => updateCustomConfig('colors', { ...customConfig.colors, primary: e.target.value })} className="w-12 h-10 p-1 rounded" />
-                            <Input type="text" value={customConfig.colors?.primary || '#3b82f6'} onChange={(e) => updateCustomConfig('colors', { ...customConfig.colors, primary: e.target.value })} className="flex-1" />
-                          </div>
-                        </div>
-                        <div>
-                          <Label className="text-sm">Cor de Destaque</Label>
-                          <div className="flex items-center space-x-2 mt-2">
-                            <Input type="color" value={customConfig.colors?.accent || '#8b5cf6'} onChange={(e) => updateCustomConfig('colors', { ...customConfig.colors, accent: e.target.value })} className="w-12 h-10 p-1 rounded" />
-                            <Input type="text" value={customConfig.colors?.accent || '#8b5cf6'} onChange={(e) => updateCustomConfig('colors', { ...customConfig.colors, accent: e.target.value })} className="flex-1" />
-                          </div>
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="button-text-auto" className="text-sm">Cor do texto do botão</Label>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground">Automático</span>
+                          <Switch
+                            id="button-text-auto"
+                            checked={isAutoButtonText}
+                            onCheckedChange={(checked) =>
+                              updateCustomConfig('buttonStyle', { textColor: checked ? 'auto' : buttonColors.text })
+                            }
+                          />
                         </div>
                       </div>
+                      {isAutoButtonText ? (
+                        <p className="text-xs text-muted-foreground mt-2">
+                          Sólido: preto ou branco, o que for mais legível. Contorno: a cor do botão. Demais estilos: a cor do texto da página.
+                        </p>
+                      ) : (
+                        <div className="flex items-center space-x-2 mt-2">
+                          <Input type="color" value={manualButtonText} onChange={(e) => updateCustomConfig('buttonStyle', { textColor: e.target.value })} className="w-12 h-10 p-1 rounded" />
+                          <Input type="text" value={customConfig.buttonStyle.textColor} onChange={(e) => updateCustomConfig('buttonStyle', { textColor: e.target.value })} className="flex-1" />
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
               </div>
 
-          <Button onClick={() => { if (selectedTheme !== 'custom') handleThemeSelect('custom'); handleSaveTheme(); }} disabled={loading} className="w-full btn-gradient-primary hover-bounce">
+          <Button onClick={() => { if (selectedTheme !== 'custom') handleThemeSelect('custom'); handleSaveTheme('custom'); }} disabled={loading} className="w-full btn-gradient-primary hover-bounce">
             <Save className="h-4 w-4 mr-2" />
             {loading ? 'Salvando...' : 'Salvar Configurações'}
           </Button>
@@ -475,7 +487,7 @@ export const DesignTab: React.FC<DesignTabProps> = ({ profile, onProfileUpdate }
             ))}
           </div>
 
-          <Button onClick={handleSaveTheme} disabled={loading} className="w-full btn-gradient-primary hover-bounce">
+          <Button onClick={() => handleSaveTheme(selectedTheme)} disabled={loading} className="w-full btn-gradient-primary hover-bounce">
             <Save className="h-4 w-4 mr-2" />
             {loading ? 'Salvando...' : 'Salvar Modelo'}
           </Button>
