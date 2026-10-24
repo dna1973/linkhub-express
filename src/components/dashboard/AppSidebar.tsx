@@ -37,12 +37,13 @@ const analyticsItems = [
 ];
 
 export function AppSidebar({ activeTab, onTabChange, profile }: AppSidebarProps) {
-  const { state } = useSidebar();
+  const { state, isMobile, setOpenMobile } = useSidebar();
   const { theme, setTheme } = useTheme();
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const isCollapsed = state === 'collapsed';
+  // No painel móvel os rótulos sempre aparecem, mesmo que a barra do desktop esteja recolhida
+  const isCollapsed = state === 'collapsed' && !isMobile;
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
@@ -61,6 +62,11 @@ export function AppSidebar({ activeTab, onTabChange, profile }: AppSidebarProps)
   const handleSignOut = async () => {
     await signOut();
     navigate('/');
+  };
+
+  const handleTabChange = (tab: string) => {
+    onTabChange(tab);
+    if (isMobile) setOpenMobile(false);
   };
 
   const getPublicUrl = () => {
@@ -85,7 +91,7 @@ export function AppSidebar({ activeTab, onTabChange, profile }: AppSidebarProps)
   };
 
   return (
-    <Sidebar className={isCollapsed ? 'w-14' : 'w-60'} collapsible="icon">
+    <Sidebar collapsible="icon">
       <SidebarHeader className="p-4">
         <div className="flex items-center space-x-3">
           <div className="w-8 h-8 rounded-full btn-gradient-primary flex items-center justify-center">
@@ -112,7 +118,7 @@ export function AppSidebar({ activeTab, onTabChange, profile }: AppSidebarProps)
               {menuItems.map((item) => (
                 <SidebarMenuItem key={item.id}>
                   <SidebarMenuButton
-                    onClick={() => onTabChange(item.id)}
+                    onClick={() => handleTabChange(item.id)}
                     isActive={activeTab === item.id}
                     className="w-full justify-start"
                   >
@@ -134,7 +140,7 @@ export function AppSidebar({ activeTab, onTabChange, profile }: AppSidebarProps)
               {analyticsItems.map((item) => (
                 <SidebarMenuItem key={item.id}>
                   <SidebarMenuButton
-                    onClick={() => onTabChange(item.id)}
+                    onClick={() => handleTabChange(item.id)}
                     isActive={activeTab === item.id}
                     className="w-full justify-start"
                   >
