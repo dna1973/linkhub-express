@@ -1394,7 +1394,7 @@ Esperado: `healthy`. Confira que `https://linkhub.avila.ia.br` serve o `index-*.
 
 1. Aba Design → Botões: ligue e desligue "Automático", escolha uma cor de texto, salve, recarregue e confirme que persistiu. Confira que o perfil público mostra a cor.
 2. Aba Design → Modelos: clique em Peach, salve e abra o perfil público. O botão deve sair pêssego (`#F5A876`) com texto marrom (`#3D2B1F`), igual à miniatura.
-3. Restaure o visual que o usuário tinha antes (glass com `#22D3EE`) ou pergunte se ele quer manter o novo.
+3. Restaure o visual que o usuário tinha antes ou pergunte se ele quer manter o novo. Antes do passo 2, guarde o `theme_options` exato com `SELECT theme_options FROM linkhub.profiles WHERE username = 'dna';` — em 2026-10-23 era botão `solid` `#22D3EE` (não glass), tamanho `sm`, raio `md`.
 4. Sidebar em 600 px e em 1280 px, se a Tarefa 7 não tiver sido verificada localmente.
 
 - [ ] **Passo 5: commit final, se algo mudou**
