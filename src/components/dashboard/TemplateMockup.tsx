@@ -21,10 +21,12 @@ export const TemplateMockup: React.FC<TemplateMockupProps> = ({ template, isSele
     <button
       type="button"
       onClick={onClick}
+      aria-label={`Modelo ${template.name}`}
+      aria-pressed={isSelected}
       className={cn(
         'relative rounded-2xl overflow-hidden transition-all duration-300',
         'hover:scale-105 hover:shadow-xl',
-        isSelected ? 'ring-3 ring-primary shadow-xl scale-105' : 'ring-1 ring-border/30 hover:ring-primary/50',
+        isSelected ? 'ring-4 ring-primary shadow-xl scale-105' : 'ring-1 ring-border/30 hover:ring-primary/50',
         className
       )}
     >
