@@ -41,7 +41,15 @@ describe('composeWithoutBackground', () => {
   it('pessoa certa (conf = 0): pixel intacto, com ou sem cor', () => {
     const image = row([10, 20, 30, 200]);
     expect(pixel(composeWithoutBackground(image, background(0), null), 0)).toEqual([10, 20, 30, 200]);
-    expect(pixel(composeWithoutBackground(image, background(0), '#ff0000'), 0)).toEqual([10, 20, 30, 255]);
+    const opaque = row([10, 20, 30, 255]);
+    expect(pixel(composeWithoutBackground(opaque, background(0), '#ff0000'), 0)).toEqual([10, 20, 30, 255]);
+  });
+
+  it('com cor, o alfa original pesa na mistura: pixel transparente da pessoa vira a cor', () => {
+    const image = row([0, 0, 0, 0], [10, 20, 30, 255]);
+    const out = composeWithoutBackground(image, background(0, 0), '#ff0000');
+    expect(pixel(out, 0)).toEqual([255, 0, 0, 255]);
+    expect(pixel(out, 1)).toEqual([10, 20, 30, 255]);
   });
 
   it('borda (conf = 0.5): alfa e mistura pela metade', () => {

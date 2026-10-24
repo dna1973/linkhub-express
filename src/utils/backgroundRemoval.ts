@@ -103,9 +103,10 @@ export function composeWithoutBackground(
       const a = smoothstep(0.35, 0.65, 1 - conf);
       const i = (y * width + x) * 4;
       if (fillRgb) {
-        out[i] = a * data[i] + (1 - a) * fillRgb[0];
-        out[i + 1] = a * data[i + 1] + (1 - a) * fillRgb[1];
-        out[i + 2] = a * data[i + 2] + (1 - a) * fillRgb[2];
+        const af = a * (data[i + 3] / 255);
+        out[i] = af * data[i] + (1 - af) * fillRgb[0];
+        out[i + 1] = af * data[i + 1] + (1 - af) * fillRgb[1];
+        out[i + 2] = af * data[i + 2] + (1 - af) * fillRgb[2];
         out[i + 3] = 255;
       } else {
         out[i] = data[i];
@@ -120,12 +121,14 @@ export function composeWithoutBackground(
 
 /** Recorte com o fundo removido, num canvas novo do mesmo tamanho. */
 export async function removeBackground(source: HTMLCanvasElement, fill: string | null): Promise<HTMLCanvasElement> {
+  // Antes de baixar o motor e o modelo: sem canvas 2D não adianta carregar nada
+  const sourceCtx = source.getContext('2d');
+  if (!sourceCtx) throw new Error('Canvas 2D indisponível.');
+
   const segmenter = await loadSegmenter();
   const background = getBackgroundConfidence(segmenter, source);
 
   const { width, height } = source;
-  const sourceCtx = source.getContext('2d');
-  if (!sourceCtx) throw new Error('Canvas 2D indisponível.');
   const pixels = sourceCtx.getImageData(0, 0, width, height);
   const composed = composeWithoutBackground({ data: pixels.data, width, height }, background, fill);
 
