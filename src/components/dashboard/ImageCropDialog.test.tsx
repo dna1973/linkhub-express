@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { canvasToBlob, getCroppedCanvas, scaleCanvas } from '@/utils/cropImage';
 import { loadSegmenter, removeBackground } from '@/utils/backgroundRemoval';
 import { ImageCropDialog } from './ImageCropDialog';
@@ -103,22 +103,38 @@ describe('ImageCropDialog', () => {
     vi.mocked(loadSegmenter).mockReturnValue(new Promise((resolve) => (finishLoading = () => resolve({} as never))));
     renderDialog();
 
+    // A região de status fica sempre montada, para o leitor de tela anunciar as trocas de texto
+    const status = screen.getByRole('status');
+    expect(status.getAttribute('aria-live')).toBe('polite');
+    expect(status.textContent).toBe('');
+
     fireEvent.click(removeSwitch());
-    expect(screen.getByRole('status').textContent).toContain('Preparando remoção de fundo… (só na primeira vez, cerca de 30 MB)');
-    expect(removeSwitch().hasAttribute('disabled')).toBe(true);
+    expect(screen.getByRole('status')).toBe(status);
+    expect(status.textContent).toContain('Preparando remoção de fundo… (só na primeira vez, cerca de 30 MB)');
+    expect(status.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true');
+    // aria-disabled em vez de disabled, para o foco do teclado não cair no body
+    expect(removeSwitch().hasAttribute('disabled')).toBe(false);
+    expect(removeSwitch().getAttribute('aria-disabled')).toBe('true');
+    fireEvent.click(removeSwitch());
+    expect(removeSwitch().getAttribute('aria-checked')).toBe('true');
+    expect(loadSegmenter).toHaveBeenCalledTimes(1);
     expect(screen.getByRole('button', { name: 'Aplicar' }).hasAttribute('disabled')).toBe(true);
     expect(screen.queryByRole('button', { name: 'Transparente' })).toBeNull();
 
     await act(async () => finishLoading());
 
-    expect(screen.queryByRole('status')).toBeNull();
+    expect(screen.getByRole('status')).toBe(status);
+    expect(status.textContent).not.toContain('Preparando');
+    expect(status.textContent).toContain('Calculando prévia…');
     expect(removeSwitch().getAttribute('aria-checked')).toBe('true');
-    expect(removeSwitch().hasAttribute('disabled')).toBe(false);
-    expect(screen.getByRole('button', { name: 'Transparente' }).getAttribute('aria-pressed')).toBe('true');
-    expect(screen.getByRole('button', { name: 'Cor' }).getAttribute('aria-pressed')).toBe('false');
+    expect(removeSwitch().getAttribute('aria-disabled')).not.toBe('true');
+    const group = screen.getByRole('group', { name: 'Atrás da pessoa' });
+    expect(within(group).getByRole('button', { name: 'Transparente' }).getAttribute('aria-pressed')).toBe('true');
+    expect(within(group).getByRole('button', { name: 'Cor' }).getAttribute('aria-pressed')).toBe('false');
 
     const preview = await screen.findByRole('img', { name: 'Prévia sem fundo' });
     expect(preview.getAttribute('src')).toBe('blob:previa-1');
+    expect(status.textContent).not.toContain('Calculando prévia…');
     expect(scaleCanvas).toHaveBeenCalledWith(croppedCanvas, 256);
     expect(removeBackground).toHaveBeenCalledWith(scaledCanvas, null);
     expect(canvasToBlob).toHaveBeenCalledWith(resultCanvas, 'image/png');
@@ -137,6 +153,8 @@ describe('ImageCropDialog', () => {
     );
     expect(removeSwitch().getAttribute('aria-checked')).toBe('false');
     expect(removeSwitch().hasAttribute('disabled')).toBe(false);
+    expect(removeSwitch().getAttribute('aria-disabled')).not.toBe('true');
+    expect(screen.getByRole('status').textContent).toBe('');
     expect(screen.queryByRole('button', { name: 'Transparente' })).toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: 'Aplicar' }));
@@ -172,9 +190,10 @@ describe('ImageCropDialog', () => {
   });
 
   it('se Aplicar falhar com o fundo removido, mostra o toast e não fecha', async () => {
-    const { onCropComplete } = renderDialog();
+    const { onCropComplete, onClose } = renderDialog();
     fireEvent.click(removeSwitch());
-    await screen.findByRole('button', { name: 'Transparente' });
+    // Espera a miniatura terminar: assim a rejeição abaixo só atinge o Aplicar, não o timer da prévia
+    await screen.findByRole('img', { name: 'Prévia sem fundo' });
     vi.mocked(removeBackground).mockRejectedValue(new Error('erro do modelo'));
 
     fireEvent.click(screen.getByRole('button', { name: 'Aplicar' }));
@@ -182,8 +201,13 @@ describe('ImageCropDialog', () => {
     await waitFor(() =>
       expect(toast).toHaveBeenCalledWith(expect.objectContaining({ description: 'Não foi possível remover o fundo neste navegador.' })),
     );
-    expect(onCropComplete).not.toHaveBeenCalled();
+    expect(toast).toHaveBeenCalledTimes(1);
     await waitFor(() => expect(screen.getByRole('button', { name: 'Aplicar' }).hasAttribute('disabled')).toBe(false));
+    expect(onCropComplete).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByRole('dialog')).toBeTruthy();
+    // Na falha da miniatura o interruptor desligaria; na falha do Aplicar ele continua ligado
+    expect(removeSwitch().getAttribute('aria-checked')).toBe('true');
   });
 
   it('initialRemoveBackground já abre ligado', async () => {

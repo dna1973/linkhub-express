@@ -5,15 +5,42 @@ import type { Area } from 'react-easy-crop';
  * simularem: no jsdom sem o pacote canvas, getContext('2d') devolve null e toBlob nunca responde.
  */
 
+// Última imagem decodificada: a miniatura da remoção de fundo recorta a mesma src várias vezes
+let cachedSrc: string | null = null;
+let cachedImage: Promise<HTMLImageElement> | null = null;
+
+function loadImage(src: string): Promise<HTMLImageElement> {
+  if (cachedImage && cachedSrc === src) return cachedImage;
+
+  const promise = new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image();
+    image.crossOrigin = 'anonymous';
+    image.onload = () => resolve(image);
+    image.onerror = reject;
+    image.src = src;
+  });
+  cachedSrc = src;
+  cachedImage = promise;
+  // Carga que falhou não fica guardada: a próxima chamada tenta de novo
+  promise.catch(() => {
+    if (cachedImage === promise) clearImageCache();
+  });
+  return promise;
+}
+
+function clearImageCache(): void {
+  cachedSrc = null;
+  cachedImage = null;
+}
+
+/** Esquece a última imagem decodificada (para isolar os testes). */
+export function resetCropImageCacheForTests(): void {
+  clearImageCache();
+}
+
 /** Gira a imagem e recorta a área escolhida, no tamanho original do recorte. */
 export async function getCroppedCanvas(imageSrc: string, pixelCrop: Area, rotation = 0): Promise<HTMLCanvasElement> {
-  const image = new Image();
-  image.crossOrigin = 'anonymous';
-  await new Promise<void>((resolve, reject) => {
-    image.onload = () => resolve();
-    image.onerror = reject;
-    image.src = imageSrc;
-  });
+  const image = await loadImage(imageSrc);
 
   const radians = (rotation * Math.PI) / 180;
   const sin = Math.abs(Math.sin(radians));

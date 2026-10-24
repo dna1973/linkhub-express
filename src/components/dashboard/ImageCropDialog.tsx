@@ -56,6 +56,7 @@ export const ImageCropDialog: React.FC<ImageCropDialogProps> = ({
   const [segmenterStatus, setSegmenterStatus] = useState<SegmenterStatus>('idle');
   const [backgroundMode, setBackgroundMode] = useState<BackgroundMode>('transparent');
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [isPreviewPending, setIsPreviewPending] = useState(false);
 
   const shortcuts = useMemo(() => {
     const candidates = [
@@ -124,7 +125,11 @@ export const ImageCropDialog: React.FC<ImageCropDialogProps> = ({
 
   // Miniatura do resultado, recalculada 300 ms depois da última mudança de recorte, zoom, rotação ou fundo
   useEffect(() => {
-    if (!isBackgroundReady || !croppedAreaPixels) return;
+    if (!isBackgroundReady || !croppedAreaPixels) {
+      setIsPreviewPending(false);
+      return;
+    }
+    setIsPreviewPending(true);
     let cancelled = false;
     const timer = setTimeout(async () => {
       try {
@@ -133,9 +138,11 @@ export const ImageCropDialog: React.FC<ImageCropDialogProps> = ({
         const blob = await canvasToBlob(result, 'image/png');
         if (cancelled) return;
         replacePreviewUrl(URL.createObjectURL(blob));
+        setIsPreviewPending(false);
       } catch (err) {
         if (cancelled) return;
         console.error('Background removal preview error:', err);
+        setIsPreviewPending(false);
         turnOffRemoveBackground();
         showBackgroundError();
       }
@@ -183,7 +190,11 @@ export const ImageCropDialog: React.FC<ImageCropDialogProps> = ({
     setRotation(0);
   };
 
+  const isSegmenterLoading = segmenterStatus === 'loading';
+
   const handleRemoveBgChange = (checked: boolean) => {
+    // Durante o carregamento o interruptor fica aria-disabled (e não disabled, para não perder o foco)
+    if (isSegmenterLoading) return;
     if (checked) turnOnRemoveBackground();
     else turnOffRemoveBackground();
   };
@@ -252,17 +263,22 @@ export const ImageCropDialog: React.FC<ImageCropDialogProps> = ({
               <Switch
                 id="remove-background"
                 checked={removeBg}
-                disabled={segmenterStatus === 'loading'}
+                aria-disabled={isSegmenterLoading || undefined}
                 onCheckedChange={handleRemoveBgChange}
+                className="aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
               />
             </div>
 
-            {removeBg && segmenterStatus === 'loading' && (
-              <p role="status" className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Loader2 className="h-3 w-3 shrink-0 animate-spin" />
-                Preparando remoção de fundo… (só na primeira vez, cerca de 30 MB)
-              </p>
-            )}
+            {/* Sempre montada: o leitor de tela só anuncia mudanças numa região que já existia */}
+            <div role="status" aria-live="polite" className="!mt-0">
+              {removeBg && isSegmenterLoading && (
+                <p className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
+                  <Loader2 className="h-3 w-3 shrink-0 animate-spin" aria-hidden="true" />
+                  Preparando remoção de fundo… (só na primeira vez, cerca de 30 MB)
+                </p>
+              )}
+              {isBackgroundReady && isPreviewPending && <span className="sr-only">Calculando prévia…</span>}
+            </div>
 
             {isBackgroundReady && (
               <div className="flex items-start gap-4">
@@ -273,13 +289,15 @@ export const ImageCropDialog: React.FC<ImageCropDialogProps> = ({
                   {previewUrl ? (
                     <img src={previewUrl} alt="Prévia sem fundo" className="h-full w-full object-cover" />
                   ) : (
-                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" aria-label="Calculando prévia" />
+                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" aria-hidden="true" />
                   )}
                 </div>
 
                 <div className="flex-1 space-y-2">
-                  <Label className="text-xs">Atrás da pessoa</Label>
-                  <div className="flex gap-2">
+                  <Label id="background-mode-label" className="text-xs">
+                    Atrás da pessoa
+                  </Label>
+                  <div role="group" aria-labelledby="background-mode-label" className="flex gap-2">
                     <Button
                       type="button"
                       size="sm"
@@ -336,7 +354,7 @@ export const ImageCropDialog: React.FC<ImageCropDialogProps> = ({
             <Button variant="outline" onClick={onClose}>
               Cancelar
             </Button>
-            <Button onClick={handleSave} disabled={isSaving || segmenterStatus === 'loading'}>
+            <Button onClick={handleSave} disabled={isSaving || isSegmenterLoading}>
               {isSaving ? 'Salvando...' : 'Aplicar'}
             </Button>
           </div>
