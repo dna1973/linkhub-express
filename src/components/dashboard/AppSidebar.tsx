@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link as LinkIcon, Palette, User, Sun, Moon, LogOut, Eye, BarChart3, Sparkles, Shield, Copy } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
+import { BrandLogo } from '@/components/BrandLogo';
 import { useTheme } from 'next-themes';
 import { useAuth } from '@/contexts/AuthContext';
 import { PUBLIC_SITE_URL } from '@/lib/supabase';
@@ -96,9 +97,7 @@ export function AppSidebar({ activeTab, onTabChange, profile }: AppSidebarProps)
       {/* Recolhida, a barra tem 3rem: p-2 deixa o logo de 2rem caber, com o botão de recolher logo abaixo */}
       <SidebarHeader className={isCollapsed ? 'p-2' : 'p-4'}>
         <div className={isCollapsed ? 'flex flex-col items-center gap-2' : 'flex items-center gap-3'}>
-          <div className="w-8 h-8 shrink-0 rounded-full btn-gradient-primary flex items-center justify-center">
-            <LinkIcon className="h-4 w-4 text-white" />
-          </div>
+          <BrandLogo size={32} />
           {!isCollapsed && (
             <div className="min-w-0 flex-1">
               <h1 className="text-lg font-bold">LinkHub</h1>

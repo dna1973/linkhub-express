@@ -131,7 +131,7 @@ const Dashboard = () => {
               <div className={activeTab === 'analytics' ? 'w-full' : 'lg:grid lg:grid-cols-2 lg:gap-6'}>
                 {/* Left Panel - Dashboard */}
                 <div className={activeTab === 'analytics' ? 'w-full' : 'space-y-4 md:space-y-6'}>
-                  <Card className="bg-card/50 backdrop-blur-sm border-border/50">
+                  <Card className="bg-card border-border/60 shadow-sm">
                     <CardContent className={activeTab === 'analytics' ? 'p-0' : 'p-3 sm:p-4 md:p-6'}>
                       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                         <TabsContent value="links" className="mt-0">

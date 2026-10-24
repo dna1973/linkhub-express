@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Link, Sparkles, Zap, Palette, BarChart3, Sun, Moon } from 'lucide-react';
+import { BrandLogo } from '@/components/BrandLogo';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from 'next-themes';
 
@@ -46,9 +47,7 @@ const Index = () => {
       <header className="border-b border-border/50 bg-card/30 backdrop-blur-sm">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 rounded-full btn-gradient-primary flex items-center justify-center">
-              <Link className="h-4 w-4 text-white" />
-            </div>
+            <BrandLogo size={32} />
             <h1 className="text-xl font-bold">LinkHub</h1>
           </div>
           
@@ -179,9 +178,7 @@ const Index = () => {
       <footer className="border-t border-border/50 py-8 px-4">
         <div className="container mx-auto text-center">
           <div className="flex items-center justify-center space-x-2 mb-4">
-            <div className="w-6 h-6 rounded-full btn-gradient-primary flex items-center justify-center">
-              <Link className="h-3 w-3 text-white" />
-            </div>
+            <BrandLogo size={24} />
             <span className="font-semibold">LinkHub</span>
           </div>
           <div className="flex items-center justify-center space-x-4 mb-2">

@@ -14,7 +14,7 @@ export default defineConfig(({ mode }) => ({
       registerType: 'autoUpdate',
       // O registro é feito em src/registerServiceWorker.ts, só fora do perfil público
       injectRegister: false,
-      includeAssets: ['favicon.ico', 'icons/icon-192x192.png', 'icons/icon-512x512.png'],
+      includeAssets: ['favicon.ico', 'icons/icon-32x32.png', 'icons/apple-touch-icon.png'],
       manifest: {
         name: 'LinkHub Express',
         short_name: 'LinkHub',
@@ -38,7 +38,8 @@ export default defineConfig(({ mode }) => ({
             type: 'image/png',
           },
           {
-            src: '/icons/icon-512x512.png',
+            // Fundo azul-marinho e círculo dentro da zona segura: o Android recorta o ícone na forma do aparelho
+            src: '/icons/icon-maskable-512x512.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'maskable',

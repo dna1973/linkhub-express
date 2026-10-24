@@ -87,7 +87,7 @@ const SortableLink: React.FC<SortableLinkProps> = ({ link, onDelete, onEdit, pro
   return (
     <div ref={setNodeRef} style={style} {...attributes}>
       {/* Card compacto: cabem mais links na tela; a alça de arrastar mantém área de toque maior que o ícone */}
-      <Card className="bg-card/30 border-border/50 hover-bounce">
+      <Card className="bg-card border-border shadow-sm hover-bounce">
         <CardContent className="px-3 py-2">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 min-w-0 flex-1">

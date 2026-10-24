@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Link, Download, Smartphone, Share, Plus, ArrowRight } from 'lucide-react';
+import { Download, Smartphone, Share, Plus, ArrowRight } from 'lucide-react';
+import { BrandLogo } from '@/components/BrandLogo';
 import { useNavigate } from 'react-router-dom';
 
 interface BeforeInstallPromptEvent extends Event {
@@ -70,9 +71,7 @@ const Install = () => {
       <div className="max-w-md w-full space-y-6 animate-fade-in">
         {/* Header */}
         <div className="text-center space-y-3">
-          <div className="w-20 h-20 rounded-2xl btn-gradient-primary flex items-center justify-center mx-auto shadow-lg">
-            <Link className="h-10 w-10 text-white" />
-          </div>
+          <BrandLogo size={80} className="mx-auto shadow-lg" />
           <h1 className="text-3xl font-bold">Instalar LinkHub</h1>
           <p className="text-muted-foreground">
             Tenha acesso rápido ao LinkHub direto na tela inicial do seu dispositivo.
