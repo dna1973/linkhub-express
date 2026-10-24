@@ -71,6 +71,55 @@ describe('ProfileView', () => {
     expect(screen.getByRole('button', { name: /criar seu LinkHub/ })).toBeTruthy();
     expect(screen.getByText('Nenhum link disponível')).toBeTruthy();
     expect(container.innerHTML).toContain('min-h-screen');
+    expect(screen.getByTestId('profile-background').classList.contains('fixed')).toBe(true);
+    expect(screen.getByTestId('profile-background').classList.contains('inset-0')).toBe(true);
+  });
+
+  describe('camada de padrão', () => {
+    // Os ícones do lucide também têm aria-hidden, mas são <svg>; a camada é o único <div aria-hidden>
+    const patternLayer = (container: HTMLElement) => container.querySelector<HTMLElement>('div[aria-hidden="true"]');
+
+    it('device: existe, é absolute inset-0 e tem backgroundImage', () => {
+      const { container } = render(
+        <ProfileView variant="device" profile={profile} links={links} theme={theme} onLinkClick={vi.fn()} />,
+      );
+      const layer = patternLayer(container);
+      expect(layer).not.toBeNull();
+      expect(layer!.classList.contains('absolute')).toBe(true);
+      expect(layer!.classList.contains('inset-0')).toBe(true);
+      expect(layer!.classList.contains('fixed')).toBe(false);
+      expect(layer!.getAttribute('style')).toContain('linear-gradient');
+    });
+
+    it('page: existe e é fixed inset-0', () => {
+      const { container } = render(
+        <ProfileView variant="page" profile={profile} links={links} theme={theme} onLinkClick={vi.fn()} />,
+      );
+      const layer = patternLayer(container);
+      expect(layer).not.toBeNull();
+      expect(layer!.classList.contains('fixed')).toBe(true);
+      expect(layer!.classList.contains('inset-0')).toBe(true);
+      expect(layer!.getAttribute('style')).toContain('linear-gradient');
+    });
+
+    it.each([
+      ['none', { ...theme, background: { ...theme.background, pattern: 'none' as const } }],
+      ['ausente', { ...theme, background: { type: 'solid' as const, color: '#F8FAFC' } }],
+    ])('pattern %s: a camada não existe nos dois variants', (_, semPadrao) => {
+      for (const variant of ['page', 'device'] as const) {
+        const { container, unmount } = render(
+          <ProfileView variant={variant} profile={profile} links={links} theme={semPadrao} onLinkClick={vi.fn()} />,
+        );
+        expect(patternLayer(container)).toBeNull();
+        unmount();
+      }
+    });
+  });
+
+  it('profile=null: mostra "Usuário" e a inicial "U"', () => {
+    render(<ProfileView variant="page" profile={null} links={links} theme={null} onLinkClick={vi.fn()} />);
+    expect(screen.getByText('Usuário')).toBeTruthy();
+    expect(screen.getByText('U')).toBeTruthy();
   });
 
   it('device: não usa min-h-screen, aplica topInset e o rodapé é só texto', () => {
