@@ -241,6 +241,34 @@ describe('ImageCropDialog', () => {
     expect(URL.revokeObjectURL).toHaveBeenCalledWith(last);
   });
 
+  it('durante "Salvando..." não fecha por Cancelar nem por Esc, e não entrega o recorte se a janela sair', async () => {
+    const { onCropComplete, onClose, unmount } = renderDialog();
+    // Fora do salvamento, Esc fecha normalmente
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+    expect(onClose).toHaveBeenCalledTimes(1);
+    onClose.mockClear();
+
+    let finishCrop: () => void = () => {};
+    vi.mocked(getCroppedCanvas).mockReturnValue(new Promise((resolve) => (finishCrop = () => resolve(croppedCanvas))));
+    fireEvent.click(screen.getByRole('button', { name: 'Aplicar' }));
+    await screen.findByRole('button', { name: 'Salvando...' });
+
+    const cancel = screen.getByRole('button', { name: 'Cancelar' });
+    expect(cancel.hasAttribute('disabled')).toBe(true);
+    fireEvent.click(cancel);
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+    expect(onClose).not.toHaveBeenCalled();
+
+    // Por defesa: se a janela sair no meio do salvamento, o recorte não é entregue
+    unmount();
+    await act(async () => {
+      finishCrop();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(canvasToBlob).toHaveBeenCalledWith(croppedCanvas, 'image/jpeg', 0.9);
+    expect(onCropComplete).not.toHaveBeenCalled();
+  });
+
   it('sem themeColors, o único atalho é o branco', async () => {
     renderDialog();
     fireEvent.click(removeSwitch());

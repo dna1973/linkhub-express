@@ -45,6 +45,10 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
     () => ({ background: getBaseBackgroundColor(customTheme), button: resolveButtonColors(customTheme).bg }),
     [customTheme],
   );
+  // objectURL aberto na janela de recorte: o ref deixa revogar o anterior mesmo depois de um await
+  const cropImageSrcRef = useRef<string | null>(null);
+  const isOpeningCurrentAvatarRef = useRef(false);
+  const mountedRef = useRef(true);
   const [formData, setFormData] = useState({
     username: profile?.username || '',
     full_name: profile?.full_name || '',
@@ -58,6 +62,22 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
 
   // Username validation
   const usernameValidation = useUsernameValidation(formData.username);
+
+  // Troca a imagem da janela de recorte, revogando o objectURL anterior
+  const replaceCropImageSrc = (url: string | null) => {
+    if (cropImageSrcRef.current && cropImageSrcRef.current !== url) URL.revokeObjectURL(cropImageSrcRef.current);
+    cropImageSrcRef.current = url;
+    setCropImageSrc(url);
+  };
+
+  React.useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      if (cropImageSrcRef.current) URL.revokeObjectURL(cropImageSrcRef.current);
+      cropImageSrcRef.current = null;
+    };
+  }, []);
 
   // Atualizar formData quando profile muda
   React.useEffect(() => {
@@ -153,32 +173,38 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
 
     setPendingFile(file);
     setCropRemoveBackground(false);
-    const objectUrl = URL.createObjectURL(file);
-    setCropImageSrc(objectUrl);
+    replaceCropImageSrc(URL.createObjectURL(file));
 
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   // Fecha a janela de recorte e libera o objectURL da imagem aberta nela
   const closeCropDialog = () => {
-    if (cropImageSrc) URL.revokeObjectURL(cropImageSrc);
-    setCropImageSrc(null);
+    replaceCropImageSrc(null);
     setPendingFile(null);
     setCropRemoveBackground(false);
   };
 
   const handleRemoveCurrentBackground = async () => {
-    if (!formData.avatar_url) return;
+    // Durante a busca o botão fica aria-disabled (e não disabled, para não perder o foco)
+    if (!formData.avatar_url || isOpeningCurrentAvatarRef.current) return;
+    isOpeningCurrentAvatarRef.current = true;
     setIsOpeningCurrentAvatar(true);
     try {
       // no-store: não reaproveita a resposta que o <img> guardou sem cabeçalho CORS
       const response = await fetch(formData.avatar_url, { cache: 'no-store' });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const blob = await response.blob();
-      // objectURL: o canvas do recorte não fica "sujo" com imagem de outra origem
+      // Um valor parcial no campo de URL cai no fallback da SPA, que responde 200 com text/html
+      if (!blob.type.startsWith('image/')) throw new Error(`Resposta não é imagem: ${blob.type || 'sem tipo'}`);
+      // A aba saiu durante a busca: não cria um objectURL que ninguém revogaria
+      if (!mountedRef.current) return;
+      setPendingFile(null);
       setCropRemoveBackground(true);
-      setCropImageSrc(URL.createObjectURL(blob));
+      // objectURL: o canvas do recorte não fica "sujo" com imagem de outra origem
+      replaceCropImageSrc(URL.createObjectURL(blob));
     } catch (error) {
+      if (!mountedRef.current) return;
       console.error('Error opening current avatar:', error);
       toast({
         title: "Erro",
@@ -186,24 +212,31 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
         variant: "destructive",
       });
     } finally {
-      setIsOpeningCurrentAvatar(false);
+      isOpeningCurrentAvatarRef.current = false;
+      if (mountedRef.current) setIsOpeningCurrentAvatar(false);
+    }
+  };
+
+  // Falha ao apagar a foto antiga não desfaz a troca: só fica registrada no console
+  const removeOldAvatar = async (oldAvatarUrl: string) => {
+    if (!user || !oldAvatarUrl || !oldAvatarUrl.includes('supabase')) return;
+    const oldFileName = oldAvatarUrl.split('/').pop();
+    if (!oldFileName) return;
+    try {
+      const { error } = await supabase.storage.from(AVATARS_BUCKET).remove([`${user.id}/${oldFileName}`]);
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error removing old avatar:', error);
     }
   };
 
   const handleCropComplete = async (croppedBlob: Blob) => {
     closeCropDialog();
     if (!user) return;
+    const oldAvatarUrl = formData.avatar_url;
 
     setIsUploadingImage(true);
     try {
-      // Delete old avatar if exists
-      if (formData.avatar_url && formData.avatar_url.includes('supabase')) {
-        const oldFileName = formData.avatar_url.split('/').pop();
-        if (oldFileName) {
-          await supabase.storage.from(AVATARS_BUCKET).remove([`${user.id}/${oldFileName}`]);
-        }
-      }
-
       // PNG quando o fundo foi removido; o resto continua JPEG
       const isPng = croppedBlob.type === 'image/png';
       const fileName = `${Date.now()}.${isPng ? 'png' : 'jpg'}`;
@@ -225,6 +258,8 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
       if (updateError) throw updateError;
 
       setFormData(prev => ({ ...prev, avatar_url: newAvatarUrl }));
+      // Só agora apaga a antiga: com "Remover fundo", ela costuma ser a única cópia da foto original
+      await removeOldAvatar(oldAvatarUrl);
       onProfileUpdate();
       toast({ title: "Sucesso!", description: "Imagem carregada com sucesso." });
     } catch (error) {
@@ -315,7 +350,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                     variant="outline"
                     size="sm"
                     onClick={() => fileInputRef.current?.click()}
-                    disabled={isUploadingImage}
+                    disabled={isUploadingImage || isOpeningCurrentAvatar}
                     className="flex items-center space-x-2"
                   >
                     <Upload className="h-4 w-4" />
@@ -327,10 +362,16 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                       variant="outline"
                       size="sm"
                       onClick={handleRemoveCurrentBackground}
-                      disabled={isUploadingImage || isOpeningCurrentAvatar}
-                      className="flex items-center space-x-2"
+                      disabled={isUploadingImage}
+                      aria-disabled={isOpeningCurrentAvatar || undefined}
+                      aria-busy={isOpeningCurrentAvatar}
+                      className="flex items-center space-x-2 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
                     >
-                      {isOpeningCurrentAvatar ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eraser className="h-4 w-4" />}
+                      {isOpeningCurrentAvatar ? (
+                        <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                      ) : (
+                        <Eraser className="h-4 w-4" aria-hidden="true" />
+                      )}
                       <span>Remover fundo</span>
                     </Button>
                   )}
@@ -340,6 +381,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                       variant="outline"
                       size="sm"
                       onClick={handleDeleteImage}
+                      disabled={isUploadingImage || isOpeningCurrentAvatar}
                       className="flex items-center space-x-2 text-destructive hover:text-destructive"
                     >
                       <Trash2 className="h-4 w-4" />
@@ -581,6 +623,8 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
       {/* Image Crop Dialog */}
       {cropImageSrc && (
         <ImageCropDialog
+          // Imagem nova remonta a janela: ela só lê initialRemoveBackground ao montar
+          key={cropImageSrc}
           open={!!cropImageSrc}
           imageSrc={cropImageSrc}
           initialRemoveBackground={cropRemoveBackground}

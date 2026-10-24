@@ -176,7 +176,8 @@ export const ImageCropDialog: React.FC<ImageCropDialogProps> = ({
       } else {
         croppedBlob = await canvasToBlob(canvas, 'image/jpeg', 0.9);
       }
-      onCropComplete(croppedBlob);
+      // Por defesa: se a janela já saiu, o recorte não troca mais o avatar
+      if (mountedRef.current) onCropComplete(croppedBlob);
     } catch (err) {
       console.error('Crop error:', err);
     } finally {
@@ -200,7 +201,8 @@ export const ImageCropDialog: React.FC<ImageCropDialogProps> = ({
   };
 
   return (
-    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+    // Durante o salvamento, Esc, clique fora e o X não fecham: o recorte seria entregue mesmo assim
+    <Dialog open={open} onOpenChange={(v) => !v && !isSaving && onClose()}>
       <DialogContent className="sm:max-w-md max-h-[90dvh] overflow-y-auto" aria-describedby={undefined}>
         <DialogHeader>
           <DialogTitle>Recortar Imagem</DialogTitle>
@@ -351,7 +353,7 @@ export const ImageCropDialog: React.FC<ImageCropDialogProps> = ({
             Resetar
           </Button>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={onClose}>
+            <Button variant="outline" onClick={onClose} disabled={isSaving}>
               Cancelar
             </Button>
             <Button onClick={handleSave} disabled={isSaving || isSegmenterLoading}>
