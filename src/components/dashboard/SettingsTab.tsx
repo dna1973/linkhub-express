@@ -144,7 +144,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
       if (error.code === '23505' && error.message.includes('username')) {
         toast({
           title: "Username já existe",
-          description: "Este username já está sendo usado por outro usuário.",
+          description: "Este username já está sendo usado por outro perfil.",
           variant: "destructive",
         });
       }
@@ -215,8 +215,8 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
 
   // Falha ao apagar a foto antiga não desfaz a troca: só fica registrada no console.
   // Só sai do bucket a foto da pasta deste perfil; a do Google ou de outro perfil fica como está.
-  const removeOldAvatar = async (oldAvatarUrl: string) => {
-    const oldPath = avatarPathFromUrl(oldAvatarUrl, profile?.id);
+  const removeOldAvatar = async (oldAvatarUrl: string, profileId: string) => {
+    const oldPath = avatarPathFromUrl(oldAvatarUrl, profileId);
     if (!oldPath) return;
     try {
       const { error } = await supabase.storage.from(AVATARS_BUCKET).remove([oldPath]);
@@ -256,7 +256,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
 
       setFormData(prev => ({ ...prev, avatar_url: newAvatarUrl }));
       // Só agora apaga a antiga: com "Remover fundo", ela costuma ser a única cópia da foto original
-      await removeOldAvatar(oldAvatarUrl);
+      await removeOldAvatar(oldAvatarUrl, profileId);
       onProfileUpdate();
       toast({ title: "Sucesso!", description: "Imagem carregada com sucesso." });
     } catch (error) {
@@ -268,16 +268,22 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   };
 
   const handleDeleteImage = async () => {
-    if (!profile?.id || !formData.avatar_url) return;
+    const profileId = profile?.id;
+    const oldAvatarUrl = formData.avatar_url;
+    if (!profileId || !oldAvatarUrl) return;
 
     try {
-      // Só apaga do bucket a foto que está na pasta deste perfil
-      const path = avatarPathFromUrl(formData.avatar_url, profile.id);
-      if (path) {
-        await supabase.storage.from(AVATARS_BUCKET).remove([path]);
-      }
+      // Grava no perfil antes de mexer no arquivo (sem esperar o autosave): se falhar, a foto continua
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ avatar_url: null })
+        .eq('id', profileId);
+      if (updateError) throw updateError;
 
       setFormData(prev => ({ ...prev, avatar_url: '' }));
+      // Só agora apaga o arquivo, e só o da pasta deste perfil; falha fica no console
+      await removeOldAvatar(oldAvatarUrl, profileId);
+      onProfileUpdate();
 
       toast({
         title: "Imagem removida",

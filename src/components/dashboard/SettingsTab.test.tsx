@@ -401,6 +401,48 @@ describe('SettingsTab, foto de perfil', () => {
     await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Imagem removida' })));
     expect(mocks.storage.remove).not.toHaveBeenCalled();
   });
+
+  it('"Remover" grava avatar_url null no perfil e só depois apaga o arquivo', async () => {
+    renderTab();
+    fireEvent.click(screen.getByRole('button', { name: 'Remover' }));
+
+    await waitFor(() => expect(mocks.storage.remove).toHaveBeenCalledWith(['p1/123.jpg']));
+    expect(mocks.profileUpdate).toHaveBeenCalledWith({ avatar_url: null });
+    expect(mocks.profileEq).toHaveBeenCalledWith('id', 'p1');
+    expect(mocks.storage.remove.mock.invocationCallOrder[0]).toBeGreaterThan(mocks.profileUpdate.mock.invocationCallOrder[0]);
+    expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Imagem removida' }));
+  });
+
+  it('"Remover": se a gravação no perfil falhar, o arquivo não é apagado e a foto continua', async () => {
+    mocks.profileUpdate.mockReturnValue({ error: { message: 'falhou' } });
+    renderTab();
+    fireEvent.click(screen.getByRole('button', { name: 'Remover' }));
+
+    await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({ variant: 'destructive' })));
+    expect(mocks.storage.remove).not.toHaveBeenCalled();
+    expect(mocks.toast).not.toHaveBeenCalledWith(expect.objectContaining({ title: 'Imagem removida' }));
+    expect(screen.getByRole('button', { name: 'Remover' })).toBeTruthy();
+  });
+
+  it('"Remover": falha ao apagar o arquivo vai só para o console', async () => {
+    mocks.storage.remove.mockResolvedValue({ error: new Error('sem permissão') });
+    renderTab();
+    fireEvent.click(screen.getByRole('button', { name: 'Remover' }));
+
+    await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Imagem removida' })));
+    expect(console.error).toHaveBeenCalledWith('Error removing old avatar:', expect.anything());
+    expect(mocks.toast).not.toHaveBeenCalledWith(expect.objectContaining({ variant: 'destructive' }));
+  });
+
+  it('trocar a foto quando a antiga é do Google não apaga nada do bucket', async () => {
+    const { container } = renderTab('https://lh3.googleusercontent.com/a/foto=s96-c');
+    selectFile(container);
+    fireEvent.click(await screen.findByRole('button', { name: 'aplicar png' }));
+
+    await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Sucesso!' })));
+    expect(mocks.storage.upload).toHaveBeenCalled();
+    expect(mocks.storage.remove).not.toHaveBeenCalled();
+  });
 });
 
 describe('SettingsTab, QR code e link público', () => {
@@ -446,6 +488,19 @@ describe('SettingsTab, QR code e link público', () => {
 });
 
 describe('SettingsTab, perfil atual', () => {
+  it('@ já usado: o aviso fala em outro perfil', async () => {
+    mocks.profileUpdate.mockReturnValue({ error: { code: '23505', message: 'duplicate key value violates unique constraint "profiles_username_key" (username)' } });
+    renderTab();
+    fireEvent.click(screen.getByRole('switch', { name: 'Exibir QR code no perfil público' }));
+    await act(async () => {
+      await mocks.autosave!.save(mocks.autosave!.data).catch(() => {});
+    });
+
+    expect(mocks.toast).toHaveBeenCalledWith(
+      expect.objectContaining({ description: 'Este username já está sendo usado por outro perfil.' }),
+    );
+  });
+
   it('o salvamento automático grava no perfil recebido e usa o id dele como resetKey', async () => {
     renderTab();
     expect(mocks.autosave!.resetKey).toBe('p1');
