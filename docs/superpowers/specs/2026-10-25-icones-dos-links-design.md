@@ -41,11 +41,13 @@ Significado e validação de `icon_value`. O banco só limita o tamanho; o app v
 | `icon_type` | `icon_value` | Válido quando |
 |---|---|---|
 | `auto` | `NULL` (o ícone sai da URL a cada desenho) | sempre |
-| `brand` | `slug` do Simple Icons (ex.: `youtube`) | `^[a-z0-9]+$` |
+| `brand` | `slug` do Simple Icons (ex.: `youtube`) | `^[a-z0-9_]+$` (há slugs com `_`, ex.: `uniqlo_ja`; um teste valida todos os slugs do catálogo) |
 | `lucide` | nome do arquivo do `lucide-static` (ex.: `globe`) | `^[a-z0-9]+(-[a-z0-9]+)*$` |
 | `emoji` | um único emoji | `isSingleEmoji` |
-| `favicon` | `NULL` (usa o domínio da URL do link) | a URL do link é http(s) com host |
-| `upload` | URL pública do arquivo | começa com `${VITE_SUPABASE_URL}/storage/v1/object/public/linkhub-link-icons/` |
+| `favicon` | `NULL` (usa o domínio da URL do link) | `getFaviconUrl(url)` não é `null` (mesma normalização do detect: aceita URL sem esquema) |
+| `upload` | URL pública do arquivo | começa com `LINK_ICONS_PUBLIC_PREFIX` e o resto não contém `..`, `?`, `#` nem `\` |
+
+`LINK_ICONS_PUBLIC_PREFIX` = `${VITE_SUPABASE_URL sem barra final}/storage/v1/object/public/linkhub-link-icons/`. Fica em `src/lib/linkIcons/storagePrefix.ts`, sem importar o cliente Supabase (padrão do `siteUrl.ts`), porque o `ProfileView` precisa dele. Um teste confere que `supabase.storage.from(LINK_ICONS_BUCKET).getPublicUrl('u1/a.png').data.publicUrl` começa com o prefixo; nos testes o `VITE_SUPABASE_URL` vem de `vi.stubEnv`.
 
 **Compatibilidade:** os links existentes recebem `auto` pelo padrão. Para o app, `icon_type` ausente ou desconhecido conta como `auto`, e `icon_value` inválido para o tipo também conta como `auto`.
 
@@ -106,7 +108,7 @@ O `simple-icons` tem 3.466 marcas, e o `index.mjs` dele pesa 5,25 MB. Importar t
 - `background-color: <cor>`;
 - a classe `link-icon-mask`.
 
-No `src/index.css`: `@media (forced-colors: active) { .link-icon-mask { background-color: CanvasText !important; } }`.
+No `src/index.css`: `@media (forced-colors: active) { .link-icon-mask { forced-color-adjust: none; background-color: CanvasText !important; } }`.
 
 ## Lógica (funções puras, com testes)
 
@@ -149,6 +151,8 @@ Não há regra genérica para `google.com`. A tabela fica no próprio arquivo, e
 
 `getUrlHost(url): string | null`: o mesmo host normalizado, usado no título automático.
 
+`getBrandHex(slug): string | null`: o hex da tabela de detecção; se o slug não estiver nela, o do cache em memória do catálogo de marcas (preenchido por `loadBrandCatalog()`, em `src/lib/linkIcons/catalog.ts`, que faz o `fetch` uma vez e guarda a promessa). Sem catálogo carregado, `null`. O `AccentColorPicker` e a regra "cor oficial acompanha a marca" usam esta função, não o `hex` do ícone resolvido.
+
 ### `src/lib/linkIcons/validate.ts`
 
 `isValidIconValue(type, value, context)`, com as regras da tabela de dados. O `context` traz a URL do link e o prefixo público do bucket. Usada pelo `resolve.ts` (antes de desenhar) e pelos modais (antes de gravar).
@@ -180,7 +184,7 @@ Regras:
 
 **Fundos usados pelo `ProfileView`:**
 - botão `solid`: o fundo do botão (`resolveButtonColors(theme).bg`);
-- `outline`, `glass`, `modern` e `rounded`: o fundo da página. Se for sólido, é a cor dele; se for gradiente, as duas cores (`colors[0]` e `colors[1]`), o que dá o pior caso. Para tema `null`, `#111827`.
+- `outline`, `glass`, `modern` e `rounded`: o fundo da página. Se for sólido, é a cor dele; se for gradiente, as duas cores (`colors[0]` e `colors[1]`, com as mesmas reservas do `getBackgroundLayer`: `#111827` e `#1f2937`), o que dá o pior caso. Para tema `null`, `#111827`.
 
 O glass é branco a 10% e o modern/rounded é a cor do botão a 12–25%, ambos sobre o fundo da página. Por isso o fundo da página é a referência.
 
@@ -190,20 +194,30 @@ O glass é branco a 10% e o modern/rounded é a cor do botão a 12–25%, ambos 
 - sem espaços nas pontas e com no máximo 32 caracteres;
 - casa com `/\p{Extended_Pictographic}|\p{Regional_Indicator}/u`;
 - com `Intl.Segmenter`: exatamente um grafema;
-- **sem `Intl.Segmenter`** (Firefox ESR 115): aceita se, tirados os modificadores (ZWJ `‍`, seletores `️`/`︎`, tons de pele `\u{1F3FB}-\u{1F3FF}`, tags `\u{E0020}-\u{E007F}`), sobrarem no máximo 2 code points de pictograma ou indicador regional unidos por ZWJ, ou exatamente 2 indicadores regionais (bandeira).
+- **sem `Intl.Segmenter`** (Firefox ESR 115):
+  1. separa o texto por `‍` (ZWJ);
+  2. em cada parte, tira `︎`, `️`, os tons de pele `\u{1F3FB}-\u{1F3FF}` e as tags `\u{E0020}-\u{E007F}`;
+  3. aceita se houver de 1 a 8 partes e cada uma sobrar com exatamente 1 code point `\p{Extended_Pictographic}`;
+  4. aceita também, sem ZWJ, exatamente 2 code points `\p{Regional_Indicator}` (bandeira).
+- `Intl.Segmenter` é lido **na hora da chamada**, não ao carregar o módulo.
+- **Limitação aceita:** keycaps (1️⃣) são recusados nos dois caminhos.
 
-Os testes cobrem as duas implementações. No caminho sem o Segmenter, o teste apaga `Intl.Segmenter` e o restaura depois.
+Os testes cobrem as duas implementações: simples, tom de pele, família 👨‍👩‍👧‍👦, beijo 👩‍❤️‍💋‍👨, aperto de mãos com tons 🧑🏽‍🤝‍🧑🏿, bandeira 🇧🇷, bandeira por tags 🏴󠁧󠁢󠁥󠁮󠁧󠁿 (aceitos); "😀😀", "🇧🇷🇺🇸", texto e vazio (recusados). No caminho sem o Segmenter, o teste apaga `Intl.Segmenter` e o restaura depois.
 
 ### `src/lib/linkIcons/storage.ts`
 
 - `linkIconPathFromUrl(url, userId, publicPrefix)`: tira o prefixo público e devolve o caminho só se começar com `${userId}/` e não tiver `..`; senão, `null`.
-- `rasterizeSvgToPng(file, size = 256)`:
-  - lê o arquivo com `FileReader`, porque o jsdom 25 não tem `Blob.text()`;
-  - descobre a proporção pelo `viewBox` (via `DOMParser`), ou 1:1;
-  - desenha num `<img>` a partir de uma `objectURL` e depois num canvas do tamanho final, com o lado maior em 256 px;
-  - devolve `canvasToBlob(canvas, 'image/png')`, do `src/utils/cropImage.ts`;
-  - revoga a `objectURL`.
+- Partes puras, testáveis no jsdom (o `DOMParser` funciona lá):
+  - `getSvgAspect(svgText)`: largura/altura, nesta ordem: `viewBox` válido (4 números separados por espaço ou vírgula, largura e altura maiores que 0); senão `width`/`height` numéricos da raiz; senão 1:1;
+  - `prepareSvgForRaster(svgText, size = 256)`: faz o parse com `DOMParser` (`image/svg+xml`); se houver `<parsererror>` ou a raiz não for `svg`, lança "Não foi possível ler este SVG"; grava `width` e `height` explícitos na raiz (lado maior = `size`, o outro pela proporção) e devolve o texto serializado com `XMLSerializer`. Isso evita SVG sem tamanho intrínseco, que o Firefox não desenha no canvas.
+- `rasterizeSvgToPng(file, size = 256, loadImage = defaultLoadImage)`:
+  - lê o arquivo com `FileReader` (o jsdom 25 não tem `Blob.text()`);
+  - aplica `prepareSvgForRaster`;
+  - cria um Blob `image/svg+xml` e uma objectURL **`blob:`** (nunca `data:`), carrega com o `loadImage` injetável e desenha num canvas do tamanho final;
+  - devolve `canvasToBlob(canvas, 'image/png')`, do `src/utils/cropImage.ts`; `SecurityError` (canvas sujo) ou blob `null` viram o erro "Não foi possível converter este SVG";
+  - revoga a objectURL no `finally`.
   - **Segurança:** o SVG renderizado como imagem não executa script nem carrega recursos externos.
+- PNG e WebP enviados acima de 256 px também são reduzidos para 256 px (`scaleCanvas`) antes do upload, quando o canvas estiver disponível.
 - `validateIconFile(file)`:
   - tipo pelo MIME, com reserva na extensão (`.png`, `.webp`, `.svg`), porque `file.type` às vezes vem vazio;
   - limite de 512 KB para PNG e WebP;
@@ -273,14 +287,16 @@ O `LinksTab.tsx` tem 518 linhas e passa a delegar.
 ### `src/components/dashboard/links/EditLinkDialog.tsx`
 
 - **Título e URL:** continuam com o salvamento automático de hoje (`useAutosave`, 1,5 s). Quando a URL ou o título estiverem inválidos, o salvamento não acontece, e o modal mostra "Corrija a URL para salvar" ou "O título não pode ficar vazio", em vez de ficar calado.
-- **Ícone e cor:** são gravados **na hora**, com um `update` direto, porque fechar o modal antes do salvamento automático perderia a escolha. Durante a gravação, aparece um indicador; se falhar, um toast de erro, e o estado volta ao anterior.
+- **Ícone e cor:** são gravados **na hora**, com um `update` direto, porque fechar o modal antes do salvamento automático perderia a escolha. Durante a gravação, o `IconPicker` e o `AccentColorPicker` ficam desabilitados e aparece um indicador; se falhar, um toast de erro, e o estado volta ao anterior.
 - **Upload:**
   1. envia o arquivo novo;
   2. grava `icon_type`/`icon_value` no banco;
-  3. só depois disso apaga o arquivo anterior desse link, se havia.
+  3. só depois disso apaga o arquivo anterior desse link, se havia;
+  4. se o `update` do passo 2 falhar, apaga o arquivo novo (senão ficaria órfão).
 - **Troca de tipo:** ao trocar de `upload` para qualquer outro tipo, apaga o arquivo anterior depois do `update` dar certo. A remoção que falhar só vai para o console.
 - **Cor oficial acompanha a marca:**
-  - quando o ícone muda, ou a URL de um `auto` muda e troca a marca detectada, e o `accent_color` atual é igual ao hex oficial anterior, ele é trocado pelo hex oficial novo, ou por `null` se o novo não tiver hex;
+  - **ao trocar o ícone** (gravação imediata): se o `accent_color` atual for igual a `getBrandHex` da marca anterior, ele vai no mesmo `update` como o hex oficial da nova (`getBrandHex`, ou o hex da detecção para `auto`/LinkedIn), ou `null` se a nova não tiver hex;
+  - **ao trocar a URL de um `auto`**: a regra roda **só dentro do `handleAutoSaveEdit`**, comparando a URL gravada com a nova (e não a cada tecla, para `youtube.co` no meio da digitação não apagar a cor). O `accent_color` ajustado vai no mesmo `update` da URL;
   - uma cor escolhida à mão não é mexida.
 - O modal rola em telas baixas (`max-h-[90dvh] overflow-y-auto`).
 
@@ -293,7 +309,7 @@ O `LinksTab.tsx` tem 518 linhas e passa a delegar.
 - busca o catálogo de marcas (`fetch`) na primeira abertura da aba, guarda em memória no módulo e mostra os estados de carregando e de erro;
 - a busca tem debounce de 200 ms e ignora maiúsculas e acentos (NFD), procurando no título e nos apelidos;
 - com a busca vazia, mostra primeiro as 13 marcas da tabela de detecção;
-- mostra até 60 resultados, cada um num quadrado branco igual ao do card, com o ícone na cor oficial;
+- mostra até 60 resultados, cada um num quadrado branco igual ao do card, com o ícone na cor oficial **pela mesma regra de contraste** (`backgrounds: ['#ffffff']`, `defaultColor` `#1f2937`): 27% das marcas têm cor clara demais para o branco (ex.: Snapchat `#fffc00`) e aparecem em `#1f2937`;
 - cada célula é um `button` com `aria-label` = título e `aria-pressed` no item atual;
 - uma região `aria-live="polite"` anuncia "Carregando…", o erro e "N marcas";
 - clicar grava `brand` e o slug.
@@ -301,7 +317,7 @@ O `LinksTab.tsx` tem 518 linhas e passa a delegar.
 **Ícones:**
 - o mesmo esquema, com o catálogo do Lucide e busca por nome e palavras-chave;
 - os ícones aparecem em `#1f2937`, no quadrado branco;
-- com a busca vazia, mostra uma lista fixa de 24 ícones comuns: `globe`, `link`, `mail`, `phone`, `map-pin`, `calendar`, `book-open`, `file-text`, `video`, `music`, `camera`, `shopping-bag`, `briefcase`, `graduation-cap`, `heart`, `star`, `home`, `building-2`, `wrench`, `code`, `rss`, `podcast`, `newspaper` e `message-circle`;
+- com a busca vazia, mostra uma lista fixa de 24 ícones comuns: `globe`, `link`, `mail`, `phone`, `map-pin`, `calendar`, `book-open`, `file-text`, `video`, `music`, `camera`, `shopping-bag`, `briefcase`, `graduation-cap`, `heart`, `star`, `home`, `building-2`, `wrench`, `code`, `rss`, `podcast`, `newspaper` e `message-circle`, com `house` no lugar de `home` (renomeado no 0.462.0). Um teste confere a lista contra o catálogo;
 - clicar grava `lucide` e o nome.
 
 **Emoji:**
@@ -327,12 +343,12 @@ O `LinksTab.tsx` tem 518 linhas e passa a delegar.
 
 Três opções:
 - "Sem cor" (grava `null`);
-- "Cor oficial da marca", disponível quando o ícone resolvido tiver `hex` (marca, inclusive `auto` detectado, e LinkedIn). Grava esse hex;
+- "Cor oficial da marca", disponível quando houver hex oficial: `getBrandHex(slug)` para `brand`, o hex da detecção para `auto` e LinkedIn. Grava esse hex;
 - "Escolher cor", com `<input type="color">` e campo hex, que grava normalizado.
 
 Fica **desabilitado**, com a nota "A cor vale para ícones de marca e da biblioteca", quando o ícone efetivo for emoji, favicon ou upload.
 
-A prévia mostra o ícone sobre um quadrado claro e um escuro, já com a regra de contraste.
+A prévia mostra o ícone sobre um quadrado claro (`#ffffff`, `defaultColor` `#1f2937`) e um escuro (`#111827`, `defaultColor` `#f9fafb`), já com a regra de contraste.
 
 ### `LinksTab.tsx`
 
@@ -359,7 +375,7 @@ A prévia mostra o ícone sobre um quadrado claro e um escuro, já com a regra d
 | `src/lib/linkIcons/validate.test.ts` | Regex de `brand` e `lucide` (inclui tentativa de `")` e `url(`), emoji, upload com e sem o prefixo do bucket |
 | `src/lib/linkIcons/resolve.test.ts` | Os 6 tipos; `auto` com marca, com favicon e com `globe`; valor inválido cai em `auto`; cor por `accent_color`; contraste 3:1 com um fundo e com dois (gradiente); `null` no contraste cai em `defaultColor`; `source` da imagem |
 | `src/lib/linkIcons/emoji.test.ts` | Simples, ZWJ, tom de pele, bandeira, texto, dois emojis, vazio, com e sem `Intl.Segmenter` |
-| `src/lib/linkIcons/storage.test.ts` | `linkIconPathFromUrl` (dono certo, outro usuário, `..`, outro bucket); `validateIconFile` (tipo por MIME e extensão, limite); `rasterizeSvgToPng` com canvas simulado e proporção pelo `viewBox` |
+| `src/lib/linkIcons/storage.test.ts` | `linkIconPathFromUrl` (dono certo, outro usuário, `..`, outro bucket); `validateIconFile` (tipo por MIME e extensão, limite); `getSvgAspect` (viewBox com vírgula, inválido, só width/height, nada); `prepareSvgForRaster` (grava width/height, recusa XML quebrado e raiz não-svg); `rasterizeSvgToPng` com `loadImage` injetado, canvas e `toBlob` simulados e `URL.createObjectURL`/`revokeObjectURL` stubados (o jsdom não os tem) |
 | `src/lib/linkIcons/vendor.test.ts` | Versões iguais em `pkg.devDependencies`, no script e no `vendor.ts`; URLs; valores inválidos dão `null` |
 | `src/lib/formatClicks.test.ts` | 0, 1, 2, 1234 |
 | `src/components/links/LinkIcon.test.tsx` | Máscara com URL entre aspas e cor; emoji `aria-hidden`; imagem; erro e `naturalWidth < 32` só no favicon trocam para o Globe; upload pequeno não troca; tamanho inline |
@@ -368,7 +384,9 @@ A prévia mostra o ícone sobre um quadrado claro e um escuro, já com a regra d
 | `src/components/dashboard/links/EditLinkDialog.test.tsx` | Escolher ícone grava na hora; upload grava e só depois apaga o anterior; trocar de upload para marca apaga o arquivo; cor oficial acompanha a marca; erro de gravação desfaz |
 | `src/components/dashboard/links/AccentColorPicker.test.tsx` | "Cor oficial" só com hex (inclui LinkedIn); desabilitado para emoji, favicon e upload; cor manual normalizada; "Sem cor" grava `null` |
 | `src/components/dashboard/LinksTab.test.tsx` (novo; mocks de `supabase`, `useAuth` e `toast` como no `SettingsTab.test.tsx`) | Badge "1 clique" e "2 cliques"; ícone no card; excluir link com upload apaga o arquivo |
-| `ProfileView.test.tsx`, `ProfilePreview.test.tsx` | Link do YouTube desenha a máscara da marca; link sem marca desenha o favicon; X preto sobre botão escuro cai na cor do texto |
+| `ProfileView.test.tsx`, `ProfilePreview.test.tsx` | Link do YouTube desenha a máscara da marca; link sem marca desenha o favicon; X com `accent_color: '#000000'` sobre botão escuro cai na cor do texto |
+| `src/lib/linkIcons/catalog.test.ts` | `loadBrandCatalog` faz um `fetch` só; `getBrandHex` usa a tabela e depois o cache; todos os slugs do catálogo de teste passam na regex de `brand` |
+| `src/lib/linkIcons/storagePrefix.test.ts` | Prefixo com e sem barra final em `VITE_SUPABASE_URL` (`vi.stubEnv`); `getPublicUrl` do Supabase começa com ele |
 
 ## Publicação
 
@@ -383,8 +401,9 @@ A prévia mostra o ícone sobre um quadrado claro e um escuro, já com a regra d
    tar.exe -czf "$env:TEMP\linkhub-dist.tgz" -C dist .
    scp "$env:TEMP\linkhub-dist.tgz" avila@192.168.1.24:/tmp/
    ```
-   No servidor: `tar -xzf /tmp/linkhub-dist.tgz -C ~/docker/linkhub-frontend/html.new`, seguido do `chmod`, da troca de pastas e da limpeza do `.tgz`.
-   - O "Conferir" ganha `curl` de `/vendor-icons/simple-icons/16.35.0/youtube.svg`: esperado `200` e `image/svg+xml`.
+   No servidor, na ordem: `rm -rf html.new && mkdir html.new` (como hoje), `tar -xzf /tmp/linkhub-dist.tgz -C ~/docker/linkhub-frontend/html.new`, o `chmod`, a troca de pastas e a remoção do `.tgz`. Usar `tar.exe --format ustar` no Windows, para o GNU tar do servidor não avisar de cabeçalhos `LIBARCHIVE.*` (o aviso seria inofensivo).
+   - O "Conferir" ganha `curl.exe -s -o NUL -w '%{http_code} %{content_type}\n'` de `/vendor-icons/simple-icons/16.35.0/youtube.svg`: esperado `200 image/svg+xml`.
+   - O "cerca de 44 MB" do `DEPLOY.md` passa a "cerca de 50 MB".
    - Fica registrado o SQL de slugs para futuras trocas de versão.
 5. **Navegador:**
    - perfil público com marca (YouTube), favicon e Globe;
