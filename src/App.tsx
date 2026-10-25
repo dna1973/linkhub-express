@@ -13,6 +13,7 @@ import { ChunkErrorBoundary } from "@/components/ChunkErrorBoundary";
 const Index = lazy(() => import("./pages/Index"));
 const Auth = lazy(() => import("./pages/Auth"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
+const ProfileLayout = lazy(() => import("./pages/ProfileLayout"));
 const Admin = lazy(() => import("./pages/Admin"));
 const Analytics = lazy(() => import("./pages/Analytics"));
 const PublicProfile = lazy(() => import("./pages/PublicProfile"));
@@ -44,9 +45,12 @@ const App = () => (
                   <Route path="/" element={<Index />} />
                   <Route path="/auth" element={<Auth />} />
                   <Route path="/auth/callback" element={<AuthCallback />} />
-                  <Route path="/dashboard" element={<Dashboard />} />
+                  {/* Painel e relatórios compartilham o perfil atual (CurrentProfileProvider) */}
+                  <Route element={<ProfileLayout />}>
+                    <Route path="/dashboard" element={<Dashboard />} />
+                    <Route path="/analytics" element={<Analytics />} />
+                  </Route>
                   <Route path="/admin" element={<Admin />} />
-                  <Route path="/analytics" element={<Analytics />} />
                   <Route path="/exemplo" element={<ExampleProfile />} />
                   <Route path="/install" element={<Install />} />
                   <Route path="/privacy" element={<Privacy />} />
