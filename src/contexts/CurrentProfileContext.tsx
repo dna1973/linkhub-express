@@ -301,6 +301,7 @@ export const CurrentProfileProvider: React.FC<{ children: React.ReactNode }> = (
   }, [load]);
 
   const deleteProfile = useCallback(async (id: string): Promise<DeleteProfileResult> => {
+    const account = userRef.current;
     let files: DeletedFiles;
     try {
       const { data, error: rpcError } = await supabase.rpc('delete_own_profile', { p_profile_id: id });
@@ -322,8 +323,16 @@ export const CurrentProfileProvider: React.FC<{ children: React.ReactNode }> = (
 
     // O perfil atual saiu da lista: a recarga seleciona o primeiro que restou
     await load();
+    // Recarga que falhou (ou ainda não chegou): o perfil já não existe no banco, então sai da lista
+    // local. Senão as abas continuariam gravando num id apagado (update de 0 linhas, sem erro).
+    if (account && mountedRef.current && userRef.current?.id === account.id && profilesRef.current.some((p) => p.id === id)) {
+      const remaining = profilesRef.current.filter((p) => p.id !== id);
+      profilesRef.current = remaining;
+      setProfiles(remaining);
+      activate(remaining, pickProfileId(remaining, currentIdRef.current), account.id);
+    }
     return { ok: true };
-  }, [load]);
+  }, [load, activate]);
 
   const currentProfile = useMemo(() => profiles.find((p) => p.id === currentId) ?? null, [profiles, currentId]);
 

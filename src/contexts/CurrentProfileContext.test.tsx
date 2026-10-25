@@ -706,6 +706,53 @@ describe('CurrentProfileProvider: criar e excluir', () => {
     expect(atual()).toBe('u1');
   });
 
+  it('recarga que falha depois de excluir o perfil atual tira o perfil da lista e seleciona o primeiro restante', async () => {
+    window.localStorage.setItem(currentProfileStorageKey('u1'), 'p2');
+    let falhar = false;
+    rpcHandlers({
+      list_own_profiles: () =>
+        falhar ? { data: null, error: { message: 'Failed to fetch' } } : { data: [profile('u1'), profile('p2'), profile('p3')], error: null },
+      delete_own_profile: () => {
+        falhar = true;
+        return { data: { avatar_url: null, icon_urls: [] }, error: null };
+      },
+    });
+    renderProvider();
+    await waitFor(() => expect(atual()).toBe('p2'));
+
+    let result: unknown;
+    await act(async () => {
+      result = await ctx.deleteProfile('p2');
+    });
+
+    // As abas não podem continuar editando um id que não existe mais
+    expect(result).toEqual({ ok: true });
+    expect(ctx.profiles.map((p) => p.id)).toEqual(['u1', 'p3']);
+    expect(atual()).toBe('u1');
+    expect(window.localStorage.getItem(currentProfileStorageKey('u1'))).toBe('u1');
+  });
+
+  it('recarga que falha depois de excluir outro perfil tira só ele da lista e mantém o atual', async () => {
+    let falhar = false;
+    rpcHandlers({
+      list_own_profiles: () =>
+        falhar ? { data: null, error: { message: 'Failed to fetch' } } : { data: [profile('u1'), profile('p2')], error: null },
+      delete_own_profile: () => {
+        falhar = true;
+        return { data: { avatar_url: null, icon_urls: [] }, error: null };
+      },
+    });
+    renderProvider();
+    await waitFor(() => expect(atual()).toBe('u1'));
+
+    await act(async () => {
+      await ctx.deleteProfile('p2');
+    });
+
+    expect(ctx.profiles.map((p) => p.id)).toEqual(['u1']);
+    expect(atual()).toBe('u1');
+  });
+
   it('falha ao apagar os arquivos vai só para o console', async () => {
     mocks.storage.remove.mockResolvedValue({ error: { message: 'sem permissão' } });
     let lista = [profile('u1'), profile('p2')];
