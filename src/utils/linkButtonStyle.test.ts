@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   normalizeHex,
   getContrastText,
+  getContrastRatio,
   resolveButtonColors,
   getButtonRadius,
   getLinkButtonStyle,
@@ -33,6 +34,24 @@ describe('getContrastText', () => {
   });
   it('usa branco para entrada inválida', () => {
     expect(getContrastText('nada')).toBe('#ffffff');
+  });
+});
+
+describe('getContrastRatio', () => {
+  it('preto e branco dão 21; a mesma cor dá 1', () => {
+    expect(getContrastRatio('#000000', '#ffffff')).toBeCloseTo(21);
+    expect(getContrastRatio('#0b1f3a', '#0B1F3A')).toBeCloseTo(1);
+  });
+
+  it('a ordem dos argumentos não importa e aceita #rgb', () => {
+    expect(getContrastRatio('#1f2937', '#fff')).toBeCloseTo(14.68, 1);
+    expect(getContrastRatio('#fff', '#1f2937')).toBeCloseTo(14.68, 1);
+  });
+
+  it('hex inválido devolve null', () => {
+    expect(getContrastRatio('azul', '#ffffff')).toBeNull();
+    expect(getContrastRatio('#ffffff', '')).toBeNull();
+    expect(getContrastRatio(null, '#ffffff')).toBeNull();
   });
 });
 

@@ -33,6 +33,14 @@ function contrastRatio(a: number, b: number): number {
   return (hi + 0.05) / (lo + 0.05);
 }
 
+/** Contraste WCAG 2.x entre duas cores hex (de 1 a 21). null se alguma não for hex válido. */
+export function getContrastRatio(a: string | null | undefined, b: string | null | undefined): number | null {
+  const hexA = normalizeHex(a);
+  const hexB = normalizeHex(b);
+  if (!hexA || !hexB) return null;
+  return contrastRatio(relativeLuminance(hexA), relativeLuminance(hexB));
+}
+
 /** Preto ou branco, o que tiver maior contraste (WCAG 2.x) com a cor dada. */
 export function getContrastText(color: string | null | undefined): '#000000' | '#ffffff' {
   const hex = normalizeHex(color);
