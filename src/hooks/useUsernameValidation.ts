@@ -10,6 +10,19 @@ interface UsernameValidationResult {
   suggestions: string[];
 }
 
+// A mesma lista fica no create_profile de deploy/vpsavila/migrations/2026-10-26-varios-perfis.sql
+// (conferida em src/lib/variosPerfisMigration.test.ts). Mudou aqui, mude lá e no linkhub_schema.sql.
+export const RESERVED_USERNAMES = [
+  'admin', 'api', 'www', 'mail', 'ftp', 'localhost', 'dashboard',
+  'analytics', 'settings', 'profile', 'user', 'users', 'auth',
+  'login', 'register', 'signup', 'signin', 'logout', 'home',
+  'about', 'contact', 'help', 'support', 'terms', 'privacy',
+  'blog', 'news', 'app', 'mobile', 'web', 'site', 'page',
+  'linkhub', 'link', 'links', 'hub', 'tree', 'bio', 'me',
+  // Rotas do app (src/App.tsx): um perfil com esse @ ficaria escondido atrás da rota
+  'exemplo', 'install'
+];
+
 export const useUsernameValidation = (username: string, debounceMs: number = 500) => {
   const { user } = useAuth();
   const [result, setResult] = useState<UsernameValidationResult>({
@@ -50,16 +63,7 @@ export const useUsernameValidation = (username: string, debounceMs: number = 500
     }
 
     // Reserved usernames
-    const reservedUsernames = [
-      'admin', 'api', 'www', 'mail', 'ftp', 'localhost', 'dashboard', 
-      'analytics', 'settings', 'profile', 'user', 'users', 'auth',
-      'login', 'register', 'signup', 'signin', 'logout', 'home',
-      'about', 'contact', 'help', 'support', 'terms', 'privacy',
-      'blog', 'news', 'app', 'mobile', 'web', 'site', 'page',
-      'linkhub', 'link', 'links', 'hub', 'tree', 'bio', 'me'
-    ];
-
-    if (reservedUsernames.includes(usernameToCheck.toLowerCase())) {
+    if (RESERVED_USERNAMES.includes(usernameToCheck.toLowerCase())) {
       const suggestions = generateSuggestions(usernameToCheck);
       setResult({
         isValid: false,
