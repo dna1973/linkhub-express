@@ -10,7 +10,11 @@
 -- Atenção: em produção, auth.users tem o gatilho on_auth_user_created (expert_ink.handle_new_user).
 -- O INSERT das contas de teste grava em expert_ink.profiles, e o DELETE de conta cascateia em expert_ink.*.
 -- O ROLLBACK desfaz tudo. Um erro vindo de expert_ink.* para o ensaio: não mexa no outro app.
+-- Antes dos blocos que rodam como postgres, SET LOCAL request.jwt.claims = '' limpa as claims
+-- (inclusive as que o arquivo anterior do ensaio tenha deixado): o auth.uid() do Supabase faz
+-- nullif(..., '') antes do cast para jsonb, então devolve nulo.
 
+SET LOCAL request.jwt.claims = '';
 INSERT INTO auth.users (id, email) VALUES
   ('e0000000-0000-4000-8000-00000000000d', 'ensaio-d@linkhub.invalid'),
   ('e0000000-0000-4000-8000-00000000000e', 'ensaio-e@linkhub.invalid');
@@ -142,6 +146,8 @@ END $$;
 RESET role;
 
 -- S6. As políticas ficaram como esperado (como postgres)
+-- Daqui até o fim, como postgres e sem as claims do anon
+SET LOCAL request.jwt.claims = '';
 DO $$
 BEGIN
   IF EXISTS (
@@ -164,6 +170,8 @@ END $$;
 -- sem filtrar bucket_id, nem cita um bucket do LinkHub. As políticas se somam por OR: uma assim
 -- devolveria ao anônimo os objetos do LinkHub (nomes de pasta = ids de perfil, e o owner_id).
 -- "Filtrar bucket_id" aqui é ter bucket_id = '<bucket>' ou bucket_id = ANY (...) no USING.
+-- A prova de fato é o S5 (o anon lê 0 linhas dos buckets do LinkHub). O S7 é uma heurística por
+-- texto, para pegar uma política nova de outro app antes que ela abra os objetos ao anônimo.
 DO $$
 DECLARE
   v_abertas text;

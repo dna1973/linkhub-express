@@ -2,13 +2,16 @@
 -- O scripts/ensaio-migracao-perfis.ps1 junta este arquivo depois do corpo da migração (rodado duas vezes),
 -- dentro de uma transação que termina em ROLLBACK. Cada caso é um bloco DO que dá
 -- RAISE EXCEPTION 'ENSAIO FALHOU …' quando o resultado não é o esperado. Com -v ON_ERROR_STOP=1,
--- o psql para no primeiro, e nada fica gravado.
+-- o psql para no primeiro, e nada fica gravado. Só as sequências de id (links_id_seq,
+-- profile_views_id_seq, link_clicks_id_seq) avançam alguns números, porque não voltam no ROLLBACK.
 --
 -- Contas de teste, inseridas em auth.users como postgres (somem no ROLLBACK):
 --   A e0000000-0000-4000-8000-00000000000a  chega a 10 perfis; excluída por auth.users no fim
 --   B e0000000-0000-4000-8000-00000000000b  um perfil só
 --   C e0000000-0000-4000-8000-00000000000c  dois perfis; excluída como no Admin
 -- Cada caso troca de papel com SET LOCAL request.jwt.claims e SET LOCAL role, e volta com RESET role.
+-- Antes dos blocos que rodam como postgres, SET LOCAL request.jwt.claims = '' limpa as claims:
+-- o auth.uid() do Supabase faz nullif(..., '') antes do cast para jsonb, então devolve nulo.
 -- Atenção: em produção, auth.users tem o gatilho on_auth_user_created (expert_ink.handle_new_user).
 -- O INSERT das contas de teste grava em expert_ink.profiles, e o DELETE de conta cascateia em expert_ink.*.
 -- O ROLLBACK desfaz tudo. Um erro vindo de expert_ink.* para o ensaio: não mexa no outro app.
@@ -35,7 +38,9 @@ BEGIN
     RAISE EXCEPTION 'ENSAIO FALHOU (0): profiles_id_fkey ainda existe';
   END IF;
   IF (SELECT count(*) FROM pg_constraint
-      WHERE conname IN ('links_user_id_profile_fkey', 'profile_views_profile_id_fkey', 'link_clicks_profile_id_fkey')) <> 3 THEN
+      WHERE conname IN ('links_user_id_profile_fkey', 'profile_views_profile_id_fkey', 'link_clicks_profile_id_fkey')
+        AND conrelid IN ('linkhub.links'::regclass, 'linkhub.profile_views'::regclass, 'linkhub.link_clicks'::regclass)
+        AND confrelid = 'linkhub.profiles'::regclass) <> 3 THEN
     RAISE EXCEPTION 'ENSAIO FALHOU (0): faltam as FKs para profiles';
   END IF;
 END $$;
@@ -369,6 +374,8 @@ END $$;
 RESET role;
 
 -- 13 (conferência como postgres, que vê tudo): nada sobrou de ensaio_a3
+-- Daqui até o fim, como postgres e sem as claims de A
+SET LOCAL request.jwt.claims = '';
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM linkhub.profiles WHERE username = 'ensaio_a3')

@@ -164,7 +164,7 @@ Escreva as migrações de forma idempotente (`IF NOT EXISTS` e afins), para pode
 
 ### Ensaio de uma migração (vários perfis)
 
-A `2026-10-26-varios-perfis.sql` mexe em chaves e políticas. Antes de aplicá-la, rode o ensaio: o script junta o corpo da migração duas vezes e os testes num arquivo que termina em `ROLLBACK`, então nada fica gravado. Os testes ficam em `scripts/ensaio-perfis-testes.sql` (banco) e `scripts/ensaio-perfis-testes-storage.sql` (Storage).
+A `2026-10-26-varios-perfis.sql` mexe em chaves e políticas. Antes de aplicá-la, rode o ensaio: o script junta o corpo da migração duas vezes e os testes num arquivo que termina em `ROLLBACK`, então nada fica gravado. A única marca são as sequências de id (`links_id_seq`, `profile_views_id_seq`, `link_clicks_id_seq`), que avançam alguns números, porque sequência não volta no `ROLLBACK`. Os testes ficam em `scripts/ensaio-perfis-testes.sql` (banco) e `scripts/ensaio-perfis-testes-storage.sql` (Storage).
 
 **Travas em `auth.users`.** A migração tira a FK `profiles_id_fkey` (AccessExclusiveLock em `auth.users`) e cria `profile_owners` com FK para `auth.users` (ShareRowExclusiveLock). As duas travas ficam até o fim da transação: na migração, alguns segundos; no ensaio, durante os dois corpos e todos os testes. Nesse tempo, login e renovação de sessão de **todos** os apps da VPS (expert_ink e outros) esperam. Rode o ensaio e a migração em horário calmo.
 
@@ -173,16 +173,16 @@ A `2026-10-26-varios-perfis.sql` mexe em chaves e políticas. Antes de aplicá-l
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\ensaio-migracao-perfis.ps1
 scp "$env:TEMP\linkhub-ensaio-varios-perfis.sql" avila@192.168.1.24:/tmp/
-ssh avila@192.168.1.24 'docker exec -i supabase-db psql -U postgres -d postgres -v ON_ERROR_STOP=1 < /tmp/linkhub-ensaio-varios-perfis.sql; s=$?; rm -f /tmp/linkhub-ensaio-varios-perfis.sql; exit $s'
+ssh avila@192.168.1.24 'docker exec -i supabase-db psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < /tmp/linkhub-ensaio-varios-perfis.sql; s=$?; rm -f /tmp/linkhub-ensaio-varios-perfis.sql; exit $s'
 ```
 
-Esperado: as linhas dos comandos (`BEGIN`, `LOCK TABLE`, `CREATE TABLE`, vários `DO`, `CREATE POLICY`…), nenhum `ERROR` e `ROLLBACK` no fim. Um `ERROR: ENSAIO FALHOU (n): …` diz qual caso falhou; nada foi gravado. O caso `S7` olha as políticas de leitura de `storage.objects` de todos os apps da VPS: se parar nele, alguma política vale para `anon`/`public` sem filtrar `bucket_id` (ou cita um bucket do LinkHub) e devolveria os objetos do LinkHub ao anônimo. Não mexa na política de outro app: veja com o Daniel. O `s=$?` devolve o código do `psql`, mesmo com o `rm` depois.
+Esperado: as linhas dos comandos (`BEGIN`, `LOCK TABLE`, `CREATE TABLE`, vários `DO`, `CREATE POLICY`…), nenhum `ERROR` e `ROLLBACK` no fim. Um `ERROR: ENSAIO FALHOU (n): …` diz qual caso falhou; nada foi gravado (só as sequências de id `links_id_seq`, `profile_views_id_seq` e `link_clicks_id_seq` avançam alguns números, porque não voltam no `ROLLBACK`). O caso `S7` olha as políticas de leitura de `storage.objects` de todos os apps da VPS: se parar nele, alguma política vale para `anon`/`public` sem filtrar `bucket_id` (ou cita um bucket do LinkHub) e devolveria os objetos do LinkHub ao anônimo. Não mexa na política de outro app: veja com o Daniel. O `s=$?` devolve o código do `psql`, mesmo com o `rm` depois.
 
 Para conferir o banco antes e depois de aplicar (só leitura):
 
 ```powershell
 scp scripts/conferencia-perfis.sql avila@192.168.1.24:/tmp/
-ssh avila@192.168.1.24 'docker exec -i supabase-db psql -U postgres -d postgres -v ON_ERROR_STOP=1 < /tmp/conferencia-perfis.sql; s=$?; rm -f /tmp/conferencia-perfis.sql; exit $s'
+ssh avila@192.168.1.24 'docker exec -i supabase-db psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < /tmp/conferencia-perfis.sql; s=$?; rm -f /tmp/conferencia-perfis.sql; exit $s'
 ```
 
 ### Publicar
