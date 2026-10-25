@@ -60,6 +60,18 @@ describe('useUsernameValidation', () => {
     expect(result.current.isAvailable).toBe(true);
   });
 
+  it('trocar o perfil atual revalida o mesmo @', async () => {
+    const { result, rerender } = renderHook(({ id }) => useUsernameValidation('dna', 0, id), {
+      initialProps: { id: 'p2' },
+    });
+    await waitFor(() => expect(result.current.isValid).toBe(true));
+    expect(result.current.isAvailable).toBe(false);
+
+    rerender({ id: 'p1' });
+    await waitFor(() => expect(result.current.isAvailable).toBe(true));
+    expect(result.current.error).toBeNull();
+  });
+
   it('@ reservado é recusado sem consultar o banco', async () => {
     const { result } = renderHook(() => useUsernameValidation('admin', 0, 'p1'));
     await waitFor(() => expect(result.current.error).toBe('Este username é reservado pelo sistema'));
