@@ -75,8 +75,64 @@ describe('ProfileView', () => {
     expect(screen.getByTestId('profile-background').classList.contains('inset-0')).toBe(true);
   });
 
+  describe('ícone dos links', () => {
+    it('link do YouTube: o botão tem a máscara da marca', () => {
+      render(
+        <ProfileView
+          variant="page"
+          profile={profile}
+          links={[{ id: 3, title: 'Canal', url: 'https://youtube.com/@x' }]}
+          theme={theme}
+          onLinkClick={vi.fn()}
+        />,
+      );
+      const mask = screen.getByRole('button', { name: /Canal/ }).querySelector<HTMLElement>('span.link-icon-mask');
+      expect(mask).not.toBeNull();
+      expect(mask!.style.maskImage).toContain('youtube.svg');
+      // Tamanho inline: o <Button> força [&_svg]:size-4
+      expect(mask!.style.width).toBe('20px');
+    });
+
+    it('link sem marca: o botão tem o favicon do domínio', () => {
+      render(
+        <ProfileView
+          variant="page"
+          profile={profile}
+          links={[{ id: 4, title: 'Exemplo', url: 'https://example.org' }]}
+          theme={theme}
+          onLinkClick={vi.fn()}
+        />,
+      );
+      const img = screen.getByRole('button', { name: /Exemplo/ }).querySelector('img');
+      expect(img).not.toBeNull();
+      const src = img!.getAttribute('src');
+      expect(src).toContain('s2/favicons');
+      expect(src).toContain('domain=example.org');
+    });
+
+    it('accent_color sem contraste no botão sólido escuro: a máscara usa a cor do texto do botão', () => {
+      const escuro = {
+        ...theme,
+        buttonStyle: { type: 'solid', color: '#111827' },
+      } as ThemeConfig;
+      render(
+        <ProfileView
+          variant="page"
+          profile={profile}
+          links={[{ id: 5, title: 'X', url: 'https://x.com/dna', accent_color: '#000000' }]}
+          theme={escuro}
+          onLinkClick={vi.fn()}
+        />,
+      );
+      const mask = screen.getByRole('button', { name: /^X$/ }).querySelector<HTMLElement>('span.link-icon-mask');
+      expect(mask).not.toBeNull();
+      expect(mask!.style.backgroundColor).toBe('rgb(255, 255, 255)');
+      expect(mask!.style.backgroundColor).not.toBe('rgb(0, 0, 0)');
+    });
+  });
+
   describe('camada de padrão', () => {
-    // Os ícones do lucide também têm aria-hidden, mas são <svg>; a camada é o único <div aria-hidden>
+    // Os ícones dos links também têm aria-hidden, mas são <span> ou <img>; a camada é o único <div aria-hidden>
     const patternLayer = (container: HTMLElement) => container.querySelector<HTMLElement>('div[aria-hidden="true"]');
 
     it('device: existe, é absolute inset-0 e tem backgroundImage', () => {

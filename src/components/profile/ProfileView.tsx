@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import type { ThemeConfig } from '@/stores/useDesignStore';
-import { getLinkButtonClassName, getLinkButtonStyle } from '@/utils/linkButtonStyle';
+import { getLinkButtonClassName, getLinkButtonStyle, resolveButtonColors } from '@/utils/linkButtonStyle';
 import {
   FONT_FAMILY_CSS,
   getAvatarShapeStyle,
@@ -14,7 +14,8 @@ import {
   getTextSizeClasses,
 } from '@/utils/profileAppearance';
 import { getQrModuleColor } from '@/utils/qrCodeColor';
-import { getLinkIcon } from './linkIcons';
+import { LinkIcon } from '@/components/links/LinkIcon';
+import { getProfileIconBackgrounds } from '@/lib/linkIcons/resolve';
 import { ProfileQrCode } from './ProfileQrCode';
 
 export interface ProfileViewProfile {
@@ -31,6 +32,9 @@ export interface ProfileViewLink {
   id: number;
   title: string;
   url: string;
+  icon_type?: string | null;
+  icon_value?: string | null;
+  accent_color?: string | null;
 }
 
 export interface ProfileViewProps {
@@ -63,7 +67,11 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const textColor = theme?.colors?.text || '#ffffff';
   const buttonType = theme?.buttonStyle?.type || 'glass';
   const buttonSize = theme?.buttonStyle?.size || 'md';
-  const linkButtonStyle = getLinkButtonStyle(theme ?? { colors: { text: '#ffffff' } });
+  const buttonConfig = theme ?? { colors: { text: '#ffffff' } };
+  const linkButtonStyle = getLinkButtonStyle(buttonConfig);
+  // Sem accent_color (ou com contraste baixo), o ícone fica na cor do texto do botão
+  const buttonTextColor = resolveButtonColors(buttonConfig).text;
+  const iconBackgrounds = getProfileIconBackgrounds(theme);
   const background = getBackgroundLayer(theme);
   const pattern = getPatternLayerStyle(theme);
   const avatarShape = getAvatarShapeStyle(theme?.avatar?.shape);
@@ -116,26 +124,23 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             </p>
           </div>
         ) : (
-          links.map((link) => {
-            const Icon = getLinkIcon(link.title, link.url);
-            return (
-              <Button
-                key={link.id}
-                onClick={() => onLinkClick({ id: link.id, url: link.url })}
-                className={cn(
-                  'w-full',
-                  buttonSize === 'sm' ? 'h-10' : buttonSize === 'lg' ? 'h-14' : 'h-12',
-                  getLinkButtonClassName(buttonType),
-                  'hover-bounce flex items-center justify-center space-x-3 transition-all duration-200',
-                  textSizes.button,
-                )}
-                style={linkButtonStyle}
-              >
-                <Icon className="h-6 w-6" />
-                <span style={{ fontWeight: fontWeight ?? 500 }}>{link.title}</span>
-              </Button>
-            );
-          })
+          links.map((link) => (
+            <Button
+              key={link.id}
+              onClick={() => onLinkClick({ id: link.id, url: link.url })}
+              className={cn(
+                'w-full',
+                buttonSize === 'sm' ? 'h-10' : buttonSize === 'lg' ? 'h-14' : 'h-12',
+                getLinkButtonClassName(buttonType),
+                'hover-bounce flex items-center justify-center space-x-3 transition-all duration-200',
+                textSizes.button,
+              )}
+              style={linkButtonStyle}
+            >
+              <LinkIcon link={link} size={20} defaultColor={buttonTextColor} backgrounds={iconBackgrounds} />
+              <span style={{ fontWeight: fontWeight ?? 500 }}>{link.title}</span>
+            </Button>
+          ))
         )}
       </div>
 

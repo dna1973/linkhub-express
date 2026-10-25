@@ -20,7 +20,7 @@ vi.mock('@/lib/supabase', () => {
   chain.select = () => chain;
   chain.eq = () => chain;
   chain.order = () =>
-    Promise.resolve({ data: [{ id: 7, title: 'Meu site', url: 'https://example.com', position: 0 }], error: null });
+    Promise.resolve({ data: [{ id: 7, title: 'Meu site', url: 'https://youtube.com/@x', position: 0 }], error: null });
   return { supabase: { from: vi.fn(() => chain) } };
 });
 
@@ -55,7 +55,7 @@ describe('ProfilePreview', () => {
   it('clicar num link só abre o endereço, sem registrar clique', async () => {
     render(<ProfilePreview profile={{ full_name: 'Daniel', username: 'dna' }} />);
     fireEvent.click(await screen.findByRole('button', { name: /Meu site/ }));
-    expect(safeOpenUrl).toHaveBeenCalledWith('https://example.com');
+    expect(safeOpenUrl).toHaveBeenCalledWith('https://youtube.com/@x');
     expect(supabase.from).toHaveBeenCalledTimes(1);
     expect(supabase.from).toHaveBeenCalledWith('links');
   });
@@ -103,6 +103,13 @@ describe('ProfilePreview', () => {
     render(<ProfilePreview profile={{ full_name: 'Daniel', username: 'dna', show_qr_code: false }} />);
     await screen.findByRole('button', { name: /Meu site/ });
     expect(screen.queryByRole('img', { name: /QR code/ })).toBeNull();
+  });
+
+  it('o link do YouTube aparece com a máscara da marca na prévia', async () => {
+    render(<ProfilePreview profile={{ full_name: 'Daniel', username: 'dna' }} />);
+    const mask = (await screen.findByRole('button', { name: /Meu site/ })).querySelector<HTMLElement>('span.link-icon-mask');
+    expect(mask).not.toBeNull();
+    expect(mask!.style.maskImage).toContain('youtube.svg');
   });
 
   it('o conteúdo extra do cabeçalho aparece ao lado do seletor', async () => {
