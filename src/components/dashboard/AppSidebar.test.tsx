@@ -1,12 +1,18 @@
 // @vitest-environment jsdom
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
 import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
+import { CurrentProfileProvider } from '@/contexts/CurrentProfileContext';
 import { AppSidebar } from './AppSidebar';
 
-vi.mock('@/contexts/AuthContext', () => ({
-  useAuth: () => ({ user: { id: 'u1', email: 'x@y.z' }, signOut: vi.fn() }),
+const mocks = vi.hoisted(() => ({
+  profiles: [{ id: 'u1', username: 'dna', full_name: 'Daniel', avatar_url: null, theme_options: {} }] as unknown[],
 }));
+
+vi.mock('@/contexts/AuthContext', () => {
+  const user = { id: 'u1', email: 'x@y.z', user_metadata: {} };
+  return { useAuth: () => ({ user, signOut: vi.fn() }) };
+});
 vi.mock('next-themes', () => ({
   useTheme: () => ({ theme: 'light', setTheme: vi.fn() }),
 }));
@@ -21,8 +27,19 @@ vi.mock('@/lib/supabase', () => {
   chain.select = () => chain;
   chain.eq = () => chain;
   chain.maybeSingle = () => Promise.resolve({ data: null });
-  return { supabase: { from: () => chain } };
+  return {
+    supabase: {
+      from: () => chain,
+      rpc: async (fn: string) => (fn === 'list_own_profiles' ? { data: mocks.profiles, error: null } : { data: null, error: null }),
+    },
+  };
 });
+
+class NoopResizeObserver {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
 
 const originalInnerWidth = window.innerWidth;
 const originalMatchMedia = window.matchMedia;
@@ -40,21 +57,26 @@ beforeAll(() => {
     removeListener: vi.fn(),
     dispatchEvent: vi.fn(),
   })) as any;
+  vi.stubGlobal('ResizeObserver', NoopResizeObserver);
 });
 
 afterAll(() => {
   (window as any).innerWidth = originalInnerWidth;
   window.matchMedia = originalMatchMedia;
+  vi.unstubAllGlobals();
 });
 
+beforeEach(() => window.localStorage.clear());
 afterEach(() => cleanup());
 
 function renderSidebar(onTabChange = vi.fn()) {
   render(
     // defaultOpen={false}: simula a barra de desktop recolhida antes de estreitar a janela (cenário do defeito)
     <SidebarProvider defaultOpen={false}>
-      <SidebarTrigger />
-      <AppSidebar activeTab="links" onTabChange={onTabChange} profile={{ username: 'dna' }} />
+      <CurrentProfileProvider>
+        <SidebarTrigger />
+        <AppSidebar activeTab="links" onTabChange={onTabChange} onCreateProfile={vi.fn()} />
+      </CurrentProfileProvider>
     </SidebarProvider>,
   );
   return onTabChange;
@@ -65,7 +87,7 @@ describe('AppSidebar em janela estreita', () => {
     renderSidebar();
     fireEvent.click(screen.getByRole('button', { name: /toggle sidebar/i }));
     await waitFor(() => {
-      for (const texto of ['Links', 'Design', 'Perfil', 'Analytics']) {
+      for (const texto of ['Links', 'Design', 'Perfil', 'Meus perfis', 'Analytics']) {
         expect(screen.getByText(texto)).toBeTruthy();
       }
     });
@@ -85,5 +107,11 @@ describe('AppSidebar em janela estreita', () => {
     await waitFor(() => {
       expect(document.querySelector('[data-mobile="true"]')).toBeNull();
     });
+  });
+
+  it('no painel, o seletor mostra o perfil atual', async () => {
+    renderSidebar();
+    fireEvent.click(screen.getByRole('button', { name: /toggle sidebar/i }));
+    expect(await screen.findByRole('button', { name: 'Trocar de perfil (atual: @dna)' })).toBeTruthy();
   });
 });

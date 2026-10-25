@@ -1,11 +1,24 @@
 import { useState, useEffect } from 'react';
-import { Link as LinkIcon, Palette, User, Sun, Moon, LogOut, Eye, BarChart3, Sparkles, Shield, Copy } from 'lucide-react';
+import { Link as LinkIcon, Palette, User, Users, Sun, Moon, LogOut, Eye, BarChart3, Shield, Copy, ChevronsUpDown, Plus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { BrandLogo } from '@/components/BrandLogo';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useTheme } from 'next-themes';
 import { useAuth } from '@/contexts/AuthContext';
+import { MAX_PROFILES, useCurrentProfile, type Profile } from '@/contexts/CurrentProfileContext';
 import { getPublicProfileUrl } from '@/lib/publicProfileUrl';
+import { UNNAMED_PROFILE } from '@/components/dashboard/ProfilesTab';
 import { useNavigate } from 'react-router-dom';
 import {
   Sidebar,
@@ -25,29 +38,52 @@ import {
 interface AppSidebarProps {
   activeTab: string;
   onTabChange: (tab: string) => void;
-  profile: any;
+  /** "Criar novo perfil" no seletor: o Dashboard abre o diálogo. */
+  onCreateProfile: () => void;
 }
 
 const menuItems = [
   { id: 'links', title: 'Links', icon: LinkIcon },
   { id: 'design', title: 'Design', icon: Palette },
   { id: 'settings', title: 'Perfil', icon: User },
+  { id: 'profiles', title: 'Meus perfis', icon: Users },
 ];
 
 const analyticsItems = [
   { id: 'analytics', title: 'Analytics', icon: BarChart3 },
 ];
 
-export function AppSidebar({ activeTab, onTabChange, profile }: AppSidebarProps) {
+/** "@dna" ou, para perfil sem @, o nome. */
+function profileLabel(profile: Profile | null): string {
+  if (!profile) return 'carregando';
+  return profile.username ? `@${profile.username}` : profile.full_name?.trim() || UNNAMED_PROFILE;
+}
+
+/** Avatar de 24 px do seletor. */
+function ProfileAvatar({ profile }: { profile: Profile | null }) {
+  const initial = (profile?.full_name || profile?.username || '?').charAt(0).toUpperCase();
+  return (
+    <Avatar className="h-6 w-6 shrink-0">
+      {profile?.avatar_url && <AvatarImage src={profile.avatar_url} alt="" />}
+      <AvatarFallback className="text-[10px]">{initial}</AvatarFallback>
+    </Avatar>
+  );
+}
+
+export function AppSidebar({ activeTab, onTabChange, onCreateProfile }: AppSidebarProps) {
   const { state, isMobile, setOpenMobile } = useSidebar();
   const { theme, setTheme } = useTheme();
   const { user, signOut } = useAuth();
+  const { profiles, currentProfile, selectProfile } = useCurrentProfile();
   const navigate = useNavigate();
   const { toast } = useToast();
   // No painel móvel os rótulos sempre aparecem, mesmo que a barra do desktop esteja recolhida
   const isCollapsed = state === 'collapsed' && !isMobile;
   const [isAdmin, setIsAdmin] = useState(false);
+  const atLimit = profiles.length >= MAX_PROFILES;
+  const currentLabel = profileLabel(currentProfile);
 
+  // O papel é da conta, não do perfil
   useEffect(() => {
     if (!user) return;
     import('@/lib/supabase').then(({ supabase }) => {
@@ -71,8 +107,13 @@ export function AppSidebar({ activeTab, onTabChange, profile }: AppSidebarProps)
     if (isMobile) setOpenMobile(false);
   };
 
+  const handleCreateProfile = () => {
+    onCreateProfile();
+    if (isMobile) setOpenMobile(false);
+  };
+
   // Mesma regra do QR code e da aba Perfil (aceita domínio personalizado gravado com https://)
-  const getPublicUrl = () => getPublicProfileUrl(profile);
+  const getPublicUrl = () => getPublicProfileUrl(currentProfile);
 
   const handleViewProfile = () => {
     const url = getPublicUrl();
@@ -93,14 +134,60 @@ export function AppSidebar({ activeTab, onTabChange, profile }: AppSidebarProps)
       <SidebarHeader className={isCollapsed ? 'p-2' : 'p-4'}>
         <div className={isCollapsed ? 'flex flex-col items-center gap-2' : 'flex items-center gap-3'}>
           <BrandLogo size={32} />
-          {!isCollapsed && (
-            <div className="min-w-0 flex-1">
-              <h1 className="text-lg font-bold">LinkHub</h1>
-              {profile?.username && (
-                <p className="text-xs text-muted-foreground truncate">@{profile.username}</p>
-              )}
-            </div>
-          )}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                aria-label={`Trocar de perfil (atual: ${currentLabel})`}
+                title="Trocar de perfil"
+                className={
+                  isCollapsed
+                    ? 'rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+                    : 'flex min-w-0 flex-1 items-center gap-2 rounded-md px-1 py-0.5 text-left hover:bg-sidebar-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+                }
+              >
+                {isCollapsed ? (
+                  <ProfileAvatar profile={currentProfile} />
+                ) : (
+                  <>
+                    <div className="min-w-0 flex-1">
+                      <h1 className="text-lg font-bold">LinkHub</h1>
+                      {currentProfile?.username && (
+                        <p className="text-xs text-muted-foreground truncate">@{currentProfile.username}</p>
+                      )}
+                    </div>
+                    <ChevronsUpDown className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                  </>
+                )}
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-64">
+              <DropdownMenuLabel>Seus perfis</DropdownMenuLabel>
+              <DropdownMenuRadioGroup value={currentProfile?.id ?? ''} onValueChange={(id) => selectProfile(id)}>
+                {profiles.map((profile) => (
+                  <DropdownMenuRadioItem key={profile.id} value={profile.id} className="gap-2">
+                    <ProfileAvatar profile={profile} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm">{profile.full_name?.trim() || UNNAMED_PROFILE}</span>
+                      {profile.username && (
+                        <span className="block truncate text-xs text-muted-foreground">@{profile.username}</span>
+                      )}
+                    </span>
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem className="gap-2" disabled={atLimit} onSelect={handleCreateProfile}>
+                <Plus className="h-4 w-4" aria-hidden />
+                <span className="flex-1">Criar novo perfil</span>
+                {atLimit && <span className="text-xs text-muted-foreground">Limite de {MAX_PROFILES} perfis</span>}
+              </DropdownMenuItem>
+              <DropdownMenuItem className="gap-2" onSelect={() => handleTabChange('profiles')}>
+                <Users className="h-4 w-4" aria-hidden />
+                Meus perfis
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           {/* No celular a sidebar é um painel deslizante: fecha clicando fora, e quem abre é a barra superior */}
           {!isMobile && (
             <SidebarTrigger
@@ -179,12 +266,12 @@ export function AppSidebar({ activeTab, onTabChange, profile }: AppSidebarProps)
             size="sm"
             onClick={handleViewProfile}
             className="flex-1 justify-start"
-            disabled={!profile?.username}
+            disabled={!currentProfile?.username}
           >
             <Eye className="h-4 w-4" />
             {!isCollapsed && <span className="ml-2">Ver Perfil</span>}
           </Button>
-          {!isCollapsed && profile?.username && (
+          {!isCollapsed && currentProfile?.username && (
             <Button
               variant="ghost"
               size="icon"
@@ -197,7 +284,7 @@ export function AppSidebar({ activeTab, onTabChange, profile }: AppSidebarProps)
             </Button>
           )}
         </div>
-        
+
         <Button
           variant="ghost"
           size="sm"
@@ -215,7 +302,7 @@ export function AppSidebar({ activeTab, onTabChange, profile }: AppSidebarProps)
             </span>
           )}
         </Button>
-        
+
         <Button
           variant="ghost"
           size="sm"
