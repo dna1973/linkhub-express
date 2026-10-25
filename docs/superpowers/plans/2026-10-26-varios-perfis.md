@@ -46,7 +46,7 @@
 5. **Tema na troca:** o tema é aplicado na seleção, na primeira carga e quando o `theme_options` gravado do perfil atual muda numa recarga (por exemplo, ao terminar o onboarding). Uma recarga sem mudança de tema, como o salvamento automático da aba Perfil, não mexe no editor.
 6. **`deleteProfile` devolve resultado tipado** (`last`, `not_owner`, `other`), para a aba "Meus perfis" mostrar o erro.
 7. **Storage:** as políticas novas de SELECT se chamam `linkhub_avatars_select_own` e `linkhub_link_icons_select_own`, porque hoje não existe política de SELECT própria (só a `*_public_read`, que sai). O `owns_profile_folder` também recusa arquivo solto na raiz do bucket (nome sem `/`).
-8. **Lista de @ reservados:** fica no hook, exportada como `RESERVED_USERNAMES`. Ela não tem `exemplo` nem `install`, que são rotas do app. A falha já existe hoje; o plano não muda a lista, porque a especificação manda copiar a do hook.
+8. **Lista de @ reservados:** fica no hook, exportada como `RESERVED_USERNAMES`, e ganha `exemplo` e `install`, as rotas do app que faltavam (um perfil com esse @ ficaria escondido atrás da rota). A migração e o `linkhub_schema.sql` usam a mesma lista, e um teste confere que toda rota de `APP_ROUTE_SEGMENTS` está nela. Em produção só existe o @dna, então nenhum perfil atual fica com @ reservado.
 9. **Conta sem perfil que continua vazia depois do insert** (RLS inesperada): o contexto mostra erro em vez de ficar carregando para sempre.
 10. **Ensaio dividido em dois arquivos de teste** (banco e Storage). Os dois rodam juntos no caminho normal, e separados se for preciso usar a alternativa do Storage (`supabase_admin`).
 
@@ -122,6 +122,7 @@ vi.mock('@/lib/supabase', () => ({ supabase: {} }));
 vi.mock('@/contexts/AuthContext', () => ({ useAuth: () => ({ user: null }) }));
 
 import { RESERVED_USERNAMES } from '@/hooks/useUsernameValidation';
+import { APP_ROUTE_SEGMENTS } from '@/lib/serviceWorkerRoutes';
 
 const root = path.resolve(__dirname, '..', '..');
 const read = (...parts: string[]) => readFileSync(path.join(root, ...parts), 'utf8');
@@ -149,6 +150,10 @@ describe('migração dos vários perfis', () => {
 
   it('o linkhub_schema.sql usa a mesma lista', () => {
     expect([...reservedFromSql(SCHEMA)].sort()).toEqual([...RESERVED_USERNAMES].sort());
+  });
+
+  it('toda rota do app é @ reservado (um perfil com esse @ ficaria atrás da rota)', () => {
+    for (const segment of APP_ROUTE_SEGMENTS) expect(RESERVED_USERNAMES).toContain(segment);
   });
 
   it('tem exatamente um BEGIN; e um COMMIT; (o ensaio tira os dois)', () => {
@@ -232,7 +237,7 @@ Esperado: falha ao ler `2026-10-26-varios-perfis.sql` (`ENOENT`).
 
 - [ ] **Passo 3: exportar a lista do hook**
 
-Em `src/hooks/useUsernameValidation.ts`, tire o array de dentro do `validateUsername` e exporte no topo do módulo, logo depois da interface `UsernameValidationResult`:
+Em `src/hooks/useUsernameValidation.ts`, tire o array de dentro do `validateUsername` e exporte no topo do módulo, logo depois da interface `UsernameValidationResult`. A lista ganha `exemplo` e `install`, as duas rotas do app que faltavam (as outras já estavam lá):
 
 ```ts
 // A mesma lista fica no create_profile de deploy/vpsavila/migrations/2026-10-26-varios-perfis.sql
@@ -243,7 +248,9 @@ export const RESERVED_USERNAMES = [
   'login', 'register', 'signup', 'signin', 'logout', 'home',
   'about', 'contact', 'help', 'support', 'terms', 'privacy',
   'blog', 'news', 'app', 'mobile', 'web', 'site', 'page',
-  'linkhub', 'link', 'links', 'hub', 'tree', 'bio', 'me'
+  'linkhub', 'link', 'links', 'hub', 'tree', 'bio', 'me',
+  // Rotas do app (src/App.tsx): um perfil com esse @ ficaria escondido atrás da rota
+  'exemplo', 'install'
 ];
 ```
 
@@ -305,6 +312,9 @@ SELECT id, id FROM linkhub.profiles WHERE id IN (SELECT id FROM auth.users)
 ON CONFLICT DO NOTHING;
 
 -- 3. profiles: o id deixa de apontar para auth.users; perfis novos ganham id gerado
+-- Atenção: o DROP CONSTRAINT abaixo pega AccessExclusiveLock em auth.users, e a FK de profile_owners
+-- (CREATE TABLE, acima) pega ShareRowExclusiveLock, os dois até o COMMIT. Enquanto a transação durar,
+-- login e renovação de sessão de TODOS os apps da VPS (expert_ink e outros) esperam. Rode em horário calmo.
 ALTER TABLE linkhub.profiles DROP CONSTRAINT IF EXISTS profiles_id_fkey;
 ALTER TABLE linkhub.profiles ALTER COLUMN id SET DEFAULT gen_random_uuid();
 
@@ -438,7 +448,8 @@ DECLARE
     'login', 'register', 'signup', 'signin', 'logout', 'home',
     'about', 'contact', 'help', 'support', 'terms', 'privacy',
     'blog', 'news', 'app', 'mobile', 'web', 'site', 'page',
-    'linkhub', 'link', 'links', 'hub', 'tree', 'bio', 'me'
+    'linkhub', 'link', 'links', 'hub', 'tree', 'bio', 'me',
+    'exemplo', 'install'
   ];
   v_id uuid;
 BEGIN
@@ -681,7 +692,8 @@ Substitua o conteúdo inteiro de `deploy/vpsavila/linkhub_schema.sql` por:
 --
 -- Decisões:
 -- * Schema dedicado "linkhub" (não usa public).
--- * SEM trigger em auth.users: auth.users é compartilhado com os outros apps da VPS.
+-- * O LinkHub não cria trigger em auth.users, que é compartilhado com os outros apps da VPS
+--   (o expert_ink tem o on_auth_user_created → expert_ink.handle_new_user).
 --   O painel cria o primeiro perfil da conta no primeiro acesso.
 -- * Até 10 perfis por conta. O dono de cada perfil fica em linkhub.profile_owners, que só o próprio
 --   dono lê: quem está de fora não descobre que dois perfis são da mesma conta.
@@ -996,7 +1008,7 @@ COMMIT;
 npx vitest run src/lib/variosPerfisMigration.test.ts
 ```
 
-Esperado: 10 testes passando.
+Esperado: 11 testes passando.
 
 - [ ] **Passo 7: revisão do SQL**
 
@@ -1017,7 +1029,7 @@ git add -- deploy/vpsavila/migrations/2026-10-26-varios-perfis.sql src/lib/vario
 git commit -m "Migração dos vários perfis e esquema final" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>" -- deploy/vpsavila/migrations/2026-10-26-varios-perfis.sql deploy/vpsavila/linkhub_schema.sql src/hooks/useUsernameValidation.ts src/lib/variosPerfisMigration.test.ts
 ```
 
-Esperado: tsc sem saída; 41 arquivos e 642 testes passando.
+Esperado: tsc sem saída; 41 arquivos e 643 testes passando.
 
 ---
 
@@ -1102,6 +1114,9 @@ Rode `npx vitest run src/lib/variosPerfisMigration.test.ts`. Esperado: o arquivo
 --   B e0000000-0000-4000-8000-00000000000b  um perfil só
 --   C e0000000-0000-4000-8000-00000000000c  dois perfis; excluída como no Admin
 -- Cada caso troca de papel com SET LOCAL request.jwt.claims e SET LOCAL role, e volta com RESET role.
+-- Atenção: em produção, auth.users tem o gatilho on_auth_user_created (expert_ink.handle_new_user).
+-- O INSERT das contas de teste grava em expert_ink.profiles, e o DELETE de conta cascateia em expert_ink.*.
+-- O ROLLBACK desfaz tudo. Um erro vindo de expert_ink.* para o ensaio: não mexa no outro app.
 -- Este arquivo não tem linhas soltas de abrir, confirmar ou desfazer transação.
 
 -- 0. Estado depois da migração (como postgres) -------------------------------
@@ -1516,6 +1531,9 @@ END $$;
 -- Contas de teste (somem no ROLLBACK):
 --   D e0000000-0000-4000-8000-00000000000d  dois perfis (o segundo, ensaio_d2, tem id gerado)
 --   E e0000000-0000-4000-8000-00000000000e  um perfil
+-- Atenção: em produção, auth.users tem o gatilho on_auth_user_created (expert_ink.handle_new_user).
+-- O INSERT das contas de teste grava em expert_ink.profiles, e o DELETE de conta cascateia em expert_ink.*.
+-- O ROLLBACK desfaz tudo. Um erro vindo de expert_ink.* para o ensaio: não mexa no outro app.
 
 INSERT INTO auth.users (id, email) VALUES
   ('e0000000-0000-4000-8000-00000000000d', 'ensaio-d@linkhub.invalid'),
@@ -1796,7 +1814,7 @@ Em `deploy/vpsavila/DEPLOY.md`, na lista "O que já foi adaptado no código", tr
 por:
 
 ```
-- Nenhum trigger em `auth.users` (que é compartilhado com os outros apps). O painel cria o primeiro perfil da conta no primeiro acesso.
+- O LinkHub não cria trigger em `auth.users`, que é compartilhado com os outros apps (o expert_ink tem o `on_auth_user_created` → `expert_ink.handle_new_user`). O painel cria o primeiro perfil da conta no primeiro acesso.
 - Uma conta tem até 10 perfis. O dono de cada perfil fica em `linkhub.profile_owners`, que só o próprio dono lê.
 - Admin lista as contas que têm perfil no LinkHub, com os perfis de cada uma. "Excluir" apaga todos os perfis da conta (links e estatísticas juntos) e mantém a conta de login. Os arquivos do Storage ficam.
 ```
@@ -1807,6 +1825,10 @@ Depois do parágrafo "Escreva as migrações de forma idempotente…", acrescent
 ### Ensaio de uma migração (vários perfis)
 
 A `2026-10-26-varios-perfis.sql` mexe em chaves e políticas. Antes de aplicá-la, rode o ensaio: o script junta o corpo da migração duas vezes e os testes num arquivo que termina em `ROLLBACK`, então nada fica gravado. Os testes ficam em `scripts/ensaio-perfis-testes.sql` (banco) e `scripts/ensaio-perfis-testes-storage.sql` (Storage).
+
+**Travas em `auth.users`.** A migração tira a FK `profiles_id_fkey` (AccessExclusiveLock em `auth.users`) e cria `profile_owners` com FK para `auth.users` (ShareRowExclusiveLock). As duas travas ficam até o fim da transação: na migração, alguns segundos; no ensaio, durante os dois corpos e todos os testes. Nesse tempo, login e renovação de sessão de **todos** os apps da VPS (expert_ink e outros) esperam. Rode o ensaio e a migração em horário calmo.
+
+**Gatilho do expert_ink.** `auth.users` tem o `on_auth_user_created` → `expert_ink.handle_new_user`. As contas de teste do ensaio passam por ele (gravam em `expert_ink.profiles`), e excluir conta cascateia em `expert_ink.*`. O `ROLLBACK` desfaz tudo. Se o ensaio parar com erro em `expert_ink.*`, não mexa no outro app: pare e veja com o Daniel.
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\ensaio-migracao-perfis.ps1
@@ -1962,7 +1984,7 @@ git add -- scripts/ensaio-migracao-perfis.ps1 scripts/ensaio-perfis-testes.sql s
 git commit -m "Ensaio da migração dos vários perfis e conferência do banco" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>" -- scripts/ensaio-migracao-perfis.ps1 scripts/ensaio-perfis-testes.sql scripts/ensaio-perfis-testes-storage.sql scripts/conferencia-perfis.sql src/lib/variosPerfisMigration.test.ts deploy/vpsavila/DEPLOY.md
 ```
 
-Esperado: 14 testes no arquivo; 41 arquivos e 646 testes no total.
+Esperado: 15 testes no arquivo; 41 arquivos e 647 testes no total.
 
 ---
 ### Tarefa 3: tipos do Supabase
@@ -2107,7 +2129,7 @@ git add -- src/integrations/supabase/types.test.ts
 git commit -m "Tipos do Supabase para os vários perfis" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>" -- src/integrations/supabase/types.ts src/integrations/supabase/types.test.ts
 ```
 
-Esperado: 42 arquivos e 647 testes.
+Esperado: 42 arquivos e 648 testes.
 
 ---
 
@@ -2412,7 +2434,7 @@ git add -- src/lib/avatarStorage.ts src/lib/avatarStorage.test.ts src/stores/use
 git commit -m "Storage na pasta do perfil e resetDesign no store" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>" -- src/lib/avatarStorage.ts src/lib/avatarStorage.test.ts src/lib/supabase.ts src/lib/linkIcons/storage.ts src/lib/linkIcons/storage.test.ts src/lib/linkIcons/storagePrefix.ts src/stores/useDesignStore.ts src/stores/useDesignStore.test.ts
 ```
 
-Esperado: 44 arquivos e 658 testes.
+Esperado: 44 arquivos e 659 testes.
 
 ---
 
@@ -2582,6 +2604,32 @@ describe('CurrentProfileProvider: carga', () => {
 
     await waitFor(() => expect(atual()).toBe('u1'));
     expect(mocks.insert).toHaveBeenCalledTimes(1);
+  });
+
+  it('uma carga antiga que termina depois da nova não sobrescreve a lista', async () => {
+    const primeira = deferred<unknown>();
+    let calls = 0;
+    mocks.rpc.mockImplementation(async (fn: string) => {
+      if (fn !== 'list_own_profiles') throw new Error(`rpc inesperada: ${fn}`);
+      calls += 1;
+      // A primeira carga (a da montagem) fica pendurada; a segunda responde na hora
+      if (calls === 1) return primeira.promise;
+      return { data: [profile('u1'), profile('p2')], error: null };
+    });
+    renderProvider();
+    await waitFor(() => expect(mocks.rpc).toHaveBeenCalledTimes(1));
+
+    await act(async () => {
+      await ctx.reloadProfiles();
+    });
+    expect(ctx.profiles.map((p) => p.id)).toEqual(['u1', 'p2']);
+
+    // A resposta antiga chega por último, com a lista velha: é descartada
+    await act(async () => {
+      primeira.resolve({ data: [profile('u1')], error: null });
+    });
+    expect(ctx.profiles.map((p) => p.id)).toEqual(['u1', 'p2']);
+    expect(ctx.loading).toBe(false);
   });
 
   it('23505 no insert (outra aba criou antes) recarrega a lista sem erro', async () => {
@@ -3035,6 +3083,8 @@ export const CurrentProfileProvider: React.FC<{ children: React.ReactNode }> = (
   const themeKeyRef = useRef('');
   // Insert do primeiro perfil em andamento: duas cargas ao mesmo tempo fazem um insert só
   const firstProfileRef = useRef<{ userId: string; promise: Promise<void> } | null>(null);
+  // Número da carga mais recente: só ela mexe no estado (como o requestRef do Analytics)
+  const loadSeqRef = useRef(0);
 
   /** Torna `id` o perfil atual: grava a escolha, aplica o tema e avisa a prévia. */
   const activate = useCallback((list: Profile[], id: string | null, accountId: string) => {
@@ -3073,6 +3123,7 @@ export const CurrentProfileProvider: React.FC<{ children: React.ReactNode }> = (
   const load = useCallback(async (): Promise<void> => {
     const account = userRef.current;
     if (!account) return;
+    const seq = ++loadSeqRef.current;
 
     let list = await fetchOwnProfiles();
     let failure: string | null = list ? null : LOAD_ERROR;
@@ -3088,8 +3139,8 @@ export const CurrentProfileProvider: React.FC<{ children: React.ReactNode }> = (
       }
     }
 
-    // A conta mudou durante a carga: o resultado é de outra pessoa
-    if (userRef.current?.id !== account.id) return;
+    // A conta mudou durante a carga, ou uma carga mais nova começou: este resultado não vale mais
+    if (userRef.current?.id !== account.id || seq !== loadSeqRef.current) return;
     if (failure) {
       setError(failure);
       setLoading(false);
@@ -3233,7 +3284,7 @@ As rotas continuam as mesmas, então `APP_ROUTE_SEGMENTS` (`src/lib/serviceWorke
 npx vitest run src/contexts/CurrentProfileContext.test.tsx src/pages/ProfileLayout.test.tsx
 ```
 
-Esperado: 18 testes no contexto e 1 no layout, todos passando.
+Esperado: 19 testes no contexto e 1 no layout, todos passando.
 
 - [ ] **Passo 7: verificação e commit**
 
@@ -3245,7 +3296,7 @@ git add -- src/contexts/CurrentProfileContext.tsx src/contexts/CurrentProfileCon
 git commit -m "Contexto do perfil atual e rota de layout do painel" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>" -- src/contexts/CurrentProfileContext.tsx src/contexts/CurrentProfileContext.test.tsx src/pages/ProfileLayout.tsx src/pages/ProfileLayout.test.tsx src/App.tsx
 ```
 
-Esperado: 46 arquivos e 677 testes; build verde. Até a Tarefa 14, o `Dashboard` antigo ainda carrega o perfil por conta própria, agora dentro do Provider. Isso só existe entre tarefas e não vai para produção.
+Esperado: 46 arquivos e 679 testes; build verde. Até a Tarefa 14, o `Dashboard` antigo ainda carrega o perfil por conta própria, agora dentro do Provider. Isso só existe entre tarefas e não vai para produção.
 
 ---
 ### Tarefa 6: `useUsernameValidation` pelo perfil atual
@@ -3365,7 +3416,9 @@ export const RESERVED_USERNAMES = [
   'login', 'register', 'signup', 'signin', 'logout', 'home',
   'about', 'contact', 'help', 'support', 'terms', 'privacy',
   'blog', 'news', 'app', 'mobile', 'web', 'site', 'page',
-  'linkhub', 'link', 'links', 'hub', 'tree', 'bio', 'me'
+  'linkhub', 'link', 'links', 'hub', 'tree', 'bio', 'me',
+  // Rotas do app (src/App.tsx): um perfil com esse @ ficaria escondido atrás da rota
+  'exemplo', 'install'
 ];
 
 /**
@@ -3539,7 +3592,7 @@ Em `src/components/ui/username-input.tsx`:
 npx vitest run src/hooks/useUsernameValidation.test.ts src/lib/variosPerfisMigration.test.ts
 ```
 
-Esperado: 5 + 14 passando.
+Esperado: 5 + 15 passando.
 
 - [ ] **Passo 5: verificação e commit**
 
@@ -3550,7 +3603,7 @@ git add -- src/hooks/useUsernameValidation.test.ts
 git commit -m "Validação do @ pelo perfil atual" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>" -- src/hooks/useUsernameValidation.ts src/hooks/useUsernameValidation.test.ts src/components/ui/username-input.tsx
 ```
 
-Esperado: 47 arquivos e 682 testes. Os chamadores atuais (`SettingsTab`) continuam compilando, porque o parâmetro é opcional; a Tarefa 7 passa o id.
+Esperado: 47 arquivos e 684 testes. Os chamadores atuais (`SettingsTab`) continuam compilando, porque o parâmetro é opcional; a Tarefa 7 passa o id.
 
 ---
 
@@ -3854,7 +3907,7 @@ npx vitest run
 git commit -m "Aba Perfil grava no perfil atual e usa a pasta dele no Storage" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>" -- src/components/dashboard/SettingsTab.tsx src/components/dashboard/SettingsTab.test.tsx
 ```
 
-Esperado: 47 arquivos e 687 testes.
+Esperado: 47 arquivos e 689 testes.
 
 ---
 
@@ -4036,7 +4089,7 @@ git add -- src/components/dashboard/DesignTab.test.tsx
 git commit -m "Aba Design começa pelo tema do perfil atual e grava nele" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>" -- src/components/dashboard/DesignTab.tsx src/components/dashboard/DesignTab.test.tsx
 ```
 
-Esperado: 48 arquivos e 690 testes.
+Esperado: 48 arquivos e 692 testes.
 
 ---
 
@@ -4277,7 +4330,7 @@ npm run build
 git commit -m "Links, edição e prévia no perfil atual, com ícones na pasta do perfil" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>" -- src/components/dashboard/LinksTab.tsx src/components/dashboard/LinksTab.test.tsx src/components/dashboard/links/EditLinkDialog.tsx src/components/dashboard/links/EditLinkDialog.test.tsx src/components/dashboard/ProfilePreview.tsx src/components/dashboard/ProfilePreview.test.tsx
 ```
 
-Esperado: 48 arquivos e 694 testes; build verde.
+Esperado: 48 arquivos e 696 testes; build verde.
 
 ---
 
@@ -4500,7 +4553,7 @@ git add -- src/pages/Analytics.test.tsx
 git commit -m "Analytics do perfil atual e remoção do useAnalyticsData sem uso" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>" -- src/pages/Analytics.tsx src/pages/Analytics.test.tsx src/hooks/useAnalyticsData.ts
 ```
 
-Esperado: 49 arquivos e 697 testes.
+Esperado: 49 arquivos e 699 testes.
 
 ---
 
@@ -4739,7 +4792,7 @@ git add -- src/components/dashboard/OnboardingDialog.test.tsx
 git commit -m "Onboarding usa e grava o perfil recebido" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>" -- src/components/dashboard/OnboardingDialog.tsx src/components/dashboard/OnboardingDialog.test.tsx src/pages/Dashboard.tsx
 ```
 
-Esperado: 50 arquivos e 700 testes.
+Esperado: 50 arquivos e 702 testes.
 
 ---
 ### Tarefa 12: diálogo "Novo perfil"
@@ -5045,7 +5098,7 @@ git add -- src/components/dashboard/NewProfileDialog.tsx src/components/dashboar
 git commit -m "Diálogo de criar perfil" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>" -- src/components/dashboard/NewProfileDialog.tsx src/components/dashboard/NewProfileDialog.test.tsx
 ```
 
-Esperado: 51 arquivos e 707 testes.
+Esperado: 51 arquivos e 709 testes.
 
 ---
 
@@ -5536,7 +5589,7 @@ git add -- src/components/dashboard/ProfilesTab.tsx src/components/dashboard/Pro
 git commit -m "Aba Meus perfis com estatísticas de 30 dias e exclusão confirmada" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>" -- src/components/dashboard/ProfilesTab.tsx src/components/dashboard/ProfilesTab.test.tsx
 ```
 
-Esperado: 52 arquivos e 715 testes.
+Esperado: 52 arquivos e 717 testes.
 
 ---
 
@@ -5925,6 +5978,8 @@ const mocks = vi.hoisted(() => ({
   sidebar: null as any,
   onboarding: null as any,
   newProfile: null as any,
+  // Quantas vezes cada componente montou (useEffect com []): a key nova remonta
+  mounts: { links: 0, settings: 0, preview: 0, onboarding: 0 },
 }));
 
 vi.mock('@/contexts/AuthContext', () => {
@@ -5941,22 +5996,55 @@ vi.mock('@/components/dashboard/AppSidebar', () => ({
     return <nav data-testid="sidebar" />;
   },
 }));
-vi.mock('@/components/dashboard/LinksTab', () => ({
-  LinksTab: (props: any) => <div data-testid="links-tab">{props.profile.id}</div>,
-}));
+vi.mock('@/components/dashboard/LinksTab', async () => {
+  const { useEffect } = await import('react');
+  return {
+    LinksTab: (props: any) => {
+      useEffect(() => {
+        mocks.mounts.links += 1;
+      }, []);
+      return <div data-testid="links-tab">{props.profile.id}</div>;
+    },
+  };
+});
 vi.mock('@/components/dashboard/DesignTab', () => ({ DesignTab: () => <div data-testid="design-tab" /> }));
-vi.mock('@/components/dashboard/SettingsTab', () => ({ SettingsTab: () => <div data-testid="settings-tab" /> }));
+vi.mock('@/components/dashboard/SettingsTab', async () => {
+  const { useEffect } = await import('react');
+  return {
+    SettingsTab: (props: any) => {
+      useEffect(() => {
+        mocks.mounts.settings += 1;
+      }, []);
+      return <div data-testid="settings-tab">{props.profile.id}</div>;
+    },
+  };
+});
 vi.mock('@/components/dashboard/AnalyticsTab', () => ({ AnalyticsTab: () => <div data-testid="analytics-tab" /> }));
 vi.mock('@/components/dashboard/ProfilesTab', () => ({ ProfilesTab: () => <div data-testid="profiles-tab" /> }));
-vi.mock('@/components/dashboard/ProfilePreview', () => ({
-  ProfilePreview: (props: any) => <div data-testid="preview">{props.profile.id}</div>,
-}));
-vi.mock('@/components/dashboard/OnboardingDialog', () => ({
-  OnboardingDialog: (props: any) => {
-    mocks.onboarding = props;
-    return props.open ? <div data-testid="onboarding">{props.profile.id}</div> : null;
-  },
-}));
+vi.mock('@/components/dashboard/ProfilePreview', async () => {
+  const { useEffect } = await import('react');
+  return {
+    ProfilePreview: (props: any) => {
+      useEffect(() => {
+        mocks.mounts.preview += 1;
+      }, []);
+      return <div data-testid="preview">{props.profile.id}</div>;
+    },
+  };
+});
+vi.mock('@/components/dashboard/OnboardingDialog', async () => {
+  const { useEffect } = await import('react');
+  return {
+    OnboardingDialog: (props: any) => {
+      // Monta sempre (fechado, não desenha nada): é a key que decide se remonta
+      useEffect(() => {
+        mocks.mounts.onboarding += 1;
+      }, []);
+      mocks.onboarding = props;
+      return props.open ? <div data-testid="onboarding">{props.profile.id}</div> : null;
+    },
+  };
+});
 vi.mock('@/components/dashboard/NewProfileDialog', () => ({
   NewProfileDialog: (props: any) => {
     mocks.newProfile = props;
@@ -5988,6 +6076,7 @@ function context(profile: Record<string, unknown> | null, extra: Record<string, 
 
 beforeEach(() => {
   mocks.ctx = context({ id: 'p1', user_type: 'personal' });
+  mocks.mounts = { links: 0, settings: 0, preview: 0, onboarding: 0 };
 });
 afterEach(() => cleanup());
 
@@ -5999,12 +6088,24 @@ describe('Dashboard', () => {
     expect(screen.queryByTestId('onboarding')).toBeNull();
   });
 
-  it('trocar de perfil remonta tudo com o perfil novo', () => {
+  it('trocar de perfil remonta abas, prévia e onboarding (key), sem reaproveitar estado', () => {
     const { rerender } = render(<Dashboard />);
+    expect(mocks.mounts).toEqual({ links: 1, settings: 0, preview: 1, onboarding: 1 });
+
     mocks.ctx = context({ id: 'p3', user_type: 'business' });
     rerender(<Dashboard />);
     expect(screen.getByTestId('links-tab').textContent).toBe('p3');
     expect(screen.getByTestId('preview').textContent).toBe('p3');
+    expect(mocks.mounts).toEqual({ links: 2, settings: 0, preview: 2, onboarding: 2 });
+
+    // Trocar de aba não remonta a prévia; trocar de perfil na aba Perfil remonta a aba
+    act(() => mocks.sidebar.onTabChange('settings'));
+    expect(mocks.mounts.settings).toBe(1);
+    expect(mocks.mounts.preview).toBe(2);
+    mocks.ctx = context({ id: 'p4', user_type: 'business' });
+    rerender(<Dashboard />);
+    expect(screen.getByTestId('settings-tab').textContent).toBe('p4');
+    expect(mocks.mounts).toEqual({ links: 2, settings: 2, preview: 3, onboarding: 3 });
   });
 
   it('abre o onboarding para o perfil sem tipo e recarrega a lista ao terminar', () => {
@@ -6614,6 +6715,8 @@ npx vitest run src/components/dashboard/AppSidebar.test.tsx src/components/dashb
 
 Esperado: 3 + 11 + 6 testes passando.
 
+Prova de que o teste do `Dashboard` depende da `key`: apague temporariamente as `key` dos `TabsContent` de links e de settings, das duas `ProfilePreview` e do `OnboardingDialog`, e rode `npx vitest run src/pages/Dashboard.test.tsx`. Esperado: o teste "trocar de perfil remonta abas, prévia e onboarding…" falha (as montagens ficam em 1). Volte as `key` e rode de novo: passa.
+
 - [ ] **Passo 7: verificação e commit**
 
 ```powershell
@@ -6624,7 +6727,7 @@ git add -- src/pages/Dashboard.test.tsx
 git commit -m "Seletor de perfil na sidebar e Dashboard pelo perfil atual" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>" -- src/components/dashboard/AppSidebar.tsx src/components/dashboard/AppSidebar.test.tsx src/components/dashboard/AppSidebar.desktop.test.tsx src/pages/Dashboard.tsx src/pages/Dashboard.test.tsx
 ```
 
-Esperado: 53 arquivos e 729 testes; build verde.
+Esperado: 53 arquivos e 731 testes; build verde.
 
 ---
 
@@ -7276,7 +7379,7 @@ git add -- supabase/functions/linkhub-admin-users/group.ts src/lib/adminUsers.ts
 git commit -m "Admin por conta, com os perfis de cada uma e o card Perfis" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>" -- supabase/functions/linkhub-admin-users/group.ts supabase/functions/linkhub-admin-users/index.ts src/lib/adminUsers.ts src/lib/adminUsers.test.ts src/pages/Admin.tsx
 ```
 
-Esperado: 54 arquivos e 735 testes; build verde. O `index.ts` não é conferido pelo `tsc` do app (está fora do `include`); revise-o lendo, contra o `group.ts`.
+Esperado: 54 arquivos e 737 testes; build verde. O `index.ts` não é conferido pelo `tsc` do app (está fora do `include`); revise-o lendo, contra o `group.ts`.
 
 ---
 ### Tarefa 16: verificação final local
@@ -7291,7 +7394,7 @@ npx vitest run
 npm run build
 ```
 
-Esperado: tsc sem saída; **54 arquivos e 735 testes**, todos passando (se aparecer o erro intermitente do cache, rode de novo); build verde.
+Esperado: tsc sem saída; **54 arquivos e 737 testes**, todos passando (se aparecer o erro intermitente do cache, rode de novo); build verde.
 
 - [ ] **Passo 2: nada sobrou da conta onde deveria estar o perfil**
 
@@ -7334,6 +7437,8 @@ Ordem obrigatória: ensaio → migração → edge function → frontend, **na m
 
 - [ ] **Passo 1: ensaio no banco** — só com aprovação do Daniel em card
 
+No texto do card, avise: a transação trava `auth.users` (AccessExclusiveLock pelo `DROP CONSTRAINT profiles_id_fkey` e ShareRowExclusiveLock pela FK de `profile_owners`) até o fim; enquanto ela durar, login e renovação de sessão de todos os apps da VPS (expert_ink e outros) esperam. Sugira um horário calmo. No ensaio a trava dura os dois corpos da migração e todos os testes. As contas de teste também passam pelo gatilho `on_auth_user_created` do expert_ink (o `ROLLBACK` desfaz).
+
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\ensaio-migracao-perfis.ps1
 scp "$env:TEMP\linkhub-ensaio-varios-perfis.sql" avila@192.168.1.24:/tmp/
@@ -7348,6 +7453,7 @@ Se falhar:
 - `must be owner of table objects`: vá ao passo 2.
 - `permission denied for table users` (no `INSERT INTO auth.users` dos testes) ou `permission denied to set role`: o `postgres` desta instalação não pode simular contas. Pare e pergunte ao Daniel se o ensaio pode rodar com `-U supabase_admin` (troque só o `-U` no comando). Não mexa em permissões do banco.
 - `canceling statement due to lock timeout`: alguma tabela estava ocupada; repita o passo 1.
+- erro em `expert_ink.*` (o gatilho `on_auth_user_created` roda no `INSERT INTO auth.users` dos testes): pare e mostre ao Daniel; não mexa no outro app.
 - Erro vindo de um gatilho do Storage (por exemplo, `storage.prefixes`) no caso `S1`: pare e mostre ao Daniel. Não afrouxe as políticas.
 
 - [ ] **Passo 2 (só se o passo 1 deu "must be owner of table objects"): políticas do Storage em arquivo à parte** — só com aprovação do Daniel em card
@@ -7375,6 +7481,8 @@ ssh avila@192.168.1.24 'docker exec -i supabase-db psql -U supabase_admin -d pos
 8. As funções continuam com dono `postgres` (a migração principal rodou como `postgres`). A conferência do passo 4 mostra isso.
 
 - [ ] **Passo 3: conferência antes e aplicação da migração** — só com aprovação do Daniel em card
+
+No texto do card, avise: a transação trava `auth.users` (AccessExclusiveLock pelo `DROP CONSTRAINT profiles_id_fkey` e ShareRowExclusiveLock pela FK de `profile_owners`) até o fim; enquanto ela durar, login e renovação de sessão de todos os apps da VPS (expert_ink e outros) esperam. Sugira um horário calmo. Na migração, a trava dura alguns segundos.
 
 Antes, guarde a conferência (só leitura):
 
