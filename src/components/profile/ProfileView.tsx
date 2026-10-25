@@ -13,7 +13,9 @@ import {
   getPatternLayerStyle,
   getTextSizeClasses,
 } from '@/utils/profileAppearance';
+import { getQrModuleColor } from '@/utils/qrCodeColor';
 import { getLinkIcon } from './linkIcons';
+import { ProfileQrCode } from './ProfileQrCode';
 
 export interface ProfileViewProfile {
   full_name?: string;
@@ -21,6 +23,8 @@ export interface ProfileViewProfile {
   bio?: string;
   avatar_url?: string;
   show_username?: boolean;
+  /** Ausente conta como ligado, como show_username */
+  show_qr_code?: boolean;
 }
 
 export interface ProfileViewLink {
@@ -41,6 +45,8 @@ export interface ProfileViewProps {
   topInset?: number;
   /** Texto quando não há links */
   emptyMessage?: string;
+  /** Endereço público do perfil (getPublicProfileUrl). Sem ele, o QR code do rodapé não aparece. */
+  qrCodeUrl?: string | null;
 }
 
 /** Perfil desenhado a partir do tema. Usado pela página pública e pela prévia do painel. */
@@ -52,6 +58,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   variant,
   topInset = 0,
   emptyMessage = 'Nenhum link disponível',
+  qrCodeUrl,
 }) => {
   const textColor = theme?.colors?.text || '#ffffff';
   const buttonType = theme?.buttonStyle?.type || 'glass';
@@ -133,6 +140,9 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       </div>
 
       <div className="text-center">
+        {qrCodeUrl && profile?.show_qr_code !== false && (
+          <ProfileQrCode url={qrCodeUrl} color={getQrModuleColor(theme)} captionColor={textColor} />
+        )}
         {variant === 'page' ? (
           <Button
             variant="outline"

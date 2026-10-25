@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { safeOpenUrl, isValidUrl } from '@/utils/sanitize';
 import { resolveThemeConfig } from '@/utils/themes';
 import { ProfileView } from '@/components/profile/ProfileView';
+import { getPublicProfileUrl } from '@/lib/publicProfileUrl';
 
 const updateMetaTag = (name: string, content: string, isProperty = false) => {
   const attr = isProperty ? 'property' : 'name';
@@ -244,6 +245,7 @@ const PublicProfile = () => {
       links={links}
       theme={resolveThemeConfig(profile?.theme_options as Record<string, any> | null)}
       onLinkClick={(link) => handleLinkClick(link.id, link.url)}
+      qrCodeUrl={getPublicProfileUrl(profile)}
     />
   );
 };

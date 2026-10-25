@@ -10,6 +10,7 @@ import { DeviceSelect } from '@/components/preview/DeviceSelect';
 import { useSelectedDevice } from '@/hooks/useSelectedDevice';
 import { getContrastText } from '@/utils/linkButtonStyle';
 import { getBaseBackgroundColor } from '@/utils/profileAppearance';
+import { getPublicProfileUrl } from '@/lib/publicProfileUrl';
 
 interface ProfilePreviewProps {
   profile: any;
@@ -77,6 +78,8 @@ export const ProfilePreview: React.FC<ProfilePreviewProps> = ({ profile, headerE
           // Prévia: só abre o link, sem registrar clique
           onLinkClick={(link) => safeOpenUrl(link.url)}
           emptyMessage="Seus links aparecerão aqui"
+          // Perfil gravado: o QR code da prévia é o mesmo que o visitante vê
+          qrCodeUrl={getPublicProfileUrl(profile)}
         />
       </DeviceFrame>
     </div>

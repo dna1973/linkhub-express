@@ -143,4 +143,66 @@ describe('ProfileView', () => {
     expect(screen.getByText(/criar seu LinkHub/)).toBeTruthy();
     expect(screen.getByText('Seus links aparecerão aqui')).toBeTruthy();
   });
+
+  describe('QR code do rodapé', () => {
+    const QR_URL = 'https://linkhub.avila.ia.br/dna';
+    const QR_NAME = `QR code para abrir ${QR_URL}`;
+
+    it('com qrCodeUrl e show_qr_code ausente ou true, aparece nas duas variantes', () => {
+      for (const perfil of [profile, { ...profile, show_qr_code: true }]) {
+        for (const variant of ['page', 'device'] as const) {
+          const { unmount } = render(
+            <ProfileView variant={variant} profile={perfil} links={links} theme={theme} onLinkClick={vi.fn()} qrCodeUrl={QR_URL} />,
+          );
+          expect(screen.getByRole('img', { name: QR_NAME })).toBeTruthy();
+          expect(screen.getByText('Aponte a câmera para abrir este perfil')).toBeTruthy();
+          unmount();
+        }
+      }
+    });
+
+    it('show_qr_code=false esconde o QR code nas duas variantes', () => {
+      for (const variant of ['page', 'device'] as const) {
+        const { unmount } = render(
+          <ProfileView
+            variant={variant}
+            profile={{ ...profile, show_qr_code: false }}
+            links={links}
+            theme={theme}
+            onLinkClick={vi.fn()}
+            qrCodeUrl={QR_URL}
+          />,
+        );
+        expect(screen.queryByRole('img', { name: QR_NAME })).toBeNull();
+        expect(screen.queryByText('Aponte a câmera para abrir este perfil')).toBeNull();
+        unmount();
+      }
+    });
+
+    it('sem qrCodeUrl (perfil sem username) não desenha nada nas duas variantes', () => {
+      for (const variant of ['page', 'device'] as const) {
+        const { unmount } = render(
+          <ProfileView variant={variant} profile={profile} links={links} theme={theme} onLinkClick={vi.fn()} qrCodeUrl={null} />,
+        );
+        expect(screen.queryByRole('img')).toBeNull();
+        expect(screen.queryByText('Aponte a câmera para abrir este perfil')).toBeNull();
+        unmount();
+      }
+    });
+
+    it('módulos na cor do tema e legenda na cor do texto', () => {
+      // theme deste arquivo: texto #0F172A, que tem contraste sobre o branco
+      render(<ProfileView variant="page" profile={profile} links={links} theme={theme} onLinkClick={vi.fn()} qrCodeUrl={QR_URL} />);
+      const fills = [...screen.getByRole('img', { name: QR_NAME }).querySelectorAll('path')].map((p) => p.getAttribute('fill'));
+      expect(fills).toContain('#0f172a');
+      expect(screen.getByText('Aponte a câmera para abrir este perfil').style.color).toBe('rgb(15, 23, 42)');
+    });
+
+    it('fica acima do botão "criar seu LinkHub"', () => {
+      render(<ProfileView variant="page" profile={profile} links={links} theme={theme} onLinkClick={vi.fn()} qrCodeUrl={QR_URL} />);
+      const qr = screen.getByRole('img', { name: QR_NAME });
+      const criar = screen.getByRole('button', { name: /criar seu LinkHub/ });
+      expect(qr.compareDocumentPosition(criar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+  });
 });
