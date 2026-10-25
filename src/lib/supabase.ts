@@ -1,7 +1,8 @@
 export { supabase } from '@/integrations/supabase/client';
 
 // Bucket com prefixo próprio pra não colidir com outros apps no mesmo Supabase.
-export const AVATARS_BUCKET = 'linkhub-avatars';
+// Mora em avatarStorage.ts (sem o cliente); reexportado para os imports existentes.
+export { AVATARS_BUCKET } from './avatarStorage';
 // Ícones enviados para os links: mora em linkIcons/storagePrefix.ts (sem o cliente)
 export { LINK_ICONS_BUCKET } from './linkIcons/storagePrefix';
 

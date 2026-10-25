@@ -43,18 +43,18 @@ export interface PreparedIconUpload {
 /**
  * Caminho do arquivo no bucket a partir da URL pública, só se for do próprio usuário e no mesmo formato
  * que o app grava (LINK_ICON_UPLOAD_PATH_RE), para validação e exclusão aceitarem exatamente o mesmo.
- * Devolve null para outro usuário, outro bucket, URL de fora do storage ou caminho fora do formato.
+ * Devolve null para outro perfil, outro bucket, URL de fora do storage ou caminho fora do formato.
  */
 export function linkIconPathFromUrl(
   url: string | null | undefined,
-  userId: string,
+  profileId: string,
   publicPrefix: string = LINK_ICONS_PUBLIC_PREFIX
 ): string | null {
-  if (!url || !userId || !publicPrefix || !url.startsWith(publicPrefix)) return null;
+  if (!url || !profileId || !publicPrefix || !url.startsWith(publicPrefix)) return null;
 
   // Sem decodificar nem cortar ?/#: a regex do upload já recusa %, ?, #, \ e ..
   const path = url.slice(publicPrefix.length);
-  if (!LINK_ICON_UPLOAD_PATH_RE.test(path) || !path.startsWith(`${userId}/`)) return null;
+  if (!LINK_ICON_UPLOAD_PATH_RE.test(path) || !path.startsWith(`${profileId}/`)) return null;
   return path;
 }
 

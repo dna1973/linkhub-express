@@ -10,6 +10,6 @@ export function getLinkIconsPublicPrefix(): string {
 
 export const LINK_ICONS_PUBLIC_PREFIX = getLinkIconsPublicPrefix();
 
-// Caminho que o app grava no bucket: <user_id>/<link_id>-<timestamp>.<png|webp>.
+// Caminho que o app grava no bucket: <profile_id>/<link_id>-<timestamp>.<png|webp> (pasta do perfil).
 // Recusa %, .., ?, #, \, espaço e controles sem precisar listá-los.
 export const LINK_ICON_UPLOAD_PATH_RE = /^[A-Za-z0-9-]+\/[0-9]+-[0-9]+\.(png|webp)$/;

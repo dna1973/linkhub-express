@@ -44,6 +44,12 @@ describe('linkIconPathFromUrl', () => {
     expect(path(`${uuid}/42-1729850000000.png`, uuid)).toBe(`${uuid}/42-1729850000000.png`);
   });
 
+  it('aceita a pasta de um perfil com id gerado (uuid)', () => {
+    const uuid = '3f0c8a4e-2b1d-4c5e-9a7b-1c2d3e4f5a6b';
+    expect(path(`${uuid}/7-123.png`, uuid)).toBe(`${uuid}/7-123.png`);
+    expect(path(`${uuid}/7-123.png`, 'u1')).toBeNull();
+  });
+
   it('recusa o arquivo de outro usuário', () => {
     expect(path('u2/7-123.png')).toBeNull();
     // Prefixo do id não basta: "u10/" não é "u1/"
