@@ -1,7 +1,7 @@
 import { useState, type CSSProperties } from 'react';
 import { Globe } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { resolveLinkIcon, type LinkIconSource } from '@/lib/linkIcons/resolve';
+import { LINK_ICON_DEFAULT_LABEL, resolveLinkIcon, type LinkIconSource } from '@/lib/linkIcons/resolve';
 import { LINK_ICONS_PUBLIC_PREFIX } from '@/lib/linkIcons/storagePrefix';
 
 export type LinkIconProps = {
@@ -13,7 +13,13 @@ export type LinkIconProps = {
   /** Lado em px. */
   size?: number;
   className?: string;
-  /** Padrão true: o título do link já está ao lado. */
+  /**
+   * Padrão true: o título do link já está ao lado, e o ícone fica fora da árvore de acessibilidade
+   * (`aria-hidden` ou `alt=""`). Com false, o ícone ganha nome acessível:
+   * - máscara: `role="img"` com o título da marca ou o nome do ícone;
+   * - emoji: `role="img"` com o próprio emoji;
+   * - imagem: `alt="Ícone do link"`; o Globe de reserva, `role="img"` com o mesmo texto.
+   */
   decorative?: boolean;
   /** Prefixo público do bucket de ícones enviados. */
   uploadPrefix?: string;
@@ -74,7 +80,7 @@ export function LinkIcon({
   if (icon.kind === 'emoji') {
     return (
       <span
-        aria-hidden="true"
+        {...(decorative ? { 'aria-hidden': true as const } : { role: 'img', 'aria-label': icon.value })}
         className={cn('inline-flex shrink-0 items-center justify-center leading-none', className)}
         style={{ width: size, height: size, fontSize: size * 0.9 }}
       >
@@ -86,7 +92,7 @@ export function LinkIcon({
   if (failed) {
     return (
       <Globe
-        aria-hidden="true"
+        {...(decorative ? { 'aria-hidden': true as const } : { role: 'img', 'aria-label': LINK_ICON_DEFAULT_LABEL })}
         className={cn('shrink-0', className)}
         style={{ width: size, height: size, color: defaultColor }}
       />
@@ -96,7 +102,7 @@ export function LinkIcon({
   return (
     <img
       src={icon.src}
-      alt=""
+      alt={decorative ? '' : LINK_ICON_DEFAULT_LABEL}
       loading="lazy"
       decoding="async"
       referrerPolicy="no-referrer"

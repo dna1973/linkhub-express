@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, fireEvent, render } from '@testing-library/react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { LINK_ICONS_PUBLIC_PREFIX } from '@/lib/linkIcons/storagePrefix';
 import { brandIconUrl } from '@/lib/linkIcons/vendor';
 import { LinkIcon } from './LinkIcon';
@@ -31,6 +32,15 @@ describe('LinkIcon', () => {
     expect(span.className).toContain('shrink-0');
     expect(span.getAttribute('aria-hidden')).toBe('true');
     expect(span.getAttribute('role')).toBeNull();
+  });
+
+  it('a máscara leva os quatro prefixos -webkit- (o cssstyle do jsdom não os guarda)', () => {
+    const html = renderToStaticMarkup(<LinkIcon link={{ url: 'https://youtube.com/@dna' }} defaultColor="#1f2937" />);
+    expect(html).toContain(`-webkit-mask-image:url(&quot;${youtubeSrc}&quot;)`);
+    expect(html).toContain('-webkit-mask-size:contain');
+    expect(html).toContain('-webkit-mask-repeat:no-repeat');
+    expect(html).toContain('-webkit-mask-position:center');
+    expect(html).toContain(`;mask-image:url(&quot;${youtubeSrc}&quot;)`);
   });
 
   it('a máscara cai em defaultColor quando o contraste com o fundo é baixo', () => {
@@ -80,6 +90,38 @@ describe('LinkIcon', () => {
     expect(span.style.fontSize).toBe('18px');
   });
 
+  it('emoji não decorativo ganha role="img" com o próprio emoji', () => {
+    const { getByRole } = render(
+      <LinkIcon
+        link={{ url: 'https://example.com', icon_type: 'emoji', icon_value: '🚀' }}
+        defaultColor="#1f2937"
+        decorative={false}
+      />,
+    );
+    const icon = getByRole('img');
+    expect(icon.tagName).toBe('SPAN');
+    expect(icon.getAttribute('aria-label')).toBe('🚀');
+    expect(icon.getAttribute('aria-hidden')).toBeNull();
+  });
+
+  it('imagem não decorativa ganha alt "Ícone do link"', () => {
+    const { container } = render(
+      <LinkIcon link={{ url: 'https://example.com' }} defaultColor="#1f2937" decorative={false} />,
+    );
+    expect(container.querySelector('img')?.getAttribute('alt')).toBe('Ícone do link');
+  });
+
+  it('Globe de reserva não decorativo ganha role="img" com "Ícone do link"', () => {
+    const { container } = render(
+      <LinkIcon link={{ url: 'https://example.com' }} defaultColor="#1f2937" decorative={false} />,
+    );
+    fireEvent.error(container.querySelector('img') as HTMLImageElement);
+    const svg = container.querySelector('svg') as SVGElement;
+    expect(svg.getAttribute('role')).toBe('img');
+    expect(svg.getAttribute('aria-label')).toBe('Ícone do link');
+    expect(svg.getAttribute('aria-hidden')).toBeNull();
+  });
+
   it('favicon vira <img> com os atributos de privacidade e o tamanho inline', () => {
     const { container } = render(<LinkIcon link={{ url: 'https://example.com' }} defaultColor="#1f2937" size={18} />);
     const img = container.querySelector('img') as HTMLImageElement;
@@ -96,6 +138,13 @@ describe('LinkIcon', () => {
   it('favicon que carrega com largura >= 32 continua imagem', () => {
     const { container } = render(<LinkIcon link={{ url: 'https://example.com' }} defaultColor="#1f2937" />);
     loadWithWidth(container.querySelector('img') as HTMLImageElement, 64);
+    expect(container.querySelector('img')).toBeTruthy();
+    expect(container.querySelector('svg')).toBeNull();
+  });
+
+  it('favicon com naturalWidth de exatamente 32 continua imagem', () => {
+    const { container } = render(<LinkIcon link={{ url: 'https://example.com' }} defaultColor="#1f2937" />);
+    loadWithWidth(container.querySelector('img') as HTMLImageElement, 32);
     expect(container.querySelector('img')).toBeTruthy();
     expect(container.querySelector('svg')).toBeNull();
   });

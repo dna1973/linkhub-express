@@ -1,9 +1,17 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ThemeConfig } from '@/stores/useDesignStore';
+import { getBaseBackgroundColor } from '@/utils/profileAppearance';
 import { LINK_ICONS_PUBLIC_PREFIX } from './storagePrefix';
 import { getOfficialHex, getProfileIconBackgrounds, resolveLinkIcon } from './resolve';
 import { brandIconUrl, lucideIconUrl } from './vendor';
 import { resetCatalogCacheForTests, loadBrandCatalog } from './catalog';
+import { getContrastRatio } from '@/utils/linkButtonStyle';
+
+// Envolve o getContrastRatio real, para um teste forçar o contraste de exatamente 3,0
+vi.mock('@/utils/linkButtonStyle', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/utils/linkButtonStyle')>();
+  return { ...actual, getContrastRatio: vi.fn(actual.getContrastRatio) };
+});
 
 const options = { defaultColor: '#ffffff', uploadPrefix: LINK_ICONS_PUBLIC_PREFIX };
 const uploadUrl = `${LINK_ICONS_PUBLIC_PREFIX}u1/7-123.png`;
@@ -187,6 +195,29 @@ describe('resolveLinkIcon: cor da máscara', () => {
     expect(resolveLinkIcon(link, { ...options, backgrounds: ['#0b1f3a'] })).toMatchObject({ color: '#25d366' });
   });
 
+  it('limite de 3:1: logo acima mantém a cor, logo abaixo cai em defaultColor', () => {
+    const above = getContrastRatio('#949494', '#ffffff');
+    const below = getContrastRatio('#959595', '#ffffff');
+    expect(above).toBeGreaterThanOrEqual(3);
+    expect(above).toBeLessThan(3.05);
+    expect(below).toBeLessThan(3);
+    expect(below).toBeGreaterThan(2.95);
+    const opts = { ...options, defaultColor: '#1f2937', backgrounds: ['#ffffff'] };
+    expect(resolveLinkIcon({ ...youtube, accent_color: '#949494' }, opts)).toMatchObject({ color: '#949494' });
+    expect(resolveLinkIcon({ ...youtube, accent_color: '#959595' }, opts)).toMatchObject({ color: '#1f2937' });
+  });
+
+  it('contraste de exatamente 3,0 mantém a cor (só "menor que 3:1" cai)', () => {
+    vi.mocked(getContrastRatio).mockReturnValueOnce(3);
+    expect(
+      resolveLinkIcon(
+        { ...youtube, accent_color: '#25d366' },
+        { ...options, defaultColor: '#1f2937', backgrounds: ['#ffffff'] },
+      ),
+    ).toMatchObject({ color: '#25d366' });
+    expect(getContrastRatio).toHaveBeenCalledWith('#25d366', '#ffffff');
+  });
+
   it('contraste incalculável (null) cai em defaultColor', () => {
     expect(
       resolveLinkIcon({ ...youtube, accent_color: '#25d366' }, { ...options, backgrounds: ['rgba(0,0,0,0.5)'] }),
@@ -259,6 +290,16 @@ describe('getProfileIconBackgrounds', () => {
         background: { type: 'gradient', colors: ['', '#ffffff'] },
       }),
     ).toEqual(['#111827', '#ffffff']);
+  });
+
+  it('background.type desconhecido cai no getBaseBackgroundColor', () => {
+    const theme = {
+      ...base,
+      buttonStyle: { type: 'glass' },
+      background: { type: 'video', color: '#0b1f3a', colors: ['#f8fafc', '#000000'] },
+    } as unknown as ThemeConfig;
+    expect(getProfileIconBackgrounds(theme)).toEqual([getBaseBackgroundColor(theme)]);
+    expect(getProfileIconBackgrounds(theme)).toEqual(['#0b1f3a']);
   });
 
   it('sem buttonStyle (glass, o padrão do ProfileView) usa o fundo da página', () => {

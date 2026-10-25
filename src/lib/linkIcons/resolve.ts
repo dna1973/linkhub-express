@@ -32,7 +32,8 @@ export type ResolvedIcon =
 
 const ICON_TYPES: IconType[] = ['auto', 'brand', 'lucide', 'emoji', 'favicon', 'upload'];
 const MIN_CONTRAST = 3;
-const DEFAULT_LABEL = 'Ícone do link';
+/** Nome acessível quando não há título de marca nem nome de ícone. */
+export const LINK_ICON_DEFAULT_LABEL = 'Ícone do link';
 const DEFAULT_BACKGROUND = '#111827';
 const DEFAULT_GRADIENT_END = '#1f2937';
 
@@ -57,6 +58,7 @@ function resolveMaskColor(accentColor: string | null | undefined, options: Resol
     if (ratio === null) return options.defaultColor;
     worst = Math.min(worst, ratio);
   }
+  // "Menor que 3:1" cai: 3,0 exato mantém a cor
   return worst < MIN_CONTRAST ? options.defaultColor : color;
 }
 
@@ -72,7 +74,7 @@ export function resolveLinkIcon(link: LinkIconSource, options: ResolveLinkIconOp
   });
   const faviconOrGlobe = (): ResolvedIcon => {
     const favicon = getFaviconUrl(link.url);
-    return favicon ? { kind: 'image', src: favicon, source: 'favicon' } : mask(lucideIconUrl('globe'), DEFAULT_LABEL, null);
+    return favicon ? { kind: 'image', src: favicon, source: 'favicon' } : mask(lucideIconUrl('globe'), LINK_ICON_DEFAULT_LABEL, null);
   };
 
   switch (type) {
