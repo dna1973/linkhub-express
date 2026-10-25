@@ -11,6 +11,7 @@ import { UsernameInput } from '@/components/ui/username-input';
 import { USER_TYPE_LABELS } from './OnboardingDialog';
 import { Copy, Check, Upload, ExternalLink, Trash2, Globe, Loader2, CheckCircle2, Megaphone, Briefcase, User, Eraser } from 'lucide-react';
 import { supabase, AVATARS_BUCKET } from '@/lib/supabase';
+import { avatarPathFromUrl } from '@/lib/avatarStorage';
 import { PUBLIC_SITE_URL } from '@/lib/siteUrl';
 import { getPublicProfileUrl } from '@/lib/publicProfileUrl';
 import { useAuth } from '@/contexts/AuthContext';
@@ -62,8 +63,8 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
     user_type: profile?.user_type || '',
   });
 
-  // Username validation
-  const usernameValidation = useUsernameValidation(formData.username);
+  // O @ que já é deste perfil conta como disponível
+  const usernameValidation = useUsernameValidation(formData.username, 500, profile?.id);
 
   // Troca a imagem da janela de recorte, revogando o objectURL anterior
   const replaceCropImageSrc = (url: string | null) => {
@@ -116,13 +117,13 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   };
 
   const canAutosave = useMemo(() => {
-    if (!user) return false;
+    if (!profile?.id) return false;
     if (formData.username && (!usernameValidation.isValid || !usernameValidation.isAvailable)) return false;
     return true;
-  }, [user, formData.username, usernameValidation.isValid, usernameValidation.isAvailable]);
+  }, [profile?.id, formData.username, usernameValidation.isValid, usernameValidation.isAvailable]);
 
   const handleAutosave = useCallback(async (data: typeof formData) => {
-    if (!user) return;
+    if (!profile?.id) return;
     
     const { error } = await supabase
       .from('profiles')
@@ -137,7 +138,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
         show_qr_code: data.show_qr_code,
         user_type: data.user_type || null,
       })
-      .eq('id', user.id);
+      .eq('id', profile.id);
 
     if (error) {
       if (error.code === '23505' && error.message.includes('username')) {
@@ -151,13 +152,14 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
     }
     
     onProfileUpdate();
-  }, [user, toast, onProfileUpdate]);
+  }, [profile?.id, toast, onProfileUpdate]);
 
-  const autosaveStatus = useAutosave(formData, handleAutosave, 1500, canAutosave);
+  // resetKey: os dados de outro perfil nunca são salvos neste (a aba também remonta pela key)
+  const autosaveStatus = useAutosave(formData, handleAutosave, 1500, canAutosave, profile?.id);
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file || !user) return;
+    if (!file || !profile?.id) return;
 
     if (!file.type.startsWith('image/')) {
       toast({ title: "Erro", description: "Por favor, selecione apenas arquivos de imagem.", variant: "destructive" });
@@ -211,13 +213,13 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
     }
   };
 
-  // Falha ao apagar a foto antiga não desfaz a troca: só fica registrada no console
+  // Falha ao apagar a foto antiga não desfaz a troca: só fica registrada no console.
+  // Só sai do bucket a foto da pasta deste perfil; a do Google ou de outro perfil fica como está.
   const removeOldAvatar = async (oldAvatarUrl: string) => {
-    if (!user || !oldAvatarUrl || !oldAvatarUrl.includes('supabase')) return;
-    const oldFileName = oldAvatarUrl.split('/').pop();
-    if (!oldFileName) return;
+    const oldPath = avatarPathFromUrl(oldAvatarUrl, profile?.id);
+    if (!oldPath) return;
     try {
-      const { error } = await supabase.storage.from(AVATARS_BUCKET).remove([`${user.id}/${oldFileName}`]);
+      const { error } = await supabase.storage.from(AVATARS_BUCKET).remove([oldPath]);
       if (error) throw error;
     } catch (error) {
       console.error('Error removing old avatar:', error);
@@ -226,7 +228,8 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
 
   const handleCropComplete = async (croppedBlob: Blob) => {
     closeCropDialog();
-    if (!user) return;
+    const profileId = profile?.id;
+    if (!profileId) return;
     const oldAvatarUrl = formData.avatar_url;
 
     setIsUploadingImage(true);
@@ -234,7 +237,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
       // PNG quando o fundo foi removido; o resto continua JPEG
       const isPng = croppedBlob.type === 'image/png';
       const fileName = `${Date.now()}.${isPng ? 'png' : 'jpg'}`;
-      const filePath = `${user.id}/${fileName}`;
+      const filePath = `${profileId}/${fileName}`;
       const file = new File([croppedBlob], fileName, { type: isPng ? 'image/png' : 'image/jpeg' });
 
       const { error: uploadError } = await supabase.storage.from(AVATARS_BUCKET).upload(filePath, file);
@@ -247,7 +250,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
       const { error: updateError } = await supabase
         .from('profiles')
         .update({ avatar_url: newAvatarUrl })
-        .eq('id', user.id);
+        .eq('id', profileId);
 
       if (updateError) throw updateError;
 
@@ -265,17 +268,13 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   };
 
   const handleDeleteImage = async () => {
-    if (!user || !formData.avatar_url) return;
+    if (!profile?.id || !formData.avatar_url) return;
 
     try {
-      // Delete from storage if it's a supabase URL
-      if (formData.avatar_url.includes('supabase')) {
-        const fileName = formData.avatar_url.split('/').pop();
-        if (fileName) {
-          await supabase.storage
-            .from(AVATARS_BUCKET)
-            .remove([`${user.id}/${fileName}`]);
-        }
+      // Só apaga do bucket a foto que está na pasta deste perfil
+      const path = avatarPathFromUrl(formData.avatar_url, profile.id);
+      if (path) {
+        await supabase.storage.from(AVATARS_BUCKET).remove([path]);
       }
 
       setFormData(prev => ({ ...prev, avatar_url: '' }));
@@ -417,6 +416,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             onChange={(value) => handleInputChange('username', value)}
             label="Username (slug único)"
             placeholder="seuusername"
+            currentProfileId={profile?.id}
           />
 
           {/* Full Name */}

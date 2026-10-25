@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { useDesignStore, type ThemeConfig } from '@/stores/useDesignStore';
 import { SettingsTab } from './SettingsTab';
+import { AVATARS_PUBLIC_PREFIX } from '@/lib/avatarStorage';
 
 const mocks = vi.hoisted(() => {
   const storage = {
@@ -16,7 +17,11 @@ const mocks = vi.hoisted(() => {
     storageFrom: vi.fn(() => storage),
     profileUpdate: vi.fn(),
     // Último formData e callback que a aba passou ao useAutosave (o teste chama o salvamento na mão)
-    autosave: null as null | { data: unknown; save: (data: unknown) => Promise<void> },
+    autosave: null as null | { data: unknown; save: (data: unknown) => Promise<void>; resetKey: unknown },
+    // Coluna e valor do .eq() de cada update de profiles
+    profileEq: vi.fn(),
+    // Argumentos de cada chamada ao useUsernameValidation (da aba e do UsernameInput)
+    usernameArgs: [] as unknown[][],
   };
 });
 
@@ -26,11 +31,14 @@ vi.mock('@/contexts/AuthContext', () => {
 });
 vi.mock('@/hooks/use-toast', () => ({ useToast: () => ({ toast: mocks.toast }) }));
 vi.mock('@/hooks/useUsernameValidation', () => ({
-  useUsernameValidation: () => ({ isValid: true, isAvailable: true, isChecking: false, error: null, suggestions: [] }),
+  useUsernameValidation: (...args: unknown[]) => {
+    mocks.usernameArgs.push(args);
+    return { isValid: true, isAvailable: true, isChecking: false, error: null, suggestions: [] };
+  },
 }));
 vi.mock('@/hooks/useAutosave', () => ({
-  useAutosave: (data: unknown, save: (data: unknown) => Promise<void>) => {
-    mocks.autosave = { data, save };
+  useAutosave: (data: unknown, save: (data: unknown) => Promise<void>, _delay: number, _enabled: boolean, resetKey: unknown) => {
+    mocks.autosave = { data, save, resetKey };
     return 'idle';
   },
 }));
@@ -39,7 +47,14 @@ vi.mock('@/lib/supabase', () => ({
   AVATARS_BUCKET: 'linkhub-avatars',
   supabase: {
     storage: { from: mocks.storageFrom },
-    from: vi.fn(() => ({ update: (values: unknown) => ({ eq: async () => mocks.profileUpdate(values) }) })),
+    from: vi.fn(() => ({
+      update: (values: unknown) => ({
+        eq: async (column: string, value: unknown) => {
+          mocks.profileEq(column, value);
+          return mocks.profileUpdate(values);
+        },
+      }),
+    })),
   },
 }));
 // URL do site para o link público e o rótulo "Padrão (…)"
@@ -71,7 +86,7 @@ vi.mock('./ImageCropDialog', async () => {
   };
 });
 
-const AVATAR_URL = 'https://supabase-api.avila.ia.br/storage/v1/object/public/linkhub-avatars/u1/123.jpg';
+const AVATAR_URL = `${AVATARS_PUBLIC_PREFIX}p1/123.jpg`;
 const OPEN_ERROR = 'Não foi possível abrir a foto atual. Envie a foto de novo para remover o fundo.';
 
 class NoopResizeObserver {
@@ -95,9 +110,11 @@ beforeEach(() => {
   mocks.storage.remove.mockReset().mockResolvedValue({ error: null });
   mocks.storage.upload.mockReset().mockResolvedValue({ error: null });
   mocks.storage.getPublicUrl.mockReset().mockImplementation((path: string) => ({
-    data: { publicUrl: `https://supabase-api.avila.ia.br/storage/v1/object/public/linkhub-avatars/${path}` },
+    data: { publicUrl: `${AVATARS_PUBLIC_PREFIX}${path}` },
   }));
   mocks.profileUpdate.mockReset().mockReturnValue({ error: null });
+  mocks.profileEq.mockReset();
+  mocks.usernameArgs = [];
   useDesignStore.getState().setCustomTheme({
     ...originalTheme,
     background: { type: 'gradient', colors: ['#0F172A', '#1e293b'] },
@@ -117,7 +134,7 @@ afterEach(() => {
 function renderTab(avatarUrl = AVATAR_URL) {
   const onProfileUpdate = vi.fn();
   const view = render(
-    <SettingsTab profile={{ username: 'dna', full_name: 'Daniel', avatar_url: avatarUrl }} onProfileUpdate={onProfileUpdate} />,
+    <SettingsTab profile={{ id: 'p1', username: 'dna', full_name: 'Daniel', avatar_url: avatarUrl }} onProfileUpdate={onProfileUpdate} />,
   );
   return { ...view, onProfileUpdate };
 }
@@ -294,13 +311,13 @@ describe('SettingsTab, foto de perfil', () => {
     expect(mocks.storageFrom).toHaveBeenCalledWith('linkhub-avatars');
     expect(mocks.storageFrom).not.toHaveBeenCalledWith('avatars');
     const [path, file] = mocks.storage.upload.mock.calls[0] as [string, File];
-    expect(path).toMatch(/^u1\/\d+\.png$/);
+    expect(path).toMatch(/^p1\/\d+\.png$/);
     expect(file.name).toMatch(/^\d+\.png$/);
     expect(file.type).toBe('image/png');
     expect(mocks.profileUpdate).toHaveBeenCalledWith({
-      avatar_url: `https://supabase-api.avila.ia.br/storage/v1/object/public/linkhub-avatars/${path}`,
+      avatar_url: `${AVATARS_PUBLIC_PREFIX}${path}`,
     });
-    expect(mocks.storage.remove).toHaveBeenCalledWith(['u1/123.jpg']);
+    expect(mocks.storage.remove).toHaveBeenCalledWith(['p1/123.jpg']);
     // Ordem: sobe o novo, grava o perfil, e só então apaga o antigo
     const removeOrder = mocks.storage.remove.mock.invocationCallOrder[0];
     expect(removeOrder).toBeGreaterThan(mocks.storage.upload.mock.invocationCallOrder[0]);
@@ -343,7 +360,7 @@ describe('SettingsTab, foto de perfil', () => {
     const { onProfileUpdate } = await applyPngFromCurrentAvatar();
 
     await waitFor(() => expect(onProfileUpdate).toHaveBeenCalled());
-    expect(mocks.storage.remove).toHaveBeenCalledWith(['u1/123.jpg']);
+    expect(mocks.storage.remove).toHaveBeenCalledWith(['p1/123.jpg']);
     expect(console.error).toHaveBeenCalledWith('Error removing old avatar:', expect.anything());
     expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Sucesso!' }));
     expect(mocks.toast).not.toHaveBeenCalledWith(expect.objectContaining({ variant: 'destructive' }));
@@ -356,7 +373,7 @@ describe('SettingsTab, foto de perfil', () => {
 
     await waitFor(() => expect(mocks.storage.upload).toHaveBeenCalled());
     const [path, file] = mocks.storage.upload.mock.calls[0] as [string, File];
-    expect(path).toMatch(/^u1\/\d+\.jpg$/);
+    expect(path).toMatch(/^p1\/\d+\.jpg$/);
     expect(file.type).toBe('image/jpeg');
   });
 
@@ -364,9 +381,25 @@ describe('SettingsTab, foto de perfil', () => {
     renderTab();
     fireEvent.click(screen.getByRole('button', { name: 'Remover' }));
 
-    await waitFor(() => expect(mocks.storage.remove).toHaveBeenCalledWith(['u1/123.jpg']));
+    await waitFor(() => expect(mocks.storage.remove).toHaveBeenCalledWith(['p1/123.jpg']));
     expect(mocks.storageFrom).toHaveBeenCalledWith('linkhub-avatars');
     expect(mocks.storageFrom).not.toHaveBeenCalledWith('avatars');
+  });
+
+  it('foto do Google não é apagada do bucket', async () => {
+    renderTab('https://lh3.googleusercontent.com/a/foto=s96-c');
+    fireEvent.click(screen.getByRole('button', { name: 'Remover' }));
+
+    await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Imagem removida' })));
+    expect(mocks.storage.remove).not.toHaveBeenCalled();
+  });
+
+  it('foto da pasta de outro perfil não é apagada do bucket', async () => {
+    renderTab(`${AVATARS_PUBLIC_PREFIX}p2/123.jpg`);
+    fireEvent.click(screen.getByRole('button', { name: 'Remover' }));
+
+    await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Imagem removida' })));
+    expect(mocks.storage.remove).not.toHaveBeenCalled();
   });
 });
 
@@ -386,7 +419,7 @@ describe('SettingsTab, QR code e link público', () => {
   });
 
   it('segue o valor gravado: começa desligado com false e liga quando o perfil recarrega com true', () => {
-    const base = { username: 'dna', full_name: 'Daniel', avatar_url: '' };
+    const base = { id: 'p1', username: 'dna', full_name: 'Daniel', avatar_url: '' };
     const { rerender } = render(<SettingsTab profile={{ ...base, show_qr_code: false }} onProfileUpdate={vi.fn()} />);
     const toggle = () => screen.getByRole('switch', { name: 'Exibir QR code no perfil público' });
     expect(toggle().getAttribute('aria-checked')).toBe('false');
@@ -398,7 +431,7 @@ describe('SettingsTab, QR code e link público', () => {
   it('o link para compartilhar usa a regra única (barra no fim do domínio personalizado)', () => {
     render(
       <SettingsTab
-        profile={{ username: 'dna', full_name: 'Daniel', avatar_url: '', preferred_domain: 'custom', custom_domain: 'https://meusite.com/' }}
+        profile={{ id: 'p1', username: 'dna', full_name: 'Daniel', avatar_url: '', preferred_domain: 'custom', custom_domain: 'https://meusite.com/' }}
         onProfileUpdate={vi.fn()}
       />,
     );
@@ -407,7 +440,39 @@ describe('SettingsTab, QR code e link público', () => {
   });
 
   it('sem username, mostra o aviso no lugar do link', () => {
-    render(<SettingsTab profile={{ username: '', full_name: 'Daniel', avatar_url: '' }} onProfileUpdate={vi.fn()} />);
+    render(<SettingsTab profile={{ id: 'p1', username: '', full_name: 'Daniel', avatar_url: '' }} onProfileUpdate={vi.fn()} />);
     expect(screen.getByDisplayValue('Configure seu @username primeiro')).toBeTruthy();
+  });
+});
+
+describe('SettingsTab, perfil atual', () => {
+  it('o salvamento automático grava no perfil recebido e usa o id dele como resetKey', async () => {
+    renderTab();
+    expect(mocks.autosave!.resetKey).toBe('p1');
+
+    fireEvent.click(screen.getByRole('switch', { name: 'Exibir QR code no perfil público' }));
+    await act(async () => {
+      await mocks.autosave!.save(mocks.autosave!.data);
+    });
+
+    expect(mocks.profileEq).toHaveBeenCalledWith('id', 'p1');
+    expect(mocks.profileEq).not.toHaveBeenCalledWith('id', 'u1');
+  });
+
+  it('a foto nova vai para a pasta do perfil e é gravada nele', async () => {
+    await applyPngFromCurrentAvatar();
+
+    await waitFor(() => expect(mocks.profileEq).toHaveBeenCalledWith('id', 'p1'));
+    const [path] = mocks.storage.upload.mock.calls[0] as [string];
+    expect(path.startsWith('p1/')).toBe(true);
+  });
+
+  it('valida o @ com o id do perfil atual', () => {
+    renderTab();
+    expect(mocks.usernameArgs.length).toBeGreaterThan(0);
+    for (const args of mocks.usernameArgs) {
+      expect(args[0]).toBe('dna');
+      expect(args[2]).toBe('p1');
+    }
   });
 });
