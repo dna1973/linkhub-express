@@ -22,6 +22,10 @@
 - O repositório **não** tem `@testing-library/user-event` nem `jest-dom`: use `fireEvent` e asserções simples (`toBeTruthy`, `getAttribute`, `style`).
 - O jsdom 25 não tem `Blob.text()`, `File.text()` nem `URL.createObjectURL`. Imagens não carregam e o `naturalWidth` é 0. As abas do Radix trocam no `fireEvent.mouseDown`. O cssstyle não guarda as propriedades `-webkit-`.
 - Se o `npm test` falhar com `Error: UNKNOWN: unknown error, open '...\ssr\...'` (ou `...\web\...`) e mostrar menos arquivos que o esperado, é falha intermitente do cache do Vitest no Windows: rode de novo e conte só uma execução sem esse erro.
+- No jsdom, `style.backgroundColor`/`style.color` voltam como `rgb(r, g, b)`: compare com `rgb(...)` (ex.: `#1f2937` → `rgb(31, 41, 55)`, `#ffffff` → `rgb(255, 255, 255)`), nunca com o hex. `maskImage` volta como `url("…")`.
+- **Imports:** componentes, `resolve.ts`, `LinkIcon.tsx` e `storage.ts` importam `LINK_ICONS_BUCKET` e `LINK_ICONS_PUBLIC_PREFIX` de `@/lib/linkIcons/storagePrefix`, **nunca** de `@/lib/supabase` (vários testes mocam `@/lib/supabase` sem esses exports, e o cliente real lança erro sem `.env`). `LinkIcon`, `resolve.ts` e `storage.ts` não importam `@/lib/supabase` de jeito nenhum; o cliente entra só nos componentes que gravam (`LinksTab`, `EditLinkDialog`).
+- **URLs de upload nos testes:** monte com o prefixo importado (`` `${LINK_ICONS_PUBLIC_PREFIX}u1/7-123.png` ``), nunca com domínio fixo: o prefixo depende do `.env`, que não existe num worktree.
+- O `lib` do TypeScript do projeto é ES2020 e não tipa `Intl.Segmenter`: leia com `(Intl as any).Segmenter` dentro da função; não mexa no `tsconfig`.
 - Nada roda contra o servidor (`ssh`/`scp`) nas tarefas 1 a 10; a migração e o deploy são da tarefa 11.
 - Push não faz parte de nenhuma tarefa.
 
@@ -228,19 +232,26 @@ function normalizeHost(host: string): string {
 }
 ```
 
-O `mailto:` é checado antes, sem diferenciar maiúsculas (`/^mailto:/i`). Uma entrada casa se o host normalizado for igual ao domínio ou terminar em `.${domínio}`.
+O `mailto:` é checado antes, sem diferenciar maiúsculas (`/^mailto:/i`). Uma entrada casa se o host normalizado for igual ao domínio ou terminar em `.${domínio}`. O `getFaviconUrl` tira **só** `www.` (como na especificação); não reuse o `normalizeHost`, que também tira `m.`.
 
 - [ ] **Passo 2: `catalog.ts` (teste com `fetch` stubado, depois implementação)**
 
 Exporta:
 - `loadBrandCatalog(): Promise<BrandEntry[]>`, com `BrandEntry = { s; t; h; a? }`. Faz o `fetch(BRAND_CATALOG_URL)` uma vez e guarda a promessa no módulo; na falha, limpa o cache e rejeita;
 - `loadLucideCatalog()`, no mesmo padrão;
-- `getBrandHex(slug)`: a tabela de detecção primeiro, depois o mapa slug→hex do catálogo já carregado. Síncrona: sem catálogo carregado, devolve `null`;
+- `getBrandHex(slug)`: as linhas `kind === 'brand'` da tabela de detecção primeiro (a linha `lucide` do LinkedIn **não** conta), depois o mapa slug→hex do catálogo já carregado. Síncrona: sem catálogo carregado, devolve `null`;
+- `COMMON_LUCIDE_ICONS`: os 24 nomes da lista fixa da especificação (com `house`);
 - `resetCatalogCacheForTests()`.
 
-O teste confere, com um catálogo de exemplo, que todos os `s` passam em `BRAND_SLUG_RE`.
+Testes **contra os pacotes reais** (instalados na T2), em `src/lib/linkIcons/packages.test.ts` (node, `readFileSync`/`readdirSync` de `node_modules`):
+- todo `slug` de `node_modules/simple-icons/data/simple-icons.json` passa em `BRAND_SLUG_RE` (3.466);
+- todo arquivo de `node_modules/lucide-static/icons/` (sem `.svg`) passa em `LUCIDE_NAME_RE`;
+- cada nome de `COMMON_LUCIDE_ICONS` tem `node_modules/lucide-static/icons/<n>.svg`;
+- cada linha `brand` da `DETECTION_TABLE` tem SVG e o mesmo hex do JSON (comparando em minúsculas com `#`); `linkedin` e `mail` existem no Lucide.
 
-- [ ] **Passo 3: `validate.ts`**
+- [ ] **Passo 3: `emoji.ts`**, com a regra exata da especificação, nos dois caminhos (`(Intl as any).Segmenter` lido na chamada; no teste, `delete (Intl as any).Segmenter` e restaure no `finally`).
+
+- [ ] **Passo 4: `validate.ts`**
 
 `isValidIconValue(type, value, { url, uploadPrefix })`:
 - `brand`: `BRAND_SLUG_RE`;
@@ -250,8 +261,6 @@ O teste confere, com um catálogo de exemplo, que todos os `s` passam em `BRAND_
 - `upload`: começa com `uploadPrefix`, e o resto não é vazio nem contém `..`, `?`, `#` ou `\`;
 - `auto`: `true`;
 - qualquer outro tipo: `false`.
-
-- [ ] **Passo 4: `emoji.ts`**, com a regra exata da especificação, nos dois caminhos.
 
 - [ ] **Passo 5: `src/lib/formatClicks.ts`**
 
@@ -276,19 +285,27 @@ Rode tsc e `npm test`. Mensagem do commit: "Detecção de marca pela URL, valida
 
 - [ ] **Passo 1: `resolve.test.ts` (node), com os casos da tabela "Testes"**
 
-Fundos e cores de referência para os testes de contraste:
-- botão escuro `#111827` com `defaultColor` `#ffffff`, e `accent_color` `#000000`: dá `#ffffff`;
-- dois fundos `['#0b1f3a', '#f8fafc']` com `accent_color` `#ff0000`: o pior contraste cai abaixo de 3, então dá `defaultColor`.
+Fundos e cores de referência para os testes de contraste (contas conferidas):
+- botão escuro `#111827` com `defaultColor` `#ffffff`, e `accent_color` `#000000` (1,18:1): dá `#ffffff`;
+- `accent_color` `#25d366` contra `['#0b1f3a', '#f8fafc']`: o pior contraste é 1,90, então dá `defaultColor`; contra só `['#0b1f3a']` (8,33), mantém `#25d366` — prova que o segundo fundo conta.
+
+Teste também `getOfficialHex` (passo 2).
 
 - [ ] **Passo 2: implementar `resolve.ts`**
 
 Use `detect`, `validate`, `vendor` e `getContrastRatio`/`normalizeHex` de `@/utils/linkButtonStyle`. Exporte também `getProfileIconBackgrounds(theme)`:
 - botão `solid`: `[resolveButtonColors(theme).bg]`;
-- outros estilos, fundo `gradient`: `[colors[0] ?? '#111827', colors[1] ?? '#1f2937']`;
+- outros estilos, fundo `gradient`: `[colors[0] || '#111827', colors[1] || '#1f2937']` (`||`, a mesma reserva do `getBackgroundLayer`);
 - outros estilos, fundo sólido: `[getBaseBackgroundColor(theme)]`;
 - tema `null`: `['#111827']`.
 
 Ela também tem testes.
+
+Exporte e teste também `getOfficialHex({ url, icon_type, icon_value }): string | null`, a **única** fonte do "hex oficial" (usada pelo `EditLinkDialog` para a regra "acompanha a marca" e para a prop `officialHex` do `AccentColorPicker`):
+- `brand` (valor válido) → `getBrandHex(value)`;
+- `lucide` → a linha `lucide` da tabela com esse `value` (LinkedIn `#0a66c2`; `mail` → `null`; outros → `null`);
+- `auto` ou valor inválido → `detectIconFromUrl(url)?.hex ?? null`;
+- `emoji`, `favicon`, `upload` → `null`.
 
 - [ ] **Passo 3: `LinkIcon.test.tsx` (jsdom)**
 
@@ -344,7 +361,7 @@ No `ProfileView.tsx`:
 - `ProfileViewLink` ganha `icon_type?: string | null`, `icon_value?: string | null` e `accent_color?: string | null`;
 - no botão, troque `<Icon className="h-6 w-6" />` por `<LinkIcon link={link} size={20} defaultColor={buttonTextColor} backgrounds={iconBackgrounds} />`. `buttonTextColor` vem de `resolveButtonColors(theme ?? { colors: { text: '#ffffff' } }).text`; `iconBackgrounds = getProfileIconBackgrounds(theme)`, calculado uma vez fora do `map`.
 
-Depois, remova `src/components/profile/linkIcons.tsx` e confirme com busca que não sobrou import (`getLinkIcon`, `ICON_MAP`, `profile/linkIcons`).
+Depois, remova `src/components/profile/linkIcons.tsx` e confirme que não sobrou import com `rg -n "getLinkIcon\b|ICON_MAP|profile/linkIcons|from './linkIcons'" src` (o `\b` evita pegar `getLinkIconsPublicPrefix`).
 
 - [ ] **Passo 3: verificação e commit**
 
@@ -364,11 +381,17 @@ Casos da tabela. Para `rasterizeSvgToPng`:
 - `HTMLCanvasElement.prototype.getContext` e `toBlob` simulados, como em `src/utils/cropImage.test.ts`;
 - conferir o tamanho do canvas (256 × 128 para `viewBox="0 0 200 100"`), que o `revokeObjectURL` é chamado e o tipo `image/png`.
 
+Acrescente também os testes de `prepareIconUpload` (com `loadImage` injetado e canvas simulado): SVG vira PNG; PNG de 100 px sai **igual** (mesmo `File`); PNG de 1024 px é reduzido para 256 px no tipo original.
+
 - [ ] **Passo 2: implementar `src/lib/linkIcons/storage.ts`**
 
 Exporta:
-- `linkIconPathFromUrl`, `validateIconFile`, `getSvgAspect`, `prepareSvgForRaster` e `rasterizeSvgToPng`;
-- `prepareIconUpload(file): Promise<{ blob: Blob; ext: 'png' | 'webp'; contentType: string }>`, que junta validação, conversão do SVG e redução para 256 px com `scaleCanvas` e `canvasToBlob`.
+- `linkIconPathFromUrl`, `getSvgAspect`, `prepareSvgForRaster` e `rasterizeSvgToPng`;
+- `validateIconFile(file): { ok: true; kind: 'png' | 'webp' | 'svg' } | { ok: false; error: string }` (tipo pelo MIME com reserva na extensão; PNG/WebP acima de 512 KB recusados; SVG não tem limite aqui, porque é conferido depois da conversão);
+- `prepareIconUpload(file, { loadImage? } = {}): Promise<{ blob: Blob; ext: 'png' | 'webp'; contentType: string }>`:
+  - SVG → `rasterizeSvgToPng` → PNG conferido contra 512 KB;
+  - PNG/WebP → carrega por objectURL (revogada no `finally`); se o lado maior passar de 256 px, `scaleCanvas(…, 256)` e `canvasToBlob(…, tipo original)`; se `getContext` vier `null` ou a imagem já tiver ≤ 256 px, devolve o arquivo original;
+  - erros lançados como `Error` com as mensagens da especificação.
 
 `readFileAsText(file)` usa `FileReader`.
 
@@ -383,24 +406,26 @@ Rode tsc e `npm test`. Mensagem do commit: "Validação, conversão de SVG e cam
 **Especificação:** seções `AddLinkDialog.tsx`, "Card da lista do painel" e `LinksTab.tsx`.
 
 - [ ] **Passo 1: testes (falham)**
-- `src/components/dashboard/links/AddLinkDialog.test.tsx` (jsdom): os casos da tabela. Props sugeridas: `open`, `onOpenChange`, `onAdd(data: { title: string; url: string })`. O insert fica no `LinksTab`, então o teste confere a chamada de `onAdd` com o título final e a URL limpa.
+- `src/components/dashboard/links/AddLinkDialog.test.tsx` (jsdom): os casos da tabela. Props: `open`, `onOpenChange`, `onAdd(data: { title: string; url: string }): Promise<boolean>`. O diálogo mostra "Adicionando…" enquanto espera; com `true`, limpa os campos e fecha. O insert fica no `LinksTab`, então o teste confere a chamada de `onAdd` com o título final e a URL limpa. Caso extra: `tel:+5561…` sem título → mostra "Informe um título" e **não** chama `onAdd` (não há host para o título automático).
 - `src/components/dashboard/LinksTab.test.tsx` (jsdom). Mocks como no `SettingsTab.test.tsx`:
   - `@/lib/supabase`, com `from('links')` e cadeia `select/eq/order` que devolve 3 links (com 0, 1 e 2 cliques, e um deles com `icon_type: 'upload'`), `delete/eq` e `storage.from(...).remove`;
   - `@/contexts/AuthContext`, `@/hooks/use-toast` e `@/hooks/useAutosave`.
 
   O teste confere:
   - os badges "0 cliques", "1 clique" e "2 cliques";
-  - o quadrado branco do ícone em cada card;
-  - excluir o link com upload chama `storage.from('linkhub-link-icons').remove([caminho])` depois do `delete`;
-  - o botão "Adicionar Link" abre o modal sem a grade de tipos.
+  - o quadrado do ícone em cada card (`data-testid="link-icon-box"`);
+  - excluir o link com upload (`getByRole('button', { name: 'Excluir link' })`) chama `storage.from('linkhub-link-icons').remove([caminho])` depois do `delete` (o `icon_value` do mock é `` `${LINK_ICONS_PUBLIC_PREFIX}u1/7-123.png` ``);
+  - o botão "Adicionar Link" abre o modal sem a grade de tipos;
+  - adicionar pelo modal faz `insert` com `icon_type: 'auto'`, `icon_value: null`, `accent_color: null` e o título passado por `sanitizeText`.
 
 - [ ] **Passo 2: implementar**
 - `AddLinkDialog.tsx`, com o título automático da especificação (estado `titleTouched`).
 - No `LinksTab.tsx`:
   - remova `LINK_TYPES`, `selectedLinkType` e `selectLinkType`, e os imports que sobrarem (`Instagram`, `Youtube` e os outros, mais as imagens);
   - use o `AddLinkDialog`, com o insert de `icon_type: 'auto'`;
-  - no `SortableLink`, o quadrado de 28 px com `<LinkIcon size={18} defaultColor="#1f2937" backgrounds={['#ffffff']} …/>` e o badge com `formatClicks`;
-  - `handleDeleteLink` apaga o arquivo se `icon_type === 'upload'`, com `linkIconPathFromUrl`;
+  - no `SortableLink`, o quadrado de 28 px (`data-testid="link-icon-box"`) com `<LinkIcon size={18} defaultColor="#1f2937" backgrounds={['#ffffff']} …/>` e o badge com `formatClicks`;
+  - os botões só com ícone ganham `aria-label`: "Editar link", "Abrir link" e "Excluir link";
+  - `handleDeleteLink(link: Link)` recebe o link inteiro e apaga o arquivo se `icon_type === 'upload'`, com `linkIconPathFromUrl(link.icon_value, user.id, LINK_ICONS_PUBLIC_PREFIX)`;
   - a interface `Link` ganha as três colunas;
   - o modal de edição atual fica até a tarefa 9.
 
@@ -417,19 +442,19 @@ Rode tsc, `npm test` e `npm run build`. Mensagem do commit: "Adicionar link só 
 Os dois componentes são **controlados**: recebem o valor atual e chamam `onChange`, sem tocar no banco. A gravação é da tarefa 9.
 
 - `IconPicker` props:
-  - `url`, `iconType`, `iconValue`, `userId`, `linkId` e `disabled`;
+  - `url`, `iconType`, `iconValue`, `accentColor` (para a prévia do topo sair com a cor real) e `disabled`;
   - `onChange({ icon_type, icon_value })`;
-  - `onUpload(file: File): Promise<void>`. O upload em si fica no `EditLinkDialog`; o picker só valida e repassa.
-- `AccentColorPicker` props: `url`, `iconType`, `iconValue`, `accentColor`, `disabled` e `onChange(color | null)`.
+  - `onUpload(file: File): Promise<void>`. O upload em si fica no `EditLinkDialog`; o picker só roda `validateIconFile` e repassa.
+- `AccentColorPicker` props: `url`, `iconType`, `iconValue`, `accentColor`, `officialHex: string | null` (calculado pelo `EditLinkDialog` com `getOfficialHex`), `disabled` e `onChange(color | null)`. O picker não calcula o hex oficial.
 
 - [ ] **Passo 1: testes (falham)**
 
 `IconPicker.test.tsx` e `AccentColorPicker.test.tsx` (jsdom), com os casos da tabela:
 - `fetch` stubado com um catálogo pequeno que inclui `youtube`, `snapchat` (`#fffc00`) e uma marca com apelido;
 - abas com `fireEvent.mouseDown`;
-- busca com `vi.useFakeTimers()` e `vi.advanceTimersByTime(200)` para o debounce;
-- Snapchat na grade aparece em `#1f2937`;
-- a lista fixa do Lucide é conferida contra um catálogo de teste que tenha os 24 nomes;
+- busca com debounce: **primeiro** carregue o catálogo com timers reais (`await screen.findByRole('button', { name: 'YouTube' })`); só depois `vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })`, `fireEvent.change(...)`, `act(() => vi.advanceTimersByTime(200))` e asserções **sem** `await` (a Testing Library não avança timers falsos sem o global `jest`, então `findBy`/`waitFor` com timers falsos travam); `vi.useRealTimers()` no `afterEach`;
+- Snapchat na grade aparece com `backgroundColor` `rgb(31, 41, 55)`;
+- a lista fixa do Lucide usa `COMMON_LUCIDE_ICONS` (conferida contra o pacote real na T3);
 - arquivo de 600 KB recusado; `.gif` recusado;
 - o upload de SVG chama `onUpload` com o `File` original. A conversão é testada na tarefa 6, e o `EditLinkDialog` chama `prepareIconUpload`.
 
@@ -455,9 +480,16 @@ Rode tsc e `npm test`. Mensagem do commit: "Seletores de ícone e de cor de dest
 - `supabase.from('links').update(...).eq(...)`: grava e devolve `{ error }` controlável;
 - `supabase.storage.from(...).upload/remove/getPublicUrl`;
 - `useAutosave`: guarda o callback, como no `SettingsTab.test.tsx`;
-- `prepareIconUpload`: simulado.
+- `prepareIconUpload`: simulado (devolve um blob PNG);
+- `fetch`: simulado com um catálogo pequeno, porque o diálogo carrega o catálogo de marcas ao abrir quando o link é `brand`.
+
+Contrato do componente: `EditLinkDialog({ open, onOpenChange, link, userId, onSaved })`.
+- O estado local (título, URL, `icon_type`, `icon_value`, `accent_color`) é iniciado **só quando `open` vira `true` ou `link.id` muda** — não a cada novo objeto `link`, senão o `onSaved` (que recarrega a lista) apagaria o que está sendo digitado.
+- Um estado `catalogVersion` é incrementado quando `loadBrandCatalog()` resolve, para recalcular o `officialHex` (`getOfficialHex`) e redesenhar.
+- No `LinksTab`, o `onSaved` faz `loadLinks()` **e** `window.dispatchEvent(new CustomEvent('linksUpdated'))` (a prévia escuta esse evento).
 
 Casos da tabela, incluindo:
+- upload: `storage.from('linkhub-link-icons').upload` chamado com `'u1/<id>-<ts>.png'` (regex), o blob do `prepareIconUpload` simulado e `{ contentType: 'image/png' }`;
 - a ordem `upload` → `update` → `remove` antigo, conferida com `mock.invocationCallOrder`;
 - falha do `update` apaga o arquivo novo e mostra o toast;
 - cor oficial acompanha a troca de marca (YouTube `#ff0000` → Instagram `#ff0069`) no mesmo `update`;
