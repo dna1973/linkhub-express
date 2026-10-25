@@ -36,10 +36,14 @@ export const DETECTED_BRAND_SLUGS: string[] = DETECTION_TABLE.filter((entry) => 
   (entry) => entry.value,
 );
 
+// "youtube.com:8080/x" e "localhost:5173" são host com porta, não esquema. O host precisa ter
+// ponto ou ser localhost, para "tel:191" continuar sendo telefone.
+const HOST_WITH_PORT_RE = /^(localhost|[^/:]*\.[^/:]*):\d+(\/|$)/i;
+
 function parseHttpUrl(raw: string): URL | null {
   const trimmed = (raw ?? '').trim();
   if (!trimmed) return null;
-  const hasScheme = /^[a-z][a-z0-9+.-]*:/i.test(trimmed);
+  const hasScheme = !HOST_WITH_PORT_RE.test(trimmed) && /^[a-z][a-z0-9+.-]*:/i.test(trimmed);
   if (hasScheme && !/^https?:/i.test(trimmed)) return null;
   try {
     const url = new URL(hasScheme ? trimmed : `https://${trimmed}`);
@@ -56,7 +60,10 @@ function normalizeHost(host: string): string {
 /** Host em minúsculas, sem `www.` nem `m.`; `null` para o que não for http(s). */
 export function getUrlHost(url: string): string | null {
   const parsed = parseHttpUrl(url);
-  return parsed ? normalizeHost(parsed.hostname) : null;
+  if (!parsed) return null;
+  // "https://www." e "https://m." ficam sem host depois da normalização
+  const host = normalizeHost(parsed.hostname);
+  return host || null;
 }
 
 export function detectIconFromUrl(url: string): DetectedIcon | null {

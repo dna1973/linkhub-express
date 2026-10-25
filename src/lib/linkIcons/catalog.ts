@@ -45,6 +45,19 @@ let brandCatalogPromise: Promise<BrandEntry[]> | null = null;
 let lucideCatalogPromise: Promise<LucideEntry[]> | null = null;
 let brandHexBySlug: Map<string, string> | null = null;
 
+const HEX_RE = /^#[0-9a-f]{6}$/i;
+
+// Só entra slug em texto com hex #rrggbb válido, em minúsculas: o hex vira cor no estilo inline.
+function buildBrandHexMap(entries: BrandEntry[]): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const entry of entries) {
+    if (entry && typeof entry.s === 'string' && typeof entry.h === 'string' && HEX_RE.test(entry.h)) {
+      map.set(entry.s, entry.h.toLowerCase());
+    }
+  }
+  return map;
+}
+
 async function fetchCatalog<T>(url: string): Promise<T[]> {
   const response = await fetch(url);
   if (!response.ok) throw new Error(`Não foi possível carregar o catálogo de ícones (${response.status})`);
@@ -57,7 +70,7 @@ export function loadBrandCatalog(): Promise<BrandEntry[]> {
   if (!brandCatalogPromise) {
     const promise = fetchCatalog<BrandEntry>(BRAND_CATALOG_URL).then(
       (entries) => {
-        brandHexBySlug = new Map(entries.map((entry) => [entry.s, entry.h]));
+        brandHexBySlug = buildBrandHexMap(entries);
         return entries;
       },
       (error) => {

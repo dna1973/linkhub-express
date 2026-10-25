@@ -45,7 +45,7 @@ Significado e validação de `icon_value`. O banco só limita o tamanho; o app v
 | `lucide` | nome do arquivo do `lucide-static` (ex.: `globe`) | `^[a-z0-9]+(-[a-z0-9]+)*$` |
 | `emoji` | um único emoji | `isSingleEmoji` |
 | `favicon` | `NULL` (usa o domínio da URL do link) | `getFaviconUrl(url)` não é `null` (mesma normalização do detect: aceita URL sem esquema) |
-| `upload` | URL pública do arquivo | começa com `LINK_ICONS_PUBLIC_PREFIX` e o resto não contém `..`, `?`, `#` nem `\` |
+| `upload` | URL pública do arquivo | começa com `LINK_ICONS_PUBLIC_PREFIX` (não vazio) e o resto casa com `LINK_ICON_UPLOAD_PATH_RE` = `^[A-Za-z0-9-]+\/[0-9]+-[0-9]+\.(png\|webp)$`, exportada de `storagePrefix.ts`: só o formato que o app gera, `<user_id>/<link_id>-<timestamp>.<png\|webp>`. Isso já recusa `%` (como `%2e%2e`), `..`, `?`, `#`, `\`, espaço e caracteres de controle |
 
 `LINK_ICONS_PUBLIC_PREFIX` = `${VITE_SUPABASE_URL sem barra final}/storage/v1/object/public/linkhub-link-icons/`. Fica em `src/lib/linkIcons/storagePrefix.ts`, sem importar o cliente Supabase (padrão do `siteUrl.ts`), porque o `ProfileView` precisa dele. Um teste confere que `supabase.storage.from(LINK_ICONS_BUCKET).getPublicUrl('u1/a.png').data.publicUrl` começa com o prefixo; nos testes o `VITE_SUPABASE_URL` vem de `vi.stubEnv`.
 
@@ -120,7 +120,7 @@ No `src/index.css`: `@media (forced-colors: active) { .link-icon-mask { forced-c
 Normalização:
 - esquema comparado sem diferenciar maiúsculas;
 - `mailto:` vira o caso do e-mail;
-- sem esquema, prefixa `https://`;
+- sem esquema, prefixa `https://`; um host com porta sem esquema (`youtube.com:8080/x`, `localhost:5173`) conta como sem esquema, desde que o host tenha ponto ou seja `localhost` (assim `tel:191` continua sendo telefone);
 - só http(s) segue;
 - o host fica em minúsculas, sem `www.` nem `m.` na frente.
 
@@ -201,7 +201,7 @@ O glass é branco a 10% e o modern/rounded é a cor do botão a 12–25%, ambos 
   3. aceita se houver de 1 a 8 partes e cada uma sobrar com exatamente 1 code point `\p{Extended_Pictographic}`;
   4. aceita também, sem ZWJ, exatamente 2 code points `\p{Regional_Indicator}` (bandeira).
 - `Intl.Segmenter` é lido **na hora da chamada**, não ao carregar o módulo.
-- **Limitação aceita:** keycaps (1️⃣) são recusados nos dois caminhos.
+- **Limitação aceita:** keycaps (1️⃣) são recusados nos dois caminhos. Já `©`, `®`, `™` e `‼` passam, porque são `Extended_Pictographic`.
 
 Os testes cobrem as duas implementações: simples, tom de pele, família 👨‍👩‍👧‍👦, beijo 👩‍❤️‍💋‍👨, aperto de mãos com tons 🧑🏽‍🤝‍🧑🏿, bandeira 🇧🇷, bandeira por tags 🏴󠁧󠁢󠁥󠁮󠁧󠁿 (aceitos); "😀😀", "🇧🇷🇺🇸", texto e vazio (recusados). No caminho sem o Segmenter, o teste apaga `Intl.Segmenter` e o restaura depois.
 

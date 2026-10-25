@@ -1,11 +1,13 @@
 // Um único emoji, inclusive sequências com ZWJ, tons de pele e bandeiras.
-// Limitação aceita: keycaps (1️⃣) são recusados nos dois caminhos.
+// Limitações aceitas: keycaps (dígito + U+FE0F + U+20E3) são recusados nos dois caminhos;
+// ©, ®, ™ e ‼ passam, porque são Extended_Pictographic.
+// ZWJ e seletores de variação ficam como escapes \u{...}: nada de caractere invisível no código.
 
 const MAX_LENGTH = 32;
 const HAS_EMOJI_RE = /\p{Extended_Pictographic}|\p{Regional_Indicator}/u;
-const ZWJ = '‍';
+const ZWJ = '\u{200D}';
 // Seletores de variação (VS15, VS16), tons de pele e tags (bandeiras por subdivisão)
-const MODIFIERS_RE = /[︎️\u{1F3FB}-\u{1F3FF}\u{E0020}-\u{E007F}]/gu;
+const MODIFIERS_RE = /[\u{FE0E}\u{FE0F}\u{1F3FB}-\u{1F3FF}\u{E0020}-\u{E007F}]/gu;
 const PICTOGRAPHIC_RE = /^\p{Extended_Pictographic}$/u;
 const REGIONAL_INDICATOR_RE = /^\p{Regional_Indicator}$/u;
 

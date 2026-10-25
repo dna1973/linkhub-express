@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { LINK_ICON_UPLOAD_PATH_RE } from './storagePrefix';
 import { isValidIconValue } from './validate';
 
 const uploadPrefix = 'https://supabase.example.test/storage/v1/object/public/linkhub-link-icons/';
@@ -65,8 +66,39 @@ describe('isValidIconValue', () => {
     expect(isValidIconValue('upload', null, context)).toBe(false);
   });
 
+  it('upload aceita só o caminho que o app gera: <user_id>/<link_id>-<timestamp>.<png|webp>', () => {
+    expect(isValidIconValue('upload', `${uploadPrefix}u1/7-123.png`, context)).toBe(true);
+    expect(isValidIconValue('upload', `${uploadPrefix}u1/7-123.webp`, context)).toBe(true);
+    expect(
+      isValidIconValue('upload', `${uploadPrefix}3f2b8c1e-9a4d-4e7b-8c2a-1d5e6f7a8b9c/42-1761400000000.png`, context),
+    ).toBe(true);
+    expect(LINK_ICON_UPLOAD_PATH_RE.test('u1/7-123.png')).toBe(true);
+  });
+
+  it('upload recusa caminhos codificados, com controles, espaço ou outra extensão', () => {
+    const invalid = [
+      '%2e%2e/linkhub-avatars/u/a.png',
+      '.%2E/.%2e/x',
+      '.\t./x',
+      '.\n./x',
+      'u1/7 123.png',
+      'u1/7-123.png ',
+      'u1/7-123.svg',
+      'u1/7-123.gif',
+      'u1/a.png',
+      'u1/7-123.PNG',
+      '7-123.png',
+      'u1/u2/7-123.png',
+    ];
+    for (const rest of invalid) {
+      expect(isValidIconValue('upload', `${uploadPrefix}${rest}`, context), JSON.stringify(rest)).toBe(false);
+      expect(LINK_ICON_UPLOAD_PATH_RE.test(rest), JSON.stringify(rest)).toBe(false);
+    }
+  });
+
   it('upload sem prefixo configurado é recusado', () => {
     expect(isValidIconValue('upload', 'u1/a.png', { ...context, uploadPrefix: '' })).toBe(false);
+    expect(isValidIconValue('upload', 'u1/7-123.png', { ...context, uploadPrefix: '' })).toBe(false);
   });
 
   it('tipo desconhecido ou ausente é recusado', () => {

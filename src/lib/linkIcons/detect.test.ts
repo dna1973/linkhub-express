@@ -85,6 +85,17 @@ describe('detectIconFromUrl: normalização', () => {
   it('site sem marca dá null', () => {
     expect(detectIconFromUrl('https://example.com')).toBeNull();
   });
+
+  it('URL sem esquema com porta é um host com porta', () => {
+    expect(detectIconFromUrl('youtube.com:8080/x')?.value).toBe('youtube');
+    expect(detectIconFromUrl('www.youtube.com:8080')?.value).toBe('youtube');
+  });
+
+  it('porta explícita e credenciais na URL', () => {
+    expect(detectIconFromUrl('https://youtube.com:443')?.value).toBe('youtube');
+    // O host de verdade é evil.com: o "youtube.com" antes do @ é o usuário
+    expect(detectIconFromUrl('https://youtube.com@evil.com')).toBeNull();
+  });
 });
 
 describe('DETECTION_TABLE e DETECTED_BRAND_SLUGS', () => {
@@ -133,6 +144,16 @@ describe('getFaviconUrl', () => {
     );
   });
 
+  it('URL sem esquema com porta e host punycode', () => {
+    expect(getFaviconUrl('localhost:5173')).toBe('https://www.google.com/s2/favicons?domain=localhost&sz=64');
+    expect(getFaviconUrl('example.com:8080/x')).toBe('https://www.google.com/s2/favicons?domain=example.com&sz=64');
+    expect(getFaviconUrl('https://bücher.example')).toBe(
+      'https://www.google.com/s2/favicons?domain=xn--bcher-kva.example&sz=64',
+    );
+    expect(getFaviconUrl('tel:191')).toBeNull();
+    expect(getFaviconUrl('https://www.')).toBeNull();
+  });
+
   it('null para outros esquemas, host vazio e lixo', () => {
     expect(getFaviconUrl('mailto:alguem@example.com')).toBeNull();
     expect(getFaviconUrl('tel:+5511999999999')).toBeNull();
@@ -148,6 +169,28 @@ describe('getUrlHost', () => {
     expect(getUrlHost('https://www.Example.com/pagina')).toBe('example.com');
     expect(getUrlHost('https://m.example.com')).toBe('example.com');
     expect(getUrlHost('blog.example.com/x')).toBe('blog.example.com');
+  });
+
+  it('host que some com a normalização dá null', () => {
+    expect(getUrlHost('https://www.')).toBeNull();
+    expect(getUrlHost('https://m.')).toBeNull();
+    expect(detectIconFromUrl('https://www.')).toBeNull();
+  });
+
+  it('URL sem esquema com porta', () => {
+    expect(getUrlHost('youtube.com:8080/x')).toBe('youtube.com');
+    expect(getUrlHost('localhost:5173')).toBe('localhost');
+    expect(getUrlHost('localhost:5173/pagina')).toBe('localhost');
+  });
+
+  it('host punycode e internacionalizado', () => {
+    expect(getUrlHost('https://xn--bcher-kva.example/x')).toBe('xn--bcher-kva.example');
+    expect(getUrlHost('https://bücher.example/x')).toBe('xn--bcher-kva.example');
+  });
+
+  it('tel: com número curto não vira host com porta', () => {
+    expect(getUrlHost('tel:191')).toBeNull();
+    expect(getUrlHost('sms:191')).toBeNull();
   });
 
   it('null para mailto:, tel: e lixo', () => {

@@ -2,6 +2,7 @@
 // gravar e antes de desenhar, porque o dono pode gravar qualquer valor pela API.
 import { getFaviconUrl } from './detect';
 import { isSingleEmoji } from './emoji';
+import { LINK_ICON_UPLOAD_PATH_RE } from './storagePrefix';
 import { BRAND_SLUG_RE, LUCIDE_NAME_RE } from './vendor';
 
 export type IconType = 'auto' | 'brand' | 'lucide' | 'emoji' | 'favicon' | 'upload';
@@ -15,8 +16,7 @@ export type IconValueContext = {
 
 function isValidUpload(value: string, uploadPrefix: string): boolean {
   if (!uploadPrefix || !value.startsWith(uploadPrefix)) return false;
-  const rest = value.slice(uploadPrefix.length);
-  return rest.length > 0 && !rest.includes('..') && !/[?#\\]/.test(rest);
+  return LINK_ICON_UPLOAD_PATH_RE.test(value.slice(uploadPrefix.length));
 }
 
 export function isValidIconValue(
