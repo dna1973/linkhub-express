@@ -17,11 +17,18 @@ const mocks = vi.hoisted(() => {
     storageFrom: vi.fn(() => storage),
     profileUpdate: vi.fn(),
     // Último formData e callback que a aba passou ao useAutosave (o teste chama o salvamento na mão)
-    autosave: null as null | { data: unknown; save: (data: unknown) => Promise<void>; resetKey: unknown },
+    autosave: null as null | {
+      data: unknown;
+      save: (data: unknown) => Promise<void>;
+      enabled: boolean;
+      resetKey: unknown;
+    },
     // Coluna e valor do .eq() de cada update de profiles
     profileEq: vi.fn(),
     // Argumentos de cada chamada ao useUsernameValidation (da aba e do UsernameInput)
     usernameArgs: [] as unknown[][],
+    // Sobrescreve campos do resultado do hook; sem nada, ele conferiu o @ passado
+    usernameResult: {} as Record<string, unknown>,
   };
 });
 
@@ -33,12 +40,20 @@ vi.mock('@/hooks/use-toast', () => ({ useToast: () => ({ toast: mocks.toast }) }
 vi.mock('@/hooks/useUsernameValidation', () => ({
   useUsernameValidation: (...args: unknown[]) => {
     mocks.usernameArgs.push(args);
-    return { isValid: true, isAvailable: true, isChecking: false, error: null, suggestions: [] };
+    return {
+      isValid: true,
+      isAvailable: true,
+      isChecking: false,
+      error: null,
+      suggestions: [],
+      checkedUsername: args[0],
+      ...mocks.usernameResult,
+    };
   },
 }));
 vi.mock('@/hooks/useAutosave', () => ({
-  useAutosave: (data: unknown, save: (data: unknown) => Promise<void>, _delay: number, _enabled: boolean, resetKey: unknown) => {
-    mocks.autosave = { data, save, resetKey };
+  useAutosave: (data: unknown, save: (data: unknown) => Promise<void>, _delay: number, enabled: boolean, resetKey: unknown) => {
+    mocks.autosave = { data, save, enabled, resetKey };
     return 'idle';
   },
 }));
@@ -115,6 +130,7 @@ beforeEach(() => {
   mocks.profileUpdate.mockReset().mockReturnValue({ error: null });
   mocks.profileEq.mockReset();
   mocks.usernameArgs = [];
+  mocks.usernameResult = {};
   useDesignStore.getState().setCustomTheme({
     ...originalTheme,
     background: { type: 'gradient', colors: ['#0F172A', '#1e293b'] },
@@ -529,5 +545,20 @@ describe('SettingsTab, perfil atual', () => {
       expect(args[0]).toBe('dna');
       expect(args[2]).toBe('p1');
     }
+  });
+
+  it('@ trocado e ainda não conferido (resultado do anterior): o autosave fica parado', () => {
+    // A validação ainda devolve o resultado de "dna", válido e disponível
+    mocks.usernameResult = { checkedUsername: 'dna' };
+    renderTab();
+    expect(mocks.autosave!.enabled).toBe(true);
+
+    fireEvent.change(screen.getByLabelText('Username (slug único)'), { target: { value: 'admin' } });
+    expect(mocks.autosave!.enabled).toBe(false);
+
+    // Conferido o novo, volta a salvar
+    mocks.usernameResult = { checkedUsername: 'admin' };
+    fireEvent.change(screen.getByLabelText('Nome Completo'), { target: { value: 'Daniel A' } });
+    expect(mocks.autosave!.enabled).toBe(true);
   });
 });

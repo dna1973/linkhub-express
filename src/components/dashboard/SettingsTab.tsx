@@ -118,9 +118,20 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
 
   const canAutosave = useMemo(() => {
     if (!profile?.id) return false;
-    if (formData.username && (!usernameValidation.isValid || !usernameValidation.isAvailable)) return false;
+    if (formData.username) {
+      // O resultado tem de ser do @ digitado: durante o debounce, o hook ainda devolve o do anterior.
+      // O UsernameInput já entrega o @ normalizado (minúsculas, sem outros caracteres), como o hook confere.
+      if (usernameValidation.checkedUsername !== formData.username) return false;
+      if (!usernameValidation.isValid || !usernameValidation.isAvailable) return false;
+    }
     return true;
-  }, [profile?.id, formData.username, usernameValidation.isValid, usernameValidation.isAvailable]);
+  }, [
+    profile?.id,
+    formData.username,
+    usernameValidation.checkedUsername,
+    usernameValidation.isValid,
+    usernameValidation.isAvailable,
+  ]);
 
   const handleAutosave = useCallback(async (data: typeof formData) => {
     if (!profile?.id) return;
