@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,7 +11,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
 import { createDefaultCustomTheme, DEFAULT_THEME_ID, useDesignStore, ThemeConfig } from '@/stores/useDesignStore';
-import { PREDEFINED_THEMES, resolveThemeConfig } from '@/utils/themes';
+import { PREDEFINED_THEMES } from '@/utils/themes';
+import { profileThemeOf } from '@/lib/profileTheme';
 import { ONBOARDING_TEMPLATES, filterTemplates } from '@/components/dashboard/onboardingTemplates';
 import type { TemplateFilter } from '@/components/dashboard/onboardingTemplates';
 import { TemplateMockup } from '@/components/dashboard/TemplateMockup';
@@ -62,11 +63,7 @@ const BACKGROUND_PATTERNS: { id: NonNullable<ThemeConfig['background']['pattern'
 
 /** Tema salvo do perfil para iniciar o editor. Sem tema salvo, o padrão (nada vem do perfil anterior). */
 function initialDesignOf(profile: any): { themeId: string; config: ThemeConfig } {
-  const raw = profile?.theme_options;
-  const options = raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, any>) : null;
-  const config = resolveThemeConfig(options);
-  if (!config) return { themeId: DEFAULT_THEME_ID, config: createDefaultCustomTheme() };
-  return { themeId: options.themeId || 'custom', config };
+  return profileThemeOf(profile) ?? { themeId: DEFAULT_THEME_ID, config: createDefaultCustomTheme() };
 }
 
 export const DesignTab: React.FC<DesignTabProps> = ({ profile, onProfileUpdate }) => {
@@ -77,6 +74,14 @@ export const DesignTab: React.FC<DesignTabProps> = ({ profile, onProfileUpdate }
   const [initialDesign] = useState(() => initialDesignOf(profile));
   const [selectedTheme, setSelectedTheme] = useState(initialDesign.themeId);
   const [customConfig, setCustomConfig] = useState<ThemeConfig>(initialDesign.config);
+
+  // Ao montar, a prévia (store) volta ao tema salvo, igual ao editor: uma escolha não salva
+  // de uma visita anterior à aba não pode sobrar na prévia.
+  useEffect(() => {
+    setCurrentTheme(initialDesign.themeId);
+    setCustomTheme(initialDesign.config);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [loading, setLoading] = useState(false);
   const [activeCustomTab, setActiveCustomTab] = useState<'background' | 'typography' | 'buttons' | 'avatar'>('background');
   const [templateFilter, setTemplateFilter] = useState<TemplateFilter>('todos');

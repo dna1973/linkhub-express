@@ -3,7 +3,7 @@ import type { User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDesignStore } from '@/stores/useDesignStore';
-import { resolveThemeConfig } from '@/utils/themes';
+import { profileThemeOf } from '@/lib/profileTheme';
 import { AVATARS_BUCKET, avatarPathFromUrl } from '@/lib/avatarStorage';
 import { LINK_ICONS_BUCKET } from '@/lib/linkIcons/storagePrefix';
 import { linkIconPathFromUrl } from '@/lib/linkIcons/storage';
@@ -83,15 +83,13 @@ export function deleteProfileErrorFrom(error: RpcError): DeleteProfileError {
 /** Aplica o tema salvo do perfil no editor e na prévia. Sem tema salvo, volta ao padrão. */
 export function applyProfileTheme(profile: Profile | null): void {
   const store = useDesignStore.getState();
-  const raw = profile?.theme_options;
-  const options = raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, any>) : null;
-  const resolved = resolveThemeConfig(options);
-  if (!resolved) {
+  const theme = profileThemeOf(profile);
+  if (!theme) {
     store.resetDesign();
     return;
   }
-  store.setCurrentTheme(options.themeId || 'custom');
-  store.setCustomTheme(resolved);
+  store.setCurrentTheme(theme.themeId);
+  store.setCustomTheme(theme.config);
 }
 
 const themeKeyOf = (profile: Profile) => `${profile.id}:${JSON.stringify(profile.theme_options ?? null)}`;

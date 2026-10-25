@@ -59,6 +59,22 @@ describe('DesignTab', () => {
     expect(corPrincipal()).toBe(getBackgroundEditorColors(createDefaultCustomTheme().background).primary);
   });
 
+  it('ao voltar para a aba, o store (prévia) volta ao tema salvo, não ao modelo escolhido sem salvar', () => {
+    const first = render(<DesignTab key="a" profile={COM_TEMA} onProfileUpdate={vi.fn()} />);
+    expect(useDesignStore.getState().currentTheme).toBe('warm-peach');
+
+    // Escolhe outro modelo sem salvar e sai da aba (o Radix desmonta)
+    const outro = screen.getAllByRole('button', { name: /^Modelo / }).find((b) => b.getAttribute('aria-pressed') === 'false')!;
+    fireEvent.click(outro);
+    expect(useDesignStore.getState().currentTheme).not.toBe('warm-peach');
+    first.unmount();
+
+    render(<DesignTab key="b" profile={COM_TEMA} onProfileUpdate={vi.fn()} />);
+    expect(useDesignStore.getState().currentTheme).toBe('warm-peach');
+    expect(useDesignStore.getState().customTheme).toEqual(PEACH.config);
+    expect(peach().getAttribute('aria-pressed')).toBe('true');
+  });
+
   it('"Salvar Modelo" grava no perfil recebido', async () => {
     const onProfileUpdate = vi.fn();
     render(<DesignTab key={SEM_TEMA.id} profile={SEM_TEMA} onProfileUpdate={onProfileUpdate} />);
