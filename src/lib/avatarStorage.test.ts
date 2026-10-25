@@ -42,6 +42,9 @@ describe('avatarPathFromUrl', () => {
 
   it('ignora foto do provedor, de outro perfil e de outro bucket', () => {
     expect(avatarPathFromUrl('https://lh3.googleusercontent.com/a/foto=s96-c', 'p1')).toBeNull();
+    // Outro host com o mesmo caminho: tem de ter o tamanho do prefixo, senão a regex recusaria sozinha
+    const outroHost = 'https://evil.example/'.padEnd(AVATARS_PUBLIC_PREFIX.length, 'x');
+    expect(avatarPathFromUrl(`${outroHost}p1/1.jpg`, 'p1')).toBeNull();
     expect(avatarPathFromUrl(url('p2/1.jpg'), 'p1')).toBeNull();
     // Prefixo do id não basta: "p10/" não é "p1/"
     expect(avatarPathFromUrl(url('p10/1.jpg'), 'p1')).toBeNull();

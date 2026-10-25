@@ -35,9 +35,9 @@ function parseRoot(svgText: string): Element {
 }
 
 describe('linkIconPathFromUrl', () => {
-  const path = (rest: string, userId = 'u1') => linkIconPathFromUrl(`${LINK_ICONS_PUBLIC_PREFIX}${rest}`, userId, LINK_ICONS_PUBLIC_PREFIX);
+  const path = (rest: string, profileId = 'u1') => linkIconPathFromUrl(`${LINK_ICONS_PUBLIC_PREFIX}${rest}`, profileId, LINK_ICONS_PUBLIC_PREFIX);
 
-  it('devolve o caminho no formato do upload quando o arquivo é do próprio usuário', () => {
+  it('devolve o caminho no formato do upload quando o arquivo é do próprio perfil', () => {
     expect(path('u1/7-123.png')).toBe('u1/7-123.png');
     expect(path('u1/7-123.webp')).toBe('u1/7-123.webp');
     const uuid = '3f2a9c1e-0b7d-4e5f-9a8b-1c2d3e4f5a6b';
@@ -50,7 +50,7 @@ describe('linkIconPathFromUrl', () => {
     expect(path(`${uuid}/7-123.png`, 'u1')).toBeNull();
   });
 
-  it('recusa o arquivo de outro usuário', () => {
+  it('recusa o arquivo de outro perfil', () => {
     expect(path('u2/7-123.png')).toBeNull();
     // Prefixo do id não basta: "u10/" não é "u1/"
     expect(path('u10/7-123.png')).toBeNull();
@@ -78,6 +78,9 @@ describe('linkIconPathFromUrl', () => {
     const otherBucket = LINK_ICONS_PUBLIC_PREFIX.replace('linkhub-link-icons', 'linkhub-avatars');
     expect(linkIconPathFromUrl(`${otherBucket}u1/7-123.png`, 'u1', LINK_ICONS_PUBLIC_PREFIX)).toBeNull();
     expect(linkIconPathFromUrl('https://example.com/u1/7-123.png', 'u1', LINK_ICONS_PUBLIC_PREFIX)).toBeNull();
+    // Outro host com o mesmo caminho: tem de ter o tamanho do prefixo, senão a regex recusaria sozinha
+    const otherHost = 'https://evil.example/'.padEnd(LINK_ICONS_PUBLIC_PREFIX.length, 'x');
+    expect(linkIconPathFromUrl(`${otherHost}u1/7-123.png`, 'u1', LINK_ICONS_PUBLIC_PREFIX)).toBeNull();
     expect(linkIconPathFromUrl(null, 'u1', LINK_ICONS_PUBLIC_PREFIX)).toBeNull();
     expect(path('u1/7-123.png', '')).toBeNull();
   });
