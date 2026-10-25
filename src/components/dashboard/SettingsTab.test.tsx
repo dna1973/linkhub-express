@@ -37,12 +37,13 @@ vi.mock('@/hooks/useAutosave', () => ({
 vi.mock('./AuthProviderInfo', () => ({ AuthProviderInfo: () => null }));
 vi.mock('@/lib/supabase', () => ({
   AVATARS_BUCKET: 'linkhub-avatars',
-  PUBLIC_SITE_URL: 'https://linkhub.avila.ia.br',
   supabase: {
     storage: { from: mocks.storageFrom },
     from: vi.fn(() => ({ update: (values: unknown) => ({ eq: async () => mocks.profileUpdate(values) }) })),
   },
 }));
+// URL do site para o link público e o rótulo "Padrão (…)"
+vi.mock('@/lib/siteUrl', () => ({ PUBLIC_SITE_URL: 'https://linkhub.avila.ia.br' }));
 // A janela de recorte real tem testes próprios: aqui só interessam as props e o blob devolvido
 vi.mock('./ImageCropDialog', async () => {
   const { useState } = await import('react');
@@ -384,23 +385,29 @@ describe('SettingsTab, QR code e link público', () => {
     expect(mocks.profileUpdate).toHaveBeenCalledWith(expect.objectContaining({ show_qr_code: false, show_username: true }));
   });
 
-  it('perfil gravado com show_qr_code false começa desligado', () => {
-    render(
-      <SettingsTab
-        profile={{ username: 'dna', full_name: 'Daniel', avatar_url: '', show_qr_code: false }}
-        onProfileUpdate={vi.fn()}
-      />,
-    );
-    expect(screen.getByRole('switch', { name: 'Exibir QR code no perfil público' }).getAttribute('aria-checked')).toBe('false');
+  it('segue o valor gravado: começa desligado com false e liga quando o perfil recarrega com true', () => {
+    const base = { username: 'dna', full_name: 'Daniel', avatar_url: '' };
+    const { rerender } = render(<SettingsTab profile={{ ...base, show_qr_code: false }} onProfileUpdate={vi.fn()} />);
+    const toggle = () => screen.getByRole('switch', { name: 'Exibir QR code no perfil público' });
+    expect(toggle().getAttribute('aria-checked')).toBe('false');
+
+    rerender(<SettingsTab profile={{ ...base, show_qr_code: true }} onProfileUpdate={vi.fn()} />);
+    expect(toggle().getAttribute('aria-checked')).toBe('true');
   });
 
-  it('o link para compartilhar usa a regra única (domínio personalizado com https://)', () => {
+  it('o link para compartilhar usa a regra única (barra no fim do domínio personalizado)', () => {
     render(
       <SettingsTab
-        profile={{ username: 'dna', full_name: 'Daniel', avatar_url: '', preferred_domain: 'custom', custom_domain: 'https://meusite.com' }}
+        profile={{ username: 'dna', full_name: 'Daniel', avatar_url: '', preferred_domain: 'custom', custom_domain: 'https://meusite.com/' }}
         onProfileUpdate={vi.fn()}
       />,
     );
+    // O cálculo antigo dava https://meusite.com//dna
     expect(screen.getByDisplayValue('https://meusite.com/dna')).toBeTruthy();
+  });
+
+  it('sem username, mostra o aviso no lugar do link', () => {
+    render(<SettingsTab profile={{ username: '', full_name: 'Daniel', avatar_url: '' }} onProfileUpdate={vi.fn()} />);
+    expect(screen.getByDisplayValue('Configure seu @username primeiro')).toBeTruthy();
   });
 });

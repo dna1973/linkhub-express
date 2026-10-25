@@ -21,11 +21,10 @@ vi.mock('@/lib/supabase', () => {
   chain.select = () => chain;
   chain.eq = () => chain;
   chain.maybeSingle = () => Promise.resolve({ data: null });
-  return {
-    supabase: { from: () => chain },
-    PUBLIC_SITE_URL: 'https://example.test',
-  };
+  return { supabase: { from: () => chain } };
 });
+// O link público vem de @/lib/publicProfileUrl, que lê a URL do site daqui
+vi.mock('@/lib/siteUrl', () => ({ PUBLIC_SITE_URL: 'https://example.test' }));
 
 const originalInnerWidth = window.innerWidth;
 const originalMatchMedia = window.matchMedia;
@@ -73,5 +72,49 @@ describe('AppSidebar em janela larga', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Expandir menu' }));
     expect(estado()).toBe('expanded');
     expect(screen.getByText('Links')).toBeTruthy();
+  });
+});
+
+describe('AppSidebar, link público', () => {
+  const renderComPerfil = (profile: Record<string, unknown>) =>
+    render(
+      <SidebarProvider defaultOpen>
+        <AppSidebar activeTab="links" onTabChange={vi.fn()} profile={profile} />
+      </SidebarProvider>,
+    );
+
+  it('domínio padrão: Ver Perfil abre e Copiar copia o endereço do site', () => {
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null);
+    const writeText = vi.fn();
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    try {
+      renderComPerfil({ username: 'dna' });
+      fireEvent.click(screen.getByRole('button', { name: /Ver Perfil/ }));
+      expect(open).toHaveBeenCalledWith('https://example.test/dna', '_blank');
+      fireEvent.click(screen.getByRole('button', { name: 'Copiar link do perfil' }));
+      expect(writeText).toHaveBeenCalledWith('https://example.test/dna');
+    } finally {
+      open.mockRestore();
+      delete (navigator as { clipboard?: unknown }).clipboard;
+    }
+  });
+
+  it('domínio personalizado gravado com https:// não duplica o esquema', () => {
+    const writeText = vi.fn();
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    try {
+      renderComPerfil({ username: 'dna', preferred_domain: 'custom', custom_domain: 'https://meusite.com' });
+      fireEvent.click(screen.getByRole('button', { name: 'Copiar link do perfil' }));
+      // Antes da regra única saía https://https://meusite.com/dna
+      expect(writeText).toHaveBeenCalledWith('https://meusite.com/dna');
+    } finally {
+      delete (navigator as { clipboard?: unknown }).clipboard;
+    }
+  });
+
+  it('sem username: Ver Perfil desabilitado e sem botão de copiar', () => {
+    renderComPerfil({});
+    expect((screen.getByRole('button', { name: /Ver Perfil/ }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.queryByRole('button', { name: 'Copiar link do perfil' })).toBeNull();
   });
 });

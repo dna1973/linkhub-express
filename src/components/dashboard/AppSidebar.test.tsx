@@ -21,10 +21,7 @@ vi.mock('@/lib/supabase', () => {
   chain.select = () => chain;
   chain.eq = () => chain;
   chain.maybeSingle = () => Promise.resolve({ data: null });
-  return {
-    supabase: { from: () => chain },
-    PUBLIC_SITE_URL: 'https://example.test',
-  };
+  return { supabase: { from: () => chain } };
 });
 
 const originalInnerWidth = window.innerWidth;

@@ -189,6 +189,8 @@ export function AppSidebar({ activeTab, onTabChange, profile }: AppSidebarProps)
               variant="ghost"
               size="icon"
               className="h-8 w-8 shrink-0"
+              aria-label="Copiar link do perfil"
+              title="Copiar link do perfil"
               onClick={(e) => { e.stopPropagation(); handleCopyLink(); }}
             >
               <Copy className="h-3.5 w-3.5 text-muted-foreground" />

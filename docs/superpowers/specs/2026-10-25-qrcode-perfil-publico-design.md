@@ -143,8 +143,11 @@ NOTIFY pgrst, 'reload schema';
 Aplicação, a partir do PowerShell na raiz do repositório e **antes** de publicar o frontend. Sem a coluna, o `update` do salvamento automático da aba Perfil falharia:
 
 ```powershell
-Get-Content deploy/vpsavila/migrations/2026-10-25-show-qr-code.sql -Raw | ssh avila@192.168.1.24 'docker exec -i supabase-db psql -U postgres -d postgres -v ON_ERROR_STOP=1'
+scp deploy/vpsavila/migrations/2026-10-25-show-qr-code.sql avila@192.168.1.24:/tmp/
+ssh avila@192.168.1.24 'docker exec -i supabase-db psql -U postgres -d postgres -v ON_ERROR_STOP=1 < /tmp/2026-10-25-show-qr-code.sql && rm /tmp/2026-10-25-show-qr-code.sql'
 ```
+
+(Por `scp`, e não com `Get-Content … | ssh`: o Windows PowerShell 5.1 acrescenta um BOM ao texto enviado pelo pipe, e o `psql` falha. A migração também começa com `SET lock_timeout = '5s'`.)
 
 O `DEFAULT true` preenche todos os perfis existentes. O `NOTIFY` faz o PostgREST enxergar a coluna sem reiniciar. As políticas de RLS e os GRANTs são da tabela inteira e não mudam. `Dashboard.tsx` e `PublicProfile.tsx` buscam o perfil com `select('*')`, então a coluna chega à página pública, à prévia e à aba Perfil sem mexer nas consultas. A ordem inversa também é segura: o frontend antigo ignora a coluna nova.
 
