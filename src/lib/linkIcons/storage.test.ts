@@ -50,6 +50,16 @@ describe('linkIconPathFromUrl', () => {
     expect(linkIconPathFromUrl(`${LINK_ICONS_PUBLIC_PREFIX}u1/%2e%2e/u2/7-123.png`, 'u1', LINK_ICONS_PUBLIC_PREFIX)).toBeNull();
   });
 
+  it('recusa barra invertida e caminho vazio depois do usuário', () => {
+    expect(linkIconPathFromUrl(`${LINK_ICONS_PUBLIC_PREFIX}u1/a\\b.png`, 'u1', LINK_ICONS_PUBLIC_PREFIX)).toBeNull();
+    expect(linkIconPathFromUrl(`${LINK_ICONS_PUBLIC_PREFIX}u1/`, 'u1', LINK_ICONS_PUBLIC_PREFIX)).toBeNull();
+  });
+
+  it('ignora query e fragmento da URL', () => {
+    expect(linkIconPathFromUrl(`${LINK_ICONS_PUBLIC_PREFIX}u1/7-123.png?t=99`, 'u1', LINK_ICONS_PUBLIC_PREFIX)).toBe('u1/7-123.png');
+    expect(linkIconPathFromUrl(`${LINK_ICONS_PUBLIC_PREFIX}u1/7-123.png#x`, 'u1', LINK_ICONS_PUBLIC_PREFIX)).toBe('u1/7-123.png');
+  });
+
   it('recusa URL de outro bucket ou de fora do storage', () => {
     const otherBucket = LINK_ICONS_PUBLIC_PREFIX.replace('linkhub-link-icons', 'linkhub-avatars');
     expect(linkIconPathFromUrl(`${otherBucket}u1/7-123.png`, 'u1', LINK_ICONS_PUBLIC_PREFIX)).toBeNull();
@@ -79,12 +89,19 @@ describe('validateIconFile', () => {
     expect(validateIconFile(fileOf(10, 'a.png', 'image/jpeg'))).toEqual(error);
   });
 
-  it('limita PNG e WebP a 512 KB, mas não o SVG (conferido depois da conversão)', () => {
+  it('limita PNG e WebP a 512 KB', () => {
     expect(validateIconFile(fileOf(512 * KB, 'a.png', 'image/png'))).toEqual({ ok: true, kind: 'png' });
     const tooBig = { ok: false, error: 'A imagem deve ter no máximo 512 KB' };
     expect(validateIconFile(fileOf(512 * KB + 1, 'a.png', 'image/png'))).toEqual(tooBig);
     expect(validateIconFile(fileOf(512 * KB + 1, 'a.webp', 'image/webp'))).toEqual(tooBig);
-    expect(validateIconFile(fileOf(2048 * KB, 'a.svg', 'image/svg+xml'))).toEqual({ ok: true, kind: 'svg' });
+  });
+
+  it('SVG tem teto de 1 MB no arquivo (o PNG convertido é conferido depois contra 512 KB)', () => {
+    expect(validateIconFile(fileOf(1024 * KB, 'a.svg', 'image/svg+xml'))).toEqual({ ok: true, kind: 'svg' });
+    expect(validateIconFile(fileOf(1024 * KB + 1, 'a.svg', 'image/svg+xml'))).toEqual({
+      ok: false,
+      error: 'O SVG deve ter no máximo 1 MB',
+    });
   });
 });
 
@@ -147,6 +164,13 @@ describe('prepareSvgForRaster', () => {
     expect(() => prepareSvgForRaster('<html><body/></html>')).toThrow('Não foi possível ler este SVG');
     expect(() => prepareSvgForRaster('')).toThrow('Não foi possível ler este SVG');
   });
+
+  it('recusa raiz svg fora do namespace do SVG', () => {
+    expect(() => prepareSvgForRaster('<svg viewBox="0 0 10 10"/>')).toThrow('Não foi possível ler este SVG');
+    expect(() => prepareSvgForRaster('<svg xmlns="http://example.com/outro" viewBox="0 0 10 10"/>')).toThrow(
+      'Não foi possível ler este SVG'
+    );
+  });
 });
 
 describe('conversão e redução no canvas', () => {
@@ -156,8 +180,17 @@ describe('conversão e redução no canvas', () => {
   let ctx: { drawImage: ReturnType<typeof vi.fn>; imageSmoothingQuality: string };
   let exported: HTMLCanvasElement[];
   let toBlobResult: (type: string) => Blob | null;
+  let originalCreate: PropertyDescriptor | undefined;
+  let originalRevoke: PropertyDescriptor | undefined;
+
+  function restoreUrlStatic(name: 'createObjectURL' | 'revokeObjectURL', descriptor: PropertyDescriptor | undefined) {
+    if (descriptor) Object.defineProperty(URL, name, descriptor);
+    else delete (URL as unknown as Record<string, unknown>)[name];
+  }
 
   beforeEach(() => {
+    originalCreate = Object.getOwnPropertyDescriptor(URL, 'createObjectURL');
+    originalRevoke = Object.getOwnPropertyDescriptor(URL, 'revokeObjectURL');
     let n = 0;
     createObjectURL = vi.fn(() => `blob:fake-${++n}`);
     revokeObjectURL = vi.fn();
@@ -180,10 +213,19 @@ describe('conversão e redução no canvas', () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
     vi.restoreAllMocks();
-    delete (URL as unknown as Record<string, unknown>).createObjectURL;
-    delete (URL as unknown as Record<string, unknown>).revokeObjectURL;
+    restoreUrlStatic('createObjectURL', originalCreate);
+    restoreUrlStatic('revokeObjectURL', originalRevoke);
   });
+
+  // Image que nunca dispara onload nem onerror: só o timeout do defaultLoadImage resolve
+  class StuckImage {
+    onload: (() => void) | null = null;
+    onerror: (() => void) | null = null;
+    src = '';
+  }
 
   const wideSvg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 100"><circle r="5"/></svg>';
 
@@ -227,6 +269,24 @@ describe('conversão e redução no canvas', () => {
       expect(revokeObjectURL).toHaveBeenCalledWith('blob:fake-1');
     });
 
+    it('loadImage que rejeita vira "Não foi possível converter este SVG" e a objectURL é revogada', async () => {
+      await expect(
+        rasterizeSvgToPng(svgFile(wideSvg), 256, async () => {
+          throw new Error('falhou');
+        })
+      ).rejects.toThrow('Não foi possível converter este SVG');
+      expect(revokeObjectURL).toHaveBeenCalledWith('blob:fake-1');
+    });
+
+    it('SVG acima de 1 MB é recusado sem ler o arquivo', async () => {
+      const loadImage = vi.fn();
+      await expect(rasterizeSvgToPng(fileOf(1024 * KB + 1, 'a.svg', 'image/svg+xml'), 256, loadImage)).rejects.toThrow(
+        'O SVG deve ter no máximo 1 MB'
+      );
+      expect(createObjectURL).not.toHaveBeenCalled();
+      expect(loadImage).not.toHaveBeenCalled();
+    });
+
     it('SVG ilegível falha antes de criar a objectURL', async () => {
       const loadImage = vi.fn();
       await expect(rasterizeSvgToPng(svgFile('<svg><g></svg>'), 256, loadImage)).rejects.toThrow('Não foi possível ler este SVG');
@@ -253,26 +313,35 @@ describe('conversão e redução no canvas', () => {
       );
     });
 
-    it('PNG de 100 px sai igual: o mesmo File, sem passar pelo canvas', async () => {
+    it('PNG de 100 px é reencodado em 100×100 (tira EXIF/GPS antes do bucket público)', async () => {
       const file = fileOf(100, 'a.png', 'image/png');
-      const result = await prepareIconUpload(file, { loadImage: async () => ({ width: 100, height: 100 }) });
-      expect(result.blob).toBe(file);
+      const image = { width: 100, height: 100 };
+      const result = await prepareIconUpload(file, { loadImage: async () => image });
+      expect(result.blob).not.toBe(file);
+      expect(result.blob.type).toBe('image/png');
       expect(result.ext).toBe('png');
       expect(result.contentType).toBe('image/png');
-      expect(exported).toHaveLength(0);
+      expect(exported).toHaveLength(1);
+      expect([exported[0].width, exported[0].height]).toEqual([100, 100]);
+      expect(ctx.drawImage).toHaveBeenCalledWith(image, 0, 0, 100, 100);
       expect(createObjectURL).toHaveBeenCalledWith(file);
       expect(revokeObjectURL).toHaveBeenCalledWith('blob:fake-1');
     });
 
-    it('PNG de 1024 px é reduzido para 256 px no tipo original', async () => {
+    it('PNG de 1024 px é desenhado direto num canvas de 256 px, no tipo original', async () => {
       const image = { width: 1024, height: 1024 };
+      const createElement = vi.spyOn(document, 'createElement');
       const result = await prepareIconUpload(fileOf(100, 'a.png', 'image/png'), { loadImage: async () => image });
       expect(result.ext).toBe('png');
       expect(result.contentType).toBe('image/png');
       expect(result.blob.type).toBe('image/png');
+      // Um canvas só, já no tamanho final: nada do tamanho original (o iOS falha em silêncio acima de ~16,7 MP)
+      expect(createElement.mock.calls.filter(([tag]) => tag === 'canvas')).toHaveLength(1);
       expect(exported).toHaveLength(1);
       expect([exported[0].width, exported[0].height]).toEqual([256, 256]);
-      expect(ctx.drawImage).toHaveBeenCalledWith(image, 0, 0, 1024, 1024);
+      expect(ctx.drawImage).toHaveBeenCalledTimes(1);
+      expect(ctx.drawImage).toHaveBeenCalledWith(image, 0, 0, 256, 256);
+      expect(ctx.imageSmoothingQuality).toBe('high');
       expect(revokeObjectURL).toHaveBeenCalledWith('blob:fake-1');
     });
 
@@ -284,11 +353,64 @@ describe('conversão e redução no canvas', () => {
       expect([exported[0].width, exported[0].height]).toEqual([256, 128]);
     });
 
+    it('WebP num navegador sem codificador WebP (Safari): o PNG devolvido sobe como png', async () => {
+      const toBlob = vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation((callback: BlobCallback) =>
+        callback(new Blob(['png'], { type: 'image/png' }))
+      );
+      const result = await prepareIconUpload(fileOf(100, 'a.webp', 'image/webp'), {
+        loadImage: async () => ({ width: 1024, height: 512 }),
+      });
+      expect(toBlob).toHaveBeenCalledWith(expect.any(Function), 'image/webp', undefined);
+      expect(result.ext).toBe('png');
+      expect(result.contentType).toBe('image/png');
+      expect(result.blob.type).toBe('image/png');
+    });
+
     it('sem canvas 2D, devolve o arquivo original', async () => {
-      vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+      const getContext = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
       const file = fileOf(100, 'a.png', 'image/png');
       const result = await prepareIconUpload(file, { loadImage: async () => ({ width: 1024, height: 1024 }) });
+      expect(getContext).toHaveBeenCalledWith('2d');
       expect(result.blob).toBe(file);
+      expect(result.ext).toBe('png');
+      expect(result.contentType).toBe('image/png');
+      expect(exported).toHaveLength(0);
+      expect(revokeObjectURL).toHaveBeenCalledWith('blob:fake-1');
+    });
+
+    it('toBlob null devolve o arquivo original', async () => {
+      toBlobResult = () => null;
+      const file = fileOf(100, 'a.webp', 'image/webp');
+      const result = await prepareIconUpload(file, { loadImage: async () => ({ width: 64, height: 64 }) });
+      expect(result.blob).toBe(file);
+      expect(result.ext).toBe('webp');
+      expect(result.contentType).toBe('image/webp');
+    });
+
+    it('loadImage que rejeita vira "Não foi possível ler esta imagem" e a objectURL é revogada', async () => {
+      await expect(
+        prepareIconUpload(fileOf(100, 'a.webp', 'image/webp'), {
+          loadImage: async () => {
+            throw new Error('falhou');
+          },
+        })
+      ).rejects.toThrow('Não foi possível ler esta imagem');
+      expect(revokeObjectURL).toHaveBeenCalledWith('blob:fake-1');
+    });
+
+    it('o carregamento padrão desiste em 10 s', async () => {
+      vi.useFakeTimers();
+      vi.stubGlobal('Image', StuckImage);
+      const promise = prepareIconUpload(fileOf(100, 'a.png', 'image/png'));
+      const outcome = promise.then(
+        () => 'resolveu',
+        (error: Error) => error.message
+      );
+
+      await vi.advanceTimersByTimeAsync(9999);
+      expect(revokeObjectURL).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(1);
+      expect(await outcome).toBe('Não foi possível ler esta imagem');
       expect(revokeObjectURL).toHaveBeenCalledWith('blob:fake-1');
     });
 
@@ -298,7 +420,11 @@ describe('conversão e redução no canvas', () => {
       await expect(prepareIconUpload(fileOf(512 * KB + 1, 'a.png', 'image/png'), { loadImage })).rejects.toThrow(
         'A imagem deve ter no máximo 512 KB'
       );
+      await expect(prepareIconUpload(fileOf(1024 * KB + 1, 'a.svg', 'image/svg+xml'), { loadImage })).rejects.toThrow(
+        'O SVG deve ter no máximo 1 MB'
+      );
       expect(loadImage).not.toHaveBeenCalled();
+      expect(createObjectURL).not.toHaveBeenCalled();
     });
   });
 });

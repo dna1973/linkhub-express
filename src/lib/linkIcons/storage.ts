@@ -1,4 +1,4 @@
-import { canvasToBlob, scaleCanvas } from '@/utils/cropImage';
+import { canvasToBlob } from '@/utils/cropImage';
 import { LINK_ICONS_PUBLIC_PREFIX } from './storagePrefix';
 
 /*
@@ -7,10 +7,15 @@ import { LINK_ICONS_PUBLIC_PREFIX } from './storagePrefix';
  */
 
 export const LINK_ICON_MAX_BYTES = 512 * 1024;
+/** Teto do arquivo SVG antes de ler: o PNG convertido ainda é conferido contra LINK_ICON_MAX_BYTES. */
+export const LINK_ICON_SVG_MAX_BYTES = 1024 * 1024;
 export const LINK_ICON_SIZE = 256;
+const LOAD_IMAGE_TIMEOUT_MS = 10_000;
+const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
 
 const ERROR_TYPE = 'Use PNG, WebP ou SVG';
 const ERROR_SIZE = 'A imagem deve ter no máximo 512 KB';
+const ERROR_SVG_SIZE = 'O SVG deve ter no máximo 1 MB';
 const ERROR_READ_SVG = 'Não foi possível ler este SVG';
 const ERROR_CONVERT_SVG = 'Não foi possível converter este SVG';
 const ERROR_READ_IMAGE = 'Não foi possível ler esta imagem';
@@ -79,11 +84,15 @@ function kindOf(file: File): IconFileKind | null {
   return EXTENSION_KINDS[ext] ?? null;
 }
 
-/** Tipo pelo MIME, com reserva na extensão. O SVG não tem limite aqui: o PNG convertido é que é conferido. */
+/** Tipo pelo MIME, com reserva na extensão. PNG/WebP até 512 KB; SVG até 1 MB (o PNG convertido é conferido depois). */
 export function validateIconFile(file: File): IconFileValidation {
   const kind = kindOf(file);
   if (!kind) return { ok: false, error: ERROR_TYPE };
-  if (kind !== 'svg' && file.size > LINK_ICON_MAX_BYTES) return { ok: false, error: ERROR_SIZE };
+  if (kind === 'svg') {
+    if (file.size > LINK_ICON_SVG_MAX_BYTES) return { ok: false, error: ERROR_SVG_SIZE };
+  } else if (file.size > LINK_ICON_MAX_BYTES) {
+    return { ok: false, error: ERROR_SIZE };
+  }
   return { ok: true, kind };
 }
 
@@ -92,7 +101,8 @@ function parseSvgRoot(svgText: string): Element | null {
   const doc = new DOMParser().parseFromString(svgText, 'image/svg+xml');
   const root = doc.documentElement;
   // O jsdom devolve <parsererror> como raiz; o Chrome o insere dentro da raiz
-  if (!root || root.localName !== 'svg' || doc.getElementsByTagName('parsererror').length > 0) return null;
+  if (!root || root.localName !== 'svg' || root.namespaceURI !== SVG_NAMESPACE) return null;
+  if (doc.getElementsByTagName('parsererror').length > 0) return null;
   return root;
 }
 
@@ -168,11 +178,23 @@ function readFileAsText(file: Blob): Promise<string> {
   });
 }
 
+/** Carrega a imagem; desiste em 10 s (imagem que nunca termina de decodificar não trava o upload). */
 function defaultLoadImage(src: string): Promise<LoadedImage> {
   return new Promise((resolve, reject) => {
     const image = new Image();
-    image.onload = () => resolve(image);
-    image.onerror = () => reject(new Error(ERROR_READ_IMAGE));
+    const timer = setTimeout(() => {
+      image.onload = null;
+      image.onerror = null;
+      reject(new Error(ERROR_READ_IMAGE));
+    }, LOAD_IMAGE_TIMEOUT_MS);
+    image.onload = () => {
+      clearTimeout(timer);
+      resolve(image);
+    };
+    image.onerror = () => {
+      clearTimeout(timer);
+      reject(new Error(ERROR_READ_IMAGE));
+    };
     image.src = src;
   });
 }
@@ -186,6 +208,7 @@ function imageSize(image: LoadedImage): { width: number; height: number } {
  * Carrega sempre por objectURL blob: (nunca data:) e a revoga no fim.
  */
 export async function rasterizeSvgToPng(file: Blob, size = LINK_ICON_SIZE, loadImage: LoadImage = defaultLoadImage): Promise<Blob> {
+  if (file.size > LINK_ICON_SVG_MAX_BYTES) throw new Error(ERROR_SVG_SIZE);
   let text: string;
   try {
     text = await readFileAsText(file);
@@ -212,8 +235,13 @@ export async function rasterizeSvgToPng(file: Blob, size = LINK_ICON_SIZE, loadI
   }
 }
 
-/** PNG/WebP acima de 256 px são reduzidos no tipo original; sem canvas 2D (ou se já cabe), vai o arquivo original. */
-async function downscaleRaster(file: File, contentType: string, loadImage: LoadImage): Promise<Blob> {
+/**
+ * PNG/WebP são sempre reencodados no tipo original quando há canvas 2D, o que tira EXIF/GPS antes do
+ * bucket público. Acima de 256 px, o lado maior vira 256 px. Desenha direto no canvas final: um canvas
+ * do tamanho original falha em silêncio no iOS acima de ~16,7 MP. Sem canvas 2D ou com toBlob null,
+ * vai o arquivo original.
+ */
+async function reencodeRaster(file: File, contentType: string, loadImage: LoadImage): Promise<Blob> {
   const url = URL.createObjectURL(file);
   try {
     let image: LoadedImage;
@@ -224,17 +252,17 @@ async function downscaleRaster(file: File, contentType: string, loadImage: LoadI
     }
 
     const { width, height } = imageSize(image);
-    if (Math.max(width, height) <= LINK_ICON_SIZE) return file;
-
+    const scale = Math.min(1, LINK_ICON_SIZE / Math.max(width, height));
     const canvas = document.createElement('canvas');
-    canvas.width = width;
-    canvas.height = height;
+    canvas.width = Math.max(1, Math.round(width * scale));
+    canvas.height = Math.max(1, Math.round(height * scale));
     const ctx = canvas.getContext('2d');
     if (!ctx) return file;
-    ctx.drawImage(image as unknown as CanvasImageSource, 0, 0, width, height);
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(image as unknown as CanvasImageSource, 0, 0, canvas.width, canvas.height);
 
     try {
-      return await canvasToBlob(scaleCanvas(canvas, LINK_ICON_SIZE), contentType);
+      return await canvasToBlob(canvas, contentType);
     } catch {
       // O original já passou pelo limite de 512 KB: serve como está
       return file;
@@ -246,7 +274,7 @@ async function downscaleRaster(file: File, contentType: string, loadImage: LoadI
 
 /**
  * Prepara o arquivo para o upload: valida, converte SVG em PNG de 256 px (conferido contra 512 KB)
- * e reduz PNG/WebP grandes para 256 px. Erros saem como Error com a mensagem para o usuário.
+ * e reencoda PNG/WebP (reduzidos para 256 px quando maiores). Erros saem como Error com a mensagem para o usuário.
  */
 export async function prepareIconUpload(
   file: File,
@@ -262,7 +290,7 @@ export async function prepareIconUpload(
   }
 
   const contentType = `image/${check.kind}`;
-  const blob = await downscaleRaster(file, contentType, loadImage);
+  const blob = await reencodeRaster(file, contentType, loadImage);
   // Navegador sem codificador WebP no canvas (Safari) devolve PNG: o tipo acompanha o que saiu
   if (blob !== file && blob.type === 'image/png' && contentType !== 'image/png') {
     return { blob, ext: 'png', contentType: 'image/png' };
