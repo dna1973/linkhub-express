@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCurrentProfile } from '@/contexts/CurrentProfileContext';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -43,6 +44,11 @@ import { InsightsPanel, useAnalyticsInsights } from '@/components/analytics/Insi
 const Analytics = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  // Estatísticas do perfil atual (o seletor da sidebar troca)
+  const { currentProfile } = useCurrentProfile();
+  const profileId = currentProfile?.id ?? null;
+  // Só a carga mais recente mexe na tela: trocar de perfil ou de período descarta a anterior
+  const requestRef = useRef(0);
   const [loading, setLoading] = useState(true);
   const [timeRange, setTimeRange] = useState('7d');
   const [profileViews, setProfileViews] = useState([]);
@@ -63,8 +69,9 @@ const Analytics = () => {
       navigate('/auth');
       return;
     }
-    loadAnalytics();
-  }, [user, navigate, timeRange]);
+    if (!profileId) return;
+    loadAnalytics(profileId);
+  }, [user, navigate, timeRange, profileId]);
 
   const getDateRange = () => {
     const days = timeRange === '24h' ? 1 : timeRange === '7d' ? 7 : timeRange === '30d' ? 30 : 90;
@@ -73,8 +80,8 @@ const Analytics = () => {
     return { startDate, endDate };
   };
 
-  const loadAnalytics = async () => {
-    if (!user) return;
+  const loadAnalytics = async (id: string) => {
+    const request = ++requestRef.current;
     setLoading(true);
 
     const { startDate, endDate } = getDateRange();
@@ -89,7 +96,7 @@ const Analytics = () => {
       const { data: views } = await supabase
         .from('profile_views')
         .select('*')
-        .eq('profile_id', user.id)
+        .eq('profile_id', id)
         .gte('viewed_at', startDate.toISOString())
         .lte('viewed_at', endDate.toISOString())
         .order('viewed_at', { ascending: true });
@@ -98,7 +105,7 @@ const Analytics = () => {
       const { data: previousViews } = await supabase
         .from('profile_views')
         .select('*')
-        .eq('profile_id', user.id)
+        .eq('profile_id', id)
         .gte('viewed_at', previousStartDate.toISOString())
         .lte('viewed_at', previousEndDate.toISOString());
 
@@ -106,7 +113,7 @@ const Analytics = () => {
       const { data: userLinks } = await supabase
         .from('links')
         .select('id, title, clicks')
-        .eq('user_id', user.id);
+        .eq('user_id', id);
 
       // Buscar cliques nos links para análise temporal (período atual)
       const { data: clicks, error: clicksError } = await supabase
@@ -122,7 +129,7 @@ const Analytics = () => {
           referrer,
           links(title, url)
         `)
-        .eq('profile_id', user.id)
+        .eq('profile_id', id)
         .gte('clicked_at', startDate.toISOString())
         .lte('clicked_at', endDate.toISOString())
         .order('clicked_at', { ascending: true });
@@ -131,13 +138,16 @@ const Analytics = () => {
       const { data: previousClicks } = await supabase
         .from('link_clicks')
         .select('id')
-        .eq('profile_id', user.id)
+        .eq('profile_id', id)
         .gte('clicked_at', previousStartDate.toISOString())
         .lte('clicked_at', previousEndDate.toISOString());
 
       if (clicksError) {
         console.error('❌ Erro ao buscar cliques:', clicksError);
       }
+
+      // Outra carga começou (troca de perfil ou de período): esta não mexe mais na tela
+      if (request !== requestRef.current) return;
 
       // Calcular total de cliques somando os cliques de cada link
       const totalClicksSum = userLinks?.reduce((sum, link) => sum + (link.clicks || 0), 0) || 0;
@@ -167,7 +177,7 @@ const Analytics = () => {
     } catch (error) {
       console.error('Erro ao carregar analytics:', error);
     } finally {
-      setLoading(false);
+      if (request === requestRef.current) setLoading(false);
     }
   };
 
