@@ -1,5 +1,5 @@
 import { canvasToBlob } from '@/utils/cropImage';
-import { LINK_ICONS_PUBLIC_PREFIX } from './storagePrefix';
+import { LINK_ICON_UPLOAD_PATH_RE, LINK_ICONS_PUBLIC_PREFIX } from './storagePrefix';
 
 /*
  * Validação, conversão de SVG e caminhos dos ícones enviados pelos donos dos links.
@@ -41,8 +41,9 @@ export interface PreparedIconUpload {
 }
 
 /**
- * Caminho do arquivo no bucket a partir da URL pública, só se for do próprio usuário.
- * Devolve null para outro usuário, outro bucket, URL de fora do storage ou caminho com "..".
+ * Caminho do arquivo no bucket a partir da URL pública, só se for do próprio usuário e no mesmo formato
+ * que o app grava (LINK_ICON_UPLOAD_PATH_RE), para validação e exclusão aceitarem exatamente o mesmo.
+ * Devolve null para outro usuário, outro bucket, URL de fora do storage ou caminho fora do formato.
  */
 export function linkIconPathFromUrl(
   url: string | null | undefined,
@@ -51,16 +52,9 @@ export function linkIconPathFromUrl(
 ): string | null {
   if (!url || !userId || !publicPrefix || !url.startsWith(publicPrefix)) return null;
 
-  const raw = url.slice(publicPrefix.length).split(/[?#]/)[0];
-  let path: string;
-  try {
-    path = decodeURIComponent(raw);
-  } catch {
-    return null;
-  }
-
-  if (path.includes('..') || path.includes('\\')) return null;
-  if (!path.startsWith(`${userId}/`) || path.length === userId.length + 1) return null;
+  // Sem decodificar nem cortar ?/#: a regex do upload já recusa %, ?, #, \ e ..
+  const path = url.slice(publicPrefix.length);
+  if (!LINK_ICON_UPLOAD_PATH_RE.test(path) || !path.startsWith(`${userId}/`)) return null;
   return path;
 }
 

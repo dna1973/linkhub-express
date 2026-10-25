@@ -35,29 +35,37 @@ function parseRoot(svgText: string): Element {
 }
 
 describe('linkIconPathFromUrl', () => {
-  it('devolve o caminho quando o arquivo é do próprio usuário', () => {
-    expect(linkIconPathFromUrl(`${LINK_ICONS_PUBLIC_PREFIX}u1/7-123.png`, 'u1', LINK_ICONS_PUBLIC_PREFIX)).toBe('u1/7-123.png');
+  const path = (rest: string, userId = 'u1') => linkIconPathFromUrl(`${LINK_ICONS_PUBLIC_PREFIX}${rest}`, userId, LINK_ICONS_PUBLIC_PREFIX);
+
+  it('devolve o caminho no formato do upload quando o arquivo é do próprio usuário', () => {
+    expect(path('u1/7-123.png')).toBe('u1/7-123.png');
+    expect(path('u1/7-123.webp')).toBe('u1/7-123.webp');
+    const uuid = '3f2a9c1e-0b7d-4e5f-9a8b-1c2d3e4f5a6b';
+    expect(path(`${uuid}/42-1729850000000.png`, uuid)).toBe(`${uuid}/42-1729850000000.png`);
   });
 
   it('recusa o arquivo de outro usuário', () => {
-    expect(linkIconPathFromUrl(`${LINK_ICONS_PUBLIC_PREFIX}u2/7-123.png`, 'u1', LINK_ICONS_PUBLIC_PREFIX)).toBeNull();
+    expect(path('u2/7-123.png')).toBeNull();
     // Prefixo do id não basta: "u10/" não é "u1/"
-    expect(linkIconPathFromUrl(`${LINK_ICONS_PUBLIC_PREFIX}u10/7-123.png`, 'u1', LINK_ICONS_PUBLIC_PREFIX)).toBeNull();
+    expect(path('u10/7-123.png')).toBeNull();
   });
 
-  it('recusa caminho com ..', () => {
-    expect(linkIconPathFromUrl(`${LINK_ICONS_PUBLIC_PREFIX}u1/../u2/7-123.png`, 'u1', LINK_ICONS_PUBLIC_PREFIX)).toBeNull();
-    expect(linkIconPathFromUrl(`${LINK_ICONS_PUBLIC_PREFIX}u1/%2e%2e/u2/7-123.png`, 'u1', LINK_ICONS_PUBLIC_PREFIX)).toBeNull();
+  it('recusa nome fora do formato <link_id>-<timestamp>.<png|webp>', () => {
+    expect(path('u1/a.png')).toBeNull();
+    expect(path('u1/7-123.svg')).toBeNull();
+    expect(path('u1/7-123.PNG')).toBeNull();
+    expect(path('u1/sub/7-123.png')).toBeNull();
+    expect(path('u1/')).toBeNull();
   });
 
-  it('recusa barra invertida e caminho vazio depois do usuário', () => {
-    expect(linkIconPathFromUrl(`${LINK_ICONS_PUBLIC_PREFIX}u1/a\\b.png`, 'u1', LINK_ICONS_PUBLIC_PREFIX)).toBeNull();
-    expect(linkIconPathFromUrl(`${LINK_ICONS_PUBLIC_PREFIX}u1/`, 'u1', LINK_ICONS_PUBLIC_PREFIX)).toBeNull();
-  });
-
-  it('ignora query e fragmento da URL', () => {
-    expect(linkIconPathFromUrl(`${LINK_ICONS_PUBLIC_PREFIX}u1/7-123.png?t=99`, 'u1', LINK_ICONS_PUBLIC_PREFIX)).toBe('u1/7-123.png');
-    expect(linkIconPathFromUrl(`${LINK_ICONS_PUBLIC_PREFIX}u1/7-123.png#x`, 'u1', LINK_ICONS_PUBLIC_PREFIX)).toBe('u1/7-123.png');
+  it('recusa .., %, barra invertida, query e fragmento (sem decodificar nem cortar)', () => {
+    expect(path('u1/../u2/7-123.png')).toBeNull();
+    expect(path('u1/%2e%2e/7-123.png')).toBeNull();
+    expect(path('u1/7-123%2Epng')).toBeNull();
+    expect(path('u1\\7-123.png')).toBeNull();
+    expect(path('u1/7\\-123.png')).toBeNull();
+    expect(path('u1/7-123.png?t=99')).toBeNull();
+    expect(path('u1/7-123.png#x')).toBeNull();
   });
 
   it('recusa URL de outro bucket ou de fora do storage', () => {
@@ -65,6 +73,7 @@ describe('linkIconPathFromUrl', () => {
     expect(linkIconPathFromUrl(`${otherBucket}u1/7-123.png`, 'u1', LINK_ICONS_PUBLIC_PREFIX)).toBeNull();
     expect(linkIconPathFromUrl('https://example.com/u1/7-123.png', 'u1', LINK_ICONS_PUBLIC_PREFIX)).toBeNull();
     expect(linkIconPathFromUrl(null, 'u1', LINK_ICONS_PUBLIC_PREFIX)).toBeNull();
+    expect(path('u1/7-123.png', '')).toBeNull();
   });
 });
 
