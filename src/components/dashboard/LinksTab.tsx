@@ -4,7 +4,6 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Plus, GripVertical, Trash2, ExternalLink, Pencil } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/contexts/AuthContext';
 import { LinkClicksDialog } from './LinkClicksDialog';
 import { AddLinkDialog } from './links/AddLinkDialog';
 import { EditLinkDialog } from './links/EditLinkDialog';
@@ -162,7 +161,8 @@ const SortableLink: React.FC<SortableLinkProps> = ({ link, onDelete, onEdit, pro
 };
 
 export const LinksTab: React.FC<LinksTabProps> = ({ profile, onProfileUpdate }) => {
-  const { user } = useAuth();
+  // Perfil atual: os links e a pasta dos ícones são dele (links.user_id guarda o id do perfil)
+  const profileId: string | undefined = profile?.id;
   const { toast } = useToast();
   const [links, setLinks] = useState<Link[]>([]);
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -170,18 +170,18 @@ export const LinksTab: React.FC<LinksTabProps> = ({ profile, onProfileUpdate }) 
   const [editingLink, setEditingLink] = useState<Link | null>(null);
 
   useEffect(() => {
-    if (user) {
+    if (profileId) {
       loadLinks();
     }
-  }, [user]);
+  }, [profileId]);
 
   const loadLinks = async () => {
-    if (!user) return;
+    if (!profileId) return;
 
     const { data, error } = await supabase
       .from('links')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('user_id', profileId)
       .order('position');
 
     if (!error && data) {
@@ -191,7 +191,7 @@ export const LinksTab: React.FC<LinksTabProps> = ({ profile, onProfileUpdate }) 
 
   // O AddLinkDialog já validou a URL e decidiu o título (digitado ou automático)
   const handleAddLink = async (data: { title: string; url: string }): Promise<boolean> => {
-    if (!user) return false;
+    if (!profileId) return false;
     // Defesa: o diálogo já recusa, mas o insert não depende disso
     if (!isValidUrl(data.url)) return false;
 
@@ -210,7 +210,7 @@ export const LinksTab: React.FC<LinksTabProps> = ({ profile, onProfileUpdate }) 
     const { error } = await supabase
       .from('links')
       .insert([{
-        user_id: user.id,
+        user_id: profileId,
         title: sanitizedTitle,
         url: data.url.trim(),
         position: maxPosition + 1,
@@ -248,8 +248,8 @@ export const LinksTab: React.FC<LinksTabProps> = ({ profile, onProfileUpdate }) 
 
     if (!error) {
       // Ícone enviado: apaga o arquivo depois do delete; a falha só vai para o console
-      if (link.icon_type === 'upload' && user) {
-        const path = linkIconPathFromUrl(link.icon_value, user.id, LINK_ICONS_PUBLIC_PREFIX);
+      if (link.icon_type === 'upload' && profileId) {
+        const path = linkIconPathFromUrl(link.icon_value, profileId, LINK_ICONS_PUBLIC_PREFIX);
         if (path) {
           try {
             const { error: removeError } = await supabase.storage.from(LINK_ICONS_BUCKET).remove([path]);
@@ -344,7 +344,7 @@ export const LinksTab: React.FC<LinksTabProps> = ({ profile, onProfileUpdate }) 
         open={showEditDialog}
         onOpenChange={setShowEditDialog}
         link={editingLinkCurrent}
-        userId={user?.id ?? ''}
+        profileId={profileId ?? ''}
         onSaved={handleEditSaved}
       />
 
@@ -376,7 +376,7 @@ export const LinksTab: React.FC<LinksTabProps> = ({ profile, onProfileUpdate }) 
           <SortableContext items={links.map(link => link.id)} strategy={verticalListSortingStrategy}>
             <div className="space-y-2">
               {links.map((link) => (
-                <SortableLink key={link.id} link={link} onDelete={handleDeleteLink} onEdit={handleEditLink} profileId={user!.id} />
+                <SortableLink key={link.id} link={link} onDelete={handleDeleteLink} onEdit={handleEditLink} profileId={profileId ?? ''} />
               ))}
             </div>
           </SortableContext>

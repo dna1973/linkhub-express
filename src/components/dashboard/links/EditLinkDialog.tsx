@@ -29,7 +29,8 @@ export interface EditLinkDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   link: EditableLink | null;
-  userId: string;
+  /** Pasta do perfil no bucket dos ícones: <profileId>/<link_id>-<ts>.<ext>. */
+  profileId: string;
   /** Chamado depois de cada gravação que deu certo (quem usa recarrega a lista). */
   onSaved: () => void;
 }
@@ -104,7 +105,7 @@ function incrementCount(map: Map<number, number>, id: number, delta: number) {
  * a partir do que está gravado. Cada tarefa guarda o id do link em que começou: trocar de link no meio
  * não grava nem apaga nada no outro.
  */
-export const EditLinkDialog: React.FC<EditLinkDialogProps> = ({ open, onOpenChange, link, userId, onSaved }) => {
+export const EditLinkDialog: React.FC<EditLinkDialogProps> = ({ open, onOpenChange, link, profileId, onSaved }) => {
   const { toast } = useToast();
   const [fields, setFields] = useState<Fields>({ title: '', url: '' });
   const [icon, setIcon] = useState<IconState>({ icon_type: 'auto', icon_value: null, accent_color: null });
@@ -132,8 +133,8 @@ export const EditLinkDialog: React.FC<EditLinkDialogProps> = ({ open, onOpenChan
   const titleRef = useRef<HTMLInputElement>(null);
   const onSavedRef = useRef(onSaved);
   onSavedRef.current = onSaved;
-  const userIdRef = useRef(userId);
-  userIdRef.current = userId;
+  const profileIdRef = useRef(profileId);
+  profileIdRef.current = profileId;
   const mounted = useRef(true);
   useEffect(() => {
     mounted.current = true;
@@ -318,7 +319,7 @@ export const EditLinkDialog: React.FC<EditLinkDialogProps> = ({ open, onOpenChan
     savedByIdRef.current.set(ctx.linkId, { ...saved, ...next });
     if (isActiveLink(ctx)) applyIcon(next);
     if (saved.icon_type === 'upload' && saved.icon_value !== next.icon_value) {
-      const oldPath = linkIconPathFromUrl(saved.icon_value, userIdRef.current, LINK_ICONS_PUBLIC_PREFIX);
+      const oldPath = linkIconPathFromUrl(saved.icon_value, profileIdRef.current, LINK_ICONS_PUBLIC_PREFIX);
       if (oldPath) await removeIconFile(oldPath);
     }
     onSavedRef.current();
@@ -368,7 +369,7 @@ export const EditLinkDialog: React.FC<EditLinkDialogProps> = ({ open, onOpenChan
   // Os erros rejeitam com a mensagem legível, que o IconPicker mostra (sem toast, para não duplicar).
   const handleUpload = async (file: File) => {
     const ctx = captureContext();
-    const owner = userIdRef.current;
+    const owner = profileIdRef.current;
     if (!ctx || !owner) throw new Error(UPLOAD_ERROR);
     if (isBusy(ctx.linkId)) return;
     setBusy(ctx.linkId, true);

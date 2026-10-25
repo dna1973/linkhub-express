@@ -25,22 +25,23 @@ interface ProfilePreviewProps {
  */
 export const ProfilePreview: React.FC<ProfilePreviewProps> = ({ profile, headerEnd, className }) => {
   const { user } = useAuth();
-  const userId = user?.id;
+  // Links do perfil recebido (o atual), não da conta. A conta só dá o nome reserva (e-mail).
+  const profileId: string | undefined = profile?.id;
   // Sempre o customTheme do store, para a prévia acompanhar o editor em tempo real
   const customTheme = useDesignStore((state) => state.customTheme);
   const { device, setDeviceId } = useSelectedDevice();
   const [links, setLinks] = useState<any[]>([]);
 
-  // Links: ao montar, quando o usuário muda e no evento linksUpdated. Mudar o tema não busca de novo.
+  // Links: ao montar, quando o perfil muda e no evento linksUpdated. Mudar o tema não busca de novo.
   useEffect(() => {
-    if (!userId) return;
+    if (!profileId) return;
     let active = true;
 
     const loadLinks = async () => {
       const { data, error } = await supabase
         .from('links')
         .select('*')
-        .eq('user_id', userId)
+        .eq('user_id', profileId)
         .eq('is_visible', true)
         .order('position');
 
@@ -55,7 +56,7 @@ export const ProfilePreview: React.FC<ProfilePreviewProps> = ({ profile, headerE
       active = false;
       window.removeEventListener('linksUpdated', loadLinks);
     };
-  }, [userId]);
+  }, [profileId]);
 
   const previewProfile = { ...profile, full_name: profile?.full_name || user?.email?.split('@')[0] };
   // Horário e ícones legíveis também em fundo claro (Grafite, Blush)

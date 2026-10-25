@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { LINK_ICONS_PUBLIC_PREFIX } from '@/lib/linkIcons/storagePrefix';
 import { LinksTab } from './LinksTab';
 
-const UPLOAD_URL = `${LINK_ICONS_PUBLIC_PREFIX}u1/7-123.png`;
+const UPLOAD_URL = `${LINK_ICONS_PUBLIC_PREFIX}p1/7-123.png`;
 
 const mocks = vi.hoisted(() => {
   const storage = { remove: vi.fn() };
@@ -17,13 +17,10 @@ const mocks = vi.hoisted(() => {
     insert: vi.fn(),
     update: vi.fn(),
     select: vi.fn(),
+    selectEq: vi.fn(),
   };
 });
 
-vi.mock('@/contexts/AuthContext', () => {
-  const user = { id: 'u1', email: 'dna@example.com', app_metadata: {} };
-  return { useAuth: () => ({ user }) };
-});
 vi.mock('@/hooks/use-toast', () => ({ useToast: () => ({ toast: mocks.toast }) }));
 vi.mock('@/hooks/useAutosave', () => ({ useAutosave: () => 'idle' }));
 vi.mock('@/lib/supabase', () => ({
@@ -31,12 +28,15 @@ vi.mock('@/lib/supabase', () => ({
     storage: { from: mocks.storageFrom },
     from: vi.fn(() => ({
       select: () => ({
-        eq: () => ({
-          order: async () => {
-            mocks.select();
-            return { data: mocks.links, error: null };
-          },
-        }),
+        eq: (column: string, value: unknown) => {
+          mocks.selectEq(column, value);
+          return {
+            order: async () => {
+              mocks.select();
+              return { data: mocks.links, error: null };
+            },
+          };
+        },
       }),
       delete: () => ({ eq: async (column: string, value: unknown) => mocks.deleteEq(column, value) }),
       insert: async (rows: unknown) => mocks.insert(rows),
@@ -56,6 +56,7 @@ beforeEach(() => {
   mocks.insert.mockReset().mockReturnValue({ error: null });
   mocks.update.mockReset().mockReturnValue({ error: null });
   mocks.select.mockReset();
+  mocks.selectEq.mockReset();
   // O seletor de ícone baixa o catálogo de marcas ao abrir
   vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, status: 200, json: async () => [] })));
   mocks.links = [
@@ -81,11 +82,16 @@ afterEach(() => {
 });
 
 async function renderTab() {
-  render(<LinksTab profile={{ username: 'dna' }} onProfileUpdate={vi.fn()} />);
+  render(<LinksTab profile={{ id: 'p1', username: 'dna' }} onProfileUpdate={vi.fn()} />);
   await screen.findByText('Logo');
 }
 
 describe('LinksTab', () => {
+  it('lista os links do perfil recebido', async () => {
+    await renderTab();
+    expect(mocks.selectEq).toHaveBeenCalledWith('user_id', 'p1');
+  });
+
   it('badges com o plural certo dos cliques', async () => {
     await renderTab();
     expect(screen.getByText('0 cliques')).toBeTruthy();
@@ -118,7 +124,7 @@ describe('LinksTab', () => {
     await renderTab();
     fireEvent.click(screen.getAllByRole('button', { name: 'Excluir link' })[2]);
 
-    await waitFor(() => expect(mocks.storage.remove).toHaveBeenCalledWith(['u1/7-123.png']));
+    await waitFor(() => expect(mocks.storage.remove).toHaveBeenCalledWith(['p1/7-123.png']));
     expect(mocks.deleteEq).toHaveBeenCalledWith('id', 7);
     expect(mocks.storageFrom).toHaveBeenCalledWith('linkhub-link-icons');
     expect(mocks.storage.remove.mock.invocationCallOrder[0]).toBeGreaterThan(
@@ -145,8 +151,8 @@ describe('LinksTab', () => {
     expect(mocks.storage.remove).not.toHaveBeenCalled();
   });
 
-  it('upload de outro usuário não é apagado', async () => {
-    (mocks.links[2] as { icon_value: string }).icon_value = `${LINK_ICONS_PUBLIC_PREFIX}u2/7-123.png`;
+  it('ícone na pasta de outro perfil não é apagado', async () => {
+    (mocks.links[2] as { icon_value: string }).icon_value = `${LINK_ICONS_PUBLIC_PREFIX}p2/7-123.png`;
     await renderTab();
     fireEvent.click(screen.getAllByRole('button', { name: 'Excluir link' })[2]);
 
@@ -193,7 +199,7 @@ describe('LinksTab', () => {
     await waitFor(() => expect(mocks.insert).toHaveBeenCalled());
     expect(mocks.insert).toHaveBeenCalledWith([
       {
-        user_id: 'u1',
+        user_id: 'p1',
         title: 'Meus projetos',
         url: 'https://github.com/dna',
         position: 3,

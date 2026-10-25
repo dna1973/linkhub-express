@@ -6,6 +6,8 @@ import { safeOpenUrl } from '@/utils/sanitize';
 import { supabase } from '@/lib/supabase';
 import { ProfilePreview } from './ProfilePreview';
 
+const mocks = vi.hoisted(() => ({ eq: vi.fn() }));
+
 vi.mock('@/contexts/AuthContext', () => {
   // Mesmo objeto a cada render, como no AuthContext real
   const user = { id: 'u1', email: 'dna@example.com' };
@@ -18,7 +20,10 @@ vi.mock('@/lib/supabase', () => {
   // Só a leitura de links existe: qualquer gravação (update, insert) quebraria o teste
   const chain: any = {};
   chain.select = () => chain;
-  chain.eq = () => chain;
+  chain.eq = (...args: unknown[]) => {
+    mocks.eq(...args);
+    return chain;
+  };
   chain.order = () =>
     Promise.resolve({ data: [{ id: 7, title: 'Meu site', url: 'https://youtube.com/@x', position: 0 }], error: null });
   return { supabase: { from: vi.fn(() => chain) } };
@@ -27,12 +32,13 @@ vi.mock('@/lib/supabase', () => {
 beforeEach(() => {
   vi.mocked(supabase.from).mockClear();
   vi.mocked(safeOpenUrl).mockClear();
+  mocks.eq.mockClear();
 });
 afterEach(() => cleanup());
 
 describe('ProfilePreview', () => {
   it('busca os links uma vez ao montar e não busca de novo quando o tema muda', async () => {
-    render(<ProfilePreview profile={{ full_name: 'Daniel', username: 'dna' }} />);
+    render(<ProfilePreview profile={{ id: 'p1', full_name: 'Daniel', username: 'dna' }} />);
     await screen.findByRole('button', { name: /Meu site/ });
     expect(supabase.from).toHaveBeenCalledTimes(1);
 
@@ -44,7 +50,7 @@ describe('ProfilePreview', () => {
   });
 
   it('busca de novo no evento linksUpdated', async () => {
-    render(<ProfilePreview profile={{ full_name: 'Daniel', username: 'dna' }} />);
+    render(<ProfilePreview profile={{ id: 'p1', full_name: 'Daniel', username: 'dna' }} />);
     await screen.findByRole('button', { name: /Meu site/ });
     act(() => {
       window.dispatchEvent(new Event('linksUpdated'));
@@ -53,7 +59,7 @@ describe('ProfilePreview', () => {
   });
 
   it('clicar num link só abre o endereço, sem registrar clique', async () => {
-    render(<ProfilePreview profile={{ full_name: 'Daniel', username: 'dna' }} />);
+    render(<ProfilePreview profile={{ id: 'p1', full_name: 'Daniel', username: 'dna' }} />);
     fireEvent.click(await screen.findByRole('button', { name: /Meu site/ }));
     expect(safeOpenUrl).toHaveBeenCalledWith('https://youtube.com/@x');
     expect(supabase.from).toHaveBeenCalledTimes(1);
@@ -61,13 +67,13 @@ describe('ProfilePreview', () => {
   });
 
   it('sem nome no perfil, usa o início do e-mail', async () => {
-    render(<ProfilePreview profile={{ username: 'dna' }} />);
+    render(<ProfilePreview profile={{ id: 'p1', username: 'dna' }} />);
     expect(await screen.findByText('dna')).toBeTruthy();
   });
 
   it('desenha o perfil no aparelho escolhido, com o conteúdo abaixo da barra de status', async () => {
     window.localStorage.clear();
-    render(<ProfilePreview profile={{ full_name: 'Daniel', username: 'dna' }} />);
+    render(<ProfilePreview profile={{ id: 'p1', full_name: 'Daniel', username: 'dna' }} />);
     await screen.findByRole('button', { name: /Meu site/ });
     expect(screen.getByTestId('device-frame').getAttribute('data-device')).toBe('iphone-16-pro');
     expect(screen.getByLabelText('Aparelho da prévia')).toBeTruthy();
@@ -80,7 +86,7 @@ describe('ProfilePreview', () => {
       const theme = useDesignStore.getState().customTheme;
       useDesignStore.getState().setCustomTheme({ ...theme, background: { ...theme.background, type: 'solid', color: '#ffffff' } });
     });
-    const { unmount } = render(<ProfilePreview profile={{ full_name: 'Daniel', username: 'dna' }} />);
+    const { unmount } = render(<ProfilePreview profile={{ id: 'p1', full_name: 'Daniel', username: 'dna' }} />);
     await screen.findByRole('button', { name: /Meu site/ });
     expect(screen.getByTestId('device-status-bar').style.color).toBe('rgb(0, 0, 0)');
     unmount();
@@ -89,32 +95,53 @@ describe('ProfilePreview', () => {
       const theme = useDesignStore.getState().customTheme;
       useDesignStore.getState().setCustomTheme({ ...theme, background: { ...theme.background, type: 'solid', color: '#111111' } });
     });
-    render(<ProfilePreview profile={{ full_name: 'Daniel', username: 'dna' }} />);
+    render(<ProfilePreview profile={{ id: 'p1', full_name: 'Daniel', username: 'dna' }} />);
     await screen.findByRole('button', { name: /Meu site/ });
     expect(screen.getByTestId('device-status-bar').style.color).toBe('rgb(255, 255, 255)');
   });
 
   it('mostra o QR code com o endereço público do perfil gravado', async () => {
-    render(<ProfilePreview profile={{ full_name: 'Daniel', username: 'dna' }} />);
+    render(<ProfilePreview profile={{ id: 'p1', full_name: 'Daniel', username: 'dna' }} />);
     expect(await screen.findByRole('img', { name: /^QR code para abrir .*\/dna$/ })).toBeTruthy();
   });
 
   it('perfil gravado com show_qr_code false: a prévia fica sem QR code', async () => {
-    render(<ProfilePreview profile={{ full_name: 'Daniel', username: 'dna', show_qr_code: false }} />);
+    render(<ProfilePreview profile={{ id: 'p1', full_name: 'Daniel', username: 'dna', show_qr_code: false }} />);
     await screen.findByRole('button', { name: /Meu site/ });
     expect(screen.queryByRole('img', { name: /QR code/ })).toBeNull();
   });
 
   it('o link do YouTube aparece com a máscara da marca na prévia', async () => {
-    render(<ProfilePreview profile={{ full_name: 'Daniel', username: 'dna' }} />);
+    render(<ProfilePreview profile={{ id: 'p1', full_name: 'Daniel', username: 'dna' }} />);
     const mask = (await screen.findByRole('button', { name: /Meu site/ })).querySelector<HTMLElement>('span.link-icon-mask');
     expect(mask).not.toBeNull();
     expect(mask!.style.maskImage).toContain('youtube.svg');
   });
 
   it('o conteúdo extra do cabeçalho aparece ao lado do seletor', async () => {
-    render(<ProfilePreview profile={{ full_name: 'Daniel' }} headerEnd={<button type="button">Fechar</button>} />);
+    render(<ProfilePreview profile={{ id: 'p1', full_name: 'Daniel' }} headerEnd={<button type="button">Fechar</button>} />);
     await screen.findByRole('button', { name: /Meu site/ });
     expect(screen.getByRole('button', { name: 'Fechar' })).toBeTruthy();
+  });
+
+  it('busca os links do perfil recebido, não da conta', async () => {
+    render(<ProfilePreview profile={{ id: 'p1', full_name: 'Daniel', username: 'dna' }} />);
+    await screen.findByRole('button', { name: /Meu site/ });
+    expect(mocks.eq).toHaveBeenCalledWith('user_id', 'p1');
+    expect(mocks.eq).not.toHaveBeenCalledWith('user_id', 'u1');
+  });
+
+  it('outro perfil recebido busca os links dele', async () => {
+    const { rerender } = render(<ProfilePreview profile={{ id: 'p1', username: 'dna' }} />);
+    await screen.findByRole('button', { name: /Meu site/ });
+    rerender(<ProfilePreview profile={{ id: 'p2', username: 'loja' }} />);
+
+    await waitFor(() => expect(mocks.eq).toHaveBeenCalledWith('user_id', 'p2'));
+    expect(supabase.from).toHaveBeenCalledTimes(2);
+  });
+
+  it('sem id de perfil não busca links', () => {
+    render(<ProfilePreview profile={{ full_name: 'Daniel' }} />);
+    expect(supabase.from).not.toHaveBeenCalled();
   });
 });

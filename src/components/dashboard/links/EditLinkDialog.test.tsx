@@ -6,7 +6,7 @@ import { LINK_ICONS_PUBLIC_PREFIX } from '@/lib/linkIcons/storagePrefix';
 import { BRAND_CATALOG_URL } from '@/lib/linkIcons/vendor';
 import { EditLinkDialog, type EditLinkDialogProps, type EditableLink } from './EditLinkDialog';
 
-const OLD_UPLOAD_PATH = 'u1/5-111.png';
+const OLD_UPLOAD_PATH = 'p1/5-111.png';
 const OLD_UPLOAD_URL = `${LINK_ICONS_PUBLIC_PREFIX}${OLD_UPLOAD_PATH}`;
 
 const mocks = vi.hoisted(() => {
@@ -128,7 +128,7 @@ function renderDialog(link: Partial<EditableLink> = {}, props: Partial<EditLinkD
   const onOpenChange = vi.fn();
   const full = { ...baseLink, ...link };
   const view = render(
-    <EditLinkDialog open link={full} userId="u1" onOpenChange={onOpenChange} onSaved={onSaved} {...props} />,
+    <EditLinkDialog open link={full} profileId="p1" onOpenChange={onOpenChange} onSaved={onSaved} {...props} />,
   );
   return { ...view, onSaved, onOpenChange, link: full };
 }
@@ -196,7 +196,7 @@ describe('EditLinkDialog: título e URL', () => {
 
     // O onSaved recarrega a lista e entrega um objeto novo do mesmo link: o que está sendo digitado fica
     rerender(
-      <EditLinkDialog open link={{ ...baseLink, title: 'Canal' }} userId="u1" onOpenChange={onOpenChange} onSaved={onSaved} />,
+      <EditLinkDialog open link={{ ...baseLink, title: 'Canal' }} profileId="p1" onOpenChange={onOpenChange} onSaved={onSaved} />,
     );
     expect(titleInput().value).toBe('Digitando');
 
@@ -205,7 +205,7 @@ describe('EditLinkDialog: título e URL', () => {
       <EditLinkDialog
         open
         link={{ ...baseLink, id: 6, title: 'Site', url: 'https://exemplo.com.br' }}
-        userId="u1"
+        profileId="p1"
         onOpenChange={onOpenChange}
         onSaved={onSaved}
       />,
@@ -350,7 +350,7 @@ describe('EditLinkDialog: upload', () => {
     expect(mocks.storageFrom).toHaveBeenCalledWith('linkhub-link-icons');
 
     const [path, blob, options] = mocks.storage.upload.mock.calls[0];
-    expect(path).toMatch(/^u1\/5-\d+\.png$/);
+    expect(path).toMatch(/^p1\/5-\d+\.png$/);
     expect(blob).toBe(preparedBlob);
     expect(options).toEqual({ contentType: 'image/png' });
 
@@ -491,7 +491,7 @@ describe('EditLinkDialog: gravações no link certo e em fila', () => {
   const pick = (file: File) =>
     fireEvent.change(screen.getByLabelText('Arquivo do ícone'), { target: { files: [file] } });
   const pngFile = () => new File([new Uint8Array(10)], 'logo.png', { type: 'image/png' });
-  const B_UPLOAD_URL = `${LINK_ICONS_PUBLIC_PREFIX}u1/6-222.png`;
+  const B_UPLOAD_URL = `${LINK_ICONS_PUBLIC_PREFIX}p1/6-222.png`;
 
   it('upload que termina depois de trocar de link grava no link A e não mexe na tela de B', async () => {
     const pending = deferred<{ data: object; error: null }>();
@@ -512,16 +512,16 @@ describe('EditLinkDialog: gravações no link certo e em fila', () => {
       icon_value: B_UPLOAD_URL,
       accent_color: null,
     };
-    rerender(<EditLinkDialog open link={linkB} userId="u1" onOpenChange={onOpenChange} onSaved={onSaved} />);
+    rerender(<EditLinkDialog open link={linkB} profileId="p1" onOpenChange={onOpenChange} onSaved={onSaved} />);
     await act(async () => pending.resolve({ data: {}, error: null }));
 
     await waitFor(() => expect(mocks.update).toHaveBeenCalledTimes(1));
     const [, values, column, id] = mocks.update.mock.calls[0];
     expect(column).toBe('id');
     expect(id).toBe(5);
-    expect((values as { icon_value: string }).icon_value).toMatch(/u1\/5-\d+\.png$/);
+    expect((values as { icon_value: string }).icon_value).toMatch(/p1\/5-\d+\.png$/);
     await waitFor(() => expect(mocks.storage.remove).toHaveBeenCalledWith([OLD_UPLOAD_PATH]));
-    expect(mocks.storage.remove).not.toHaveBeenCalledWith(['u1/6-222.png']);
+    expect(mocks.storage.remove).not.toHaveBeenCalledWith(['p1/6-222.png']);
     // A tela continua a de B
     expect(titleInput().value).toBe('Outro');
     const img = screen.getByTestId('icon-picker-preview').querySelector('img') as HTMLImageElement;
@@ -638,8 +638,8 @@ describe('EditLinkDialog: validação antes de gravar', () => {
     expect(iconUpdates()[0]).toEqual({ accent_color: '#aabbcc' });
   });
 
-  it('userId vazio no upload rejeita cedo', async () => {
-    renderDialog({}, { userId: '' });
+  it('profileId vazio no upload rejeita cedo', async () => {
+    renderDialog({}, { profileId: '' });
     openTab('Upload');
     fireEvent.change(screen.getByLabelText('Arquivo do ícone'), {
       target: { files: [new File([new Uint8Array(10)], 'logo.png', { type: 'image/png' })] },
