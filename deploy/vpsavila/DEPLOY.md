@@ -143,7 +143,8 @@ npm run build
 
 - O `prebuild` roda `scripts/prepare-mediapipe.mjs`, que prepara o motor e o modelo da remoção de fundo em `public/mediapipe/<versão>/`. O primeiro build numa máquina baixa o modelo (15,6 MB) uma vez; os seguintes reaproveitam.
 - Sem internet e sem o modelo, o build **para com erro**, de propósito: um `dist` sem `mediapipe/` publicado por cima do servidor tiraria a remoção de fundo do ar. Rode de novo com internet. Só use `SKIP_MEDIAPIPE=1` se quiser mesmo publicar sem a remoção de fundo.
-- Cada deploy envia cerca de 44 MB, quase todos do MediaPipe (`dist/mediapipe/`).
+- O `prebuild` também roda `scripts/prepare-icons.mjs`, que copia os SVGs de marca (`simple-icons`) e do Lucide (`lucide-static`) de `node_modules` para `public/vendor-icons/<pacote>/<versão>/`, com um `catalog.json` em cada pasta. Se faltar algo, o build também para com erro (`SKIP_VENDOR_ICONS=1` pula, deixando os ícones quebrados).
+- Cada deploy envia cerca de 50 MB, quase todos do MediaPipe (`dist/mediapipe/`); os cerca de 5.000 SVGs dos ícones (`dist/vendor-icons/`) somam uns 6 MB.
 
 ### Migrações do banco
 
@@ -164,11 +165,16 @@ Escreva as migrações de forma idempotente (`IF NOT EXISTS` e afins), para pode
 
 O build novo sobe para `html.new` e só então troca de lugar com o atual, que fica em `html.old` para voltar se precisar. Nada é apagado antes de o novo estar inteiro no servidor. Como a troca muda a pasta montada no contêiner, o `--force-recreate` é obrigatório.
 
+O `dist` vai empacotado num `.tgz`: com os cerca de 5.000 SVGs dos ícones, o `scp -r` arquivo por arquivo fica lento. O `--format ustar` evita que o GNU tar do servidor avise de cabeçalhos `LIBARCHIVE.*` do `tar.exe` do Windows (o aviso seria inofensivo).
+
 ```powershell
-ssh avila@192.168.1.24 'cd ~/docker/linkhub-frontend && rm -rf html.new && mkdir html.new'
-scp -r dist/* avila@192.168.1.24:~/docker/linkhub-frontend/html.new/
+tar.exe --format ustar -czf "$env:TEMP\linkhub-dist.tgz" -C dist .
+scp "$env:TEMP\linkhub-dist.tgz" avila@192.168.1.24:/tmp/
+ssh avila@192.168.1.24 'cd ~/docker/linkhub-frontend && rm -rf html.new && mkdir html.new && tar -xzf /tmp/linkhub-dist.tgz -C ~/docker/linkhub-frontend/html.new'
 ssh avila@192.168.1.24 'find ~/docker/linkhub-frontend/html.new -type d -exec chmod 755 {} + && find ~/docker/linkhub-frontend/html.new -type f -exec chmod 644 {} +'
 ssh avila@192.168.1.24 'cd ~/docker/linkhub-frontend && rm -rf html.old && mv html html.old && mv html.new html && docker compose up -d --force-recreate && sleep 40 && docker inspect --format "{{.State.Health.Status}}" linkhub-nginx'
+ssh avila@192.168.1.24 'rm -f /tmp/linkhub-dist.tgz'
+Remove-Item "$env:TEMP\linkhub-dist.tgz"
 ```
 
 Esperado: `healthy`. Se vier `starting`, repita só o `docker inspect`.
@@ -190,9 +196,22 @@ Esperado no `nginx -t`: `syntax is ok` e `test is successful`. Se falhar, pare: 
 ```powershell
 curl.exe -s https://linkhub.avila.ia.br/ | Select-String -Pattern 'assets/index-[^"]+\.js'
 curl.exe -s -o NUL -w '%{http_code}\n' https://linkhub.avila.ia.br/mediapipe/1.1.1/models/selfie_multiclass_256x256.tflite
+curl.exe -s -o NUL -w '%{http_code} %{content_type}\n' https://linkhub.avila.ia.br/vendor-icons/simple-icons/16.35.0/youtube.svg
 ```
 
-Esperado: o mesmo `index-*.js` do `dist/index.html`, e `200` no modelo.
+Esperado: o mesmo `index-*.js` do `dist/index.html`, `200` no modelo e `200 image/svg+xml` no ícone do YouTube.
+
+### Subir a versão dos ícones (simple-icons / lucide-static)
+
+As versões ficam fixas em três lugares, conferidos pelo `src/lib/linkIcons/vendor.test.ts`: `package.json` (`devDependencies`, sem `^`), `scripts/prepare-icons.mjs` e `src/lib/linkIcons/vendor.ts`. O caminho servido carrega a versão, e o script apaga as pastas das versões antigas no build seguinte.
+
+O Simple Icons **remove marcas** entre versões. Antes de publicar uma versão nova, liste os slugs de marca gravados nos links (servidor):
+
+```bash
+docker exec -i supabase-db psql -U postgres -d postgres -c "SELECT DISTINCT icon_value FROM linkhub.links WHERE icon_type = 'brand';"
+```
+
+Confira se cada slug ainda tem um `<slug>.svg` em `node_modules/simple-icons/icons/` da versão nova. Se algum sumiu, não publique até decidir o que fazer com esses links (trocar o ícone deles ou ficar na versão atual).
 
 ### Voltar à versão anterior
 
