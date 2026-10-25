@@ -107,8 +107,8 @@ describe('getPublicProfileUrl', () => {
     expect(
       getPublicProfileUrl({ username: 'dna', preferred_domain: 'custom', custom_domain: 'https://meusite.com' }, SITE),
     ).toBe('https://meusite.com/dna');
-    expect(getPublicProfileUrl({ username: 'dna', preferred_domain: 'custom', custom_domain: 'HTTP://meusite.com' }, SITE)).toBe(
-      'HTTP://meusite.com/dna',
+    expect(getPublicProfileUrl({ username: 'dna', preferred_domain: 'custom', custom_domain: 'HTTPS://meusite.com' }, SITE)).toBe(
+      'HTTPS://meusite.com/dna',
     );
   });
 
@@ -595,36 +595,46 @@ Em `src/components/profile/ProfileView.test.tsx`, acrescente, antes do `});` fin
     const QR_URL = 'https://linkhub.avila.ia.br/dna';
     const QR_NAME = `QR code para abrir ${QR_URL}`;
 
-    it('com qrCodeUrl e show_qr_code ausente, aparece nas duas variantes', () => {
+    it('com qrCodeUrl e show_qr_code ausente ou true, aparece nas duas variantes', () => {
+      for (const perfil of [profile, { ...profile, show_qr_code: true }]) {
+        for (const variant of ['page', 'device'] as const) {
+          const { unmount } = render(
+            <ProfileView variant={variant} profile={perfil} links={links} theme={theme} onLinkClick={vi.fn()} qrCodeUrl={QR_URL} />,
+          );
+          expect(screen.getByRole('img', { name: QR_NAME })).toBeTruthy();
+          expect(screen.getByText('Aponte a câmera para abrir este perfil')).toBeTruthy();
+          unmount();
+        }
+      }
+    });
+
+    it('show_qr_code=false esconde o QR code nas duas variantes', () => {
       for (const variant of ['page', 'device'] as const) {
         const { unmount } = render(
-          <ProfileView variant={variant} profile={profile} links={links} theme={theme} onLinkClick={vi.fn()} qrCodeUrl={QR_URL} />,
+          <ProfileView
+            variant={variant}
+            profile={{ ...profile, show_qr_code: false }}
+            links={links}
+            theme={theme}
+            onLinkClick={vi.fn()}
+            qrCodeUrl={QR_URL}
+          />,
         );
-        expect(screen.getByRole('img', { name: QR_NAME })).toBeTruthy();
-        expect(screen.getByText('Aponte a câmera para abrir este perfil')).toBeTruthy();
+        expect(screen.queryByRole('img', { name: QR_NAME })).toBeNull();
+        expect(screen.queryByText('Aponte a câmera para abrir este perfil')).toBeNull();
         unmount();
       }
     });
 
-    it('show_qr_code=false esconde o QR code', () => {
-      render(
-        <ProfileView
-          variant="page"
-          profile={{ ...profile, show_qr_code: false }}
-          links={links}
-          theme={theme}
-          onLinkClick={vi.fn()}
-          qrCodeUrl={QR_URL}
-        />,
-      );
-      expect(screen.queryByRole('img', { name: QR_NAME })).toBeNull();
-      expect(screen.queryByText('Aponte a câmera para abrir este perfil')).toBeNull();
-    });
-
-    it('sem qrCodeUrl (perfil sem username) não desenha nada', () => {
-      render(<ProfileView variant="page" profile={profile} links={links} theme={theme} onLinkClick={vi.fn()} qrCodeUrl={null} />);
-      expect(screen.queryByRole('img')).toBeNull();
-      expect(screen.queryByText('Aponte a câmera para abrir este perfil')).toBeNull();
+    it('sem qrCodeUrl (perfil sem username) não desenha nada nas duas variantes', () => {
+      for (const variant of ['page', 'device'] as const) {
+        const { unmount } = render(
+          <ProfileView variant={variant} profile={profile} links={links} theme={theme} onLinkClick={vi.fn()} qrCodeUrl={null} />,
+        );
+        expect(screen.queryByRole('img')).toBeNull();
+        expect(screen.queryByText('Aponte a câmera para abrir este perfil')).toBeNull();
+        unmount();
+      }
     });
 
     it('módulos na cor do tema e legenda na cor do texto', () => {
@@ -1185,7 +1195,7 @@ Get-ChildItem dist/assets/*.js | Where-Object { Select-String -Path $_.FullName 
 "entrada: $entrada"
 ```
 
-Esperado: um único arquivo listado, o chunk lazy da página pública (o que também contém `Aponte a câmera para abrir este perfil`), e **diferente** do chunk de entrada. Anote o tamanho gzip desse chunk antes e depois, em relação ao build anterior: o aumento esperado é de cerca de 6 KB.
+Esperado: um único arquivo listado, o chunk `ProfileView-*.js`, compartilhado entre a `PublicProfile` e a prévia do Dashboard. Ele também contém `Aponte a câmera para abrir este perfil` e é **diferente** do chunk de entrada. O `PublicProfile-*.js` continua pequeno e sem o pacote. O gzip do `ProfileView-*.js` vai de cerca de 5,6 KB para 12,3 KB.
 
 - [ ] **Passo 3: migração no banco (antes do frontend)**
 
