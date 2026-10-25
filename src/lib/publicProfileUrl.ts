@@ -19,8 +19,10 @@ export function getPublicProfileUrl(
   if (!username) return null;
 
   const custom = profile?.custom_domain?.trim();
+  // Só o esquema ("https://"), sem domínio, conta como vazio
+  const hasCustomDomain = !!custom && custom.replace(/^https?:\/\//i, '').replace(/\/+$/, '') !== '';
   let domain = siteUrl;
-  if (profile?.preferred_domain === 'custom' && custom) {
+  if (profile?.preferred_domain === 'custom' && hasCustomDomain) {
     domain = /^https?:\/\//i.test(custom) ? custom : `https://${custom}`;
   }
   return `${domain.replace(/\/+$/, '')}/${username}`;

@@ -179,15 +179,29 @@ describe('ProfileView', () => {
       }
     });
 
-    it('sem qrCodeUrl (perfil sem username) não desenha nada nas duas variantes', () => {
-      for (const variant of ['page', 'device'] as const) {
-        const { unmount } = render(
-          <ProfileView variant={variant} profile={profile} links={links} theme={theme} onLinkClick={vi.fn()} qrCodeUrl={null} />,
-        );
-        expect(screen.queryByRole('img')).toBeNull();
-        expect(screen.queryByText('Aponte a câmera para abrir este perfil')).toBeNull();
-        unmount();
+    it('sem qrCodeUrl (null ou prop omitida) não desenha nada nas duas variantes', () => {
+      for (const qrCodeUrl of [null, undefined]) {
+        for (const variant of ['page', 'device'] as const) {
+          const { unmount } = render(
+            <ProfileView variant={variant} profile={profile} links={links} theme={theme} onLinkClick={vi.fn()} qrCodeUrl={qrCodeUrl} />,
+          );
+          expect(screen.queryByRole('img')).toBeNull();
+          expect(screen.queryByText('Aponte a câmera para abrir este perfil')).toBeNull();
+          unmount();
+        }
       }
+    });
+
+    it('tema do perfil dna: módulos no azul do fundo e legenda na cor do texto (cores diferentes)', () => {
+      const marinho = {
+        background: { type: 'gradient', colors: ['#0B1F3A', '#132F55'] },
+        buttonStyle: { type: 'glass' },
+        colors: { text: '#F1F5F9' },
+      } as ThemeConfig;
+      render(<ProfileView variant="page" profile={profile} links={links} theme={marinho} onLinkClick={vi.fn()} qrCodeUrl={QR_URL} />);
+      const fills = [...screen.getByRole('img', { name: QR_NAME }).querySelectorAll('path')].map((p) => p.getAttribute('fill'));
+      expect(fills).toEqual(['#ffffff', '#0b1f3a']);
+      expect(screen.getByText('Aponte a câmera para abrir este perfil').style.color).toBe('rgb(241, 245, 249)');
     });
 
     it('módulos na cor do tema e legenda na cor do texto', () => {
@@ -198,11 +212,19 @@ describe('ProfileView', () => {
       expect(screen.getByText('Aponte a câmera para abrir este perfil').style.color).toBe('rgb(15, 23, 42)');
     });
 
-    it('fica acima do botão "criar seu LinkHub"', () => {
-      render(<ProfileView variant="page" profile={profile} links={links} theme={theme} onLinkClick={vi.fn()} qrCodeUrl={QR_URL} />);
-      const qr = screen.getByRole('img', { name: QR_NAME });
-      const criar = screen.getByRole('button', { name: /criar seu LinkHub/ });
-      expect(qr.compareDocumentPosition(criar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    it('fica no rodapé: depois do último link e antes do "criar seu LinkHub", nas duas variantes', () => {
+      for (const variant of ['page', 'device'] as const) {
+        const { unmount } = render(
+          <ProfileView variant={variant} profile={profile} links={links} theme={theme} onLinkClick={vi.fn()} qrCodeUrl={QR_URL} />,
+        );
+        const qr = screen.getByRole('img', { name: QR_NAME });
+        const ultimoLink = screen.getByRole('button', { name: /GitHub/ });
+        // page: o rodapé é botão; device: é só texto
+        const criar = screen.getByText(/criar seu LinkHub/);
+        expect(ultimoLink.compareDocumentPosition(qr) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect(qr.compareDocumentPosition(criar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        unmount();
+      }
     });
   });
 });

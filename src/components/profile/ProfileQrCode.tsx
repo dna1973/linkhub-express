@@ -36,7 +36,8 @@ export const ProfileQrCode: React.FC<ProfileQrCodeProps> = ({ url, color, captio
         {/* marginSize 2 + o p-2 do cartão formam a zona de silêncio que os leitores precisam */}
         <QRCodeSVG value={url} size={120} level="M" fgColor={color} bgColor="#ffffff" marginSize={2} aria-hidden="true" />
       </div>
-      <p className="mt-2 text-xs opacity-60" style={{ color: captionColor }}>
+      {/* opacity-80, como o @username: com 60% a legenda ficava abaixo de 4,5:1 em vários temas claros */}
+      <p className="mt-2 text-xs opacity-80" style={{ color: captionColor }}>
         Aponte a câmera para abrir este perfil
       </p>
     </div>

@@ -27,6 +27,15 @@ describe('getQrModuleColor', () => {
       } as ThemeConfig,
       '#000000',
     ],
+    [
+      'texto e fundo claros, botão escuro: vale o botão',
+      {
+        background: { type: 'solid', color: '#f8fafc' },
+        buttonStyle: { type: 'solid', color: '#1E40AF' },
+        colors: { text: '#f1f5f9' },
+      } as ThemeConfig,
+      '#1e40af',
+    ],
     ['tema null: texto branco falha, fundo padrão #111827 passa', null, '#111827'],
     [
       'texto inválido é pulado',

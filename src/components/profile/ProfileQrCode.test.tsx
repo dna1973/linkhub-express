@@ -25,6 +25,7 @@ describe('ProfileQrCode', () => {
     render(<ProfileQrCode url={URL_DNA} color="#0b1f3a" captionColor="#f1f5f9" />);
     const caption = screen.getByText('Aponte a câmera para abrir este perfil');
     expect(caption.style.color).toBe('rgb(241, 245, 249)');
+    expect(caption.className).toContain('opacity-80');
   });
 
   it('URLs diferentes geram desenhos diferentes', () => {

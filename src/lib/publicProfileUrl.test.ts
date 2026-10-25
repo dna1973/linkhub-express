@@ -48,6 +48,15 @@ describe('getPublicProfileUrl', () => {
     );
   });
 
+  it('domínio personalizado só com o esquema (https://) cai no domínio do site', () => {
+    expect(getPublicProfileUrl({ username: 'dna', preferred_domain: 'custom', custom_domain: 'https://' }, SITE)).toBe(
+      'https://linkhub.avila.ia.br/dna',
+    );
+    expect(getPublicProfileUrl({ username: 'dna', preferred_domain: 'custom', custom_domain: ' HTTP:// ' }, SITE)).toBe(
+      'https://linkhub.avila.ia.br/dna',
+    );
+  });
+
   it('sem username devolve null', () => {
     expect(getPublicProfileUrl({ username: '' }, SITE)).toBeNull();
     expect(getPublicProfileUrl({ username: '   ' }, SITE)).toBeNull();

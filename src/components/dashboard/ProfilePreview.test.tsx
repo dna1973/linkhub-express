@@ -94,6 +94,17 @@ describe('ProfilePreview', () => {
     expect(screen.getByTestId('device-status-bar').style.color).toBe('rgb(255, 255, 255)');
   });
 
+  it('mostra o QR code com o endereço público do perfil gravado', async () => {
+    render(<ProfilePreview profile={{ full_name: 'Daniel', username: 'dna' }} />);
+    expect(await screen.findByRole('img', { name: /^QR code para abrir .*\/dna$/ })).toBeTruthy();
+  });
+
+  it('perfil gravado com show_qr_code false: a prévia fica sem QR code', async () => {
+    render(<ProfilePreview profile={{ full_name: 'Daniel', username: 'dna', show_qr_code: false }} />);
+    await screen.findByRole('button', { name: /Meu site/ });
+    expect(screen.queryByRole('img', { name: /QR code/ })).toBeNull();
+  });
+
   it('o conteúdo extra do cabeçalho aparece ao lado do seletor', async () => {
     render(<ProfilePreview profile={{ full_name: 'Daniel' }} headerEnd={<button type="button">Fechar</button>} />);
     await screen.findByRole('button', { name: /Meu site/ });

@@ -17,7 +17,7 @@ Cada página pública do LinkHub (`linkhub.avila.ia.br/<username>`) mostra, no r
 | Estilo | Cartão branco de cantos arredondados, com os módulos na cor escura do tema; preto se nenhuma cor do tema tiver contraste suficiente |
 | Biblioteca | `qrcode.react` 4.2.0 (ISC, sem dependências), com import estático |
 
-Sobre a biblioteca: a primeira ideia era carregá-la sob demanda. A revisão mostrou que, em `src/main.tsx`, o `reloadOnChunkError()` recarrega a página em qualquer falha de `import()` dinâmico, inclusive no perfil público, que não tem service worker. Com a rede caída, o visitante cairia na página de erro do navegador. O import estático custa cerca de **6,3 KB gzip** (16,5 KB minificado, medido com esbuild) a mais no chunk do perfil público, que é lazy no `App.tsx`: de cerca de 152 KB para 158 KB. Em troca, o QR code aparece junto com o resto da página, sem espaço vazio e sem risco de recarga.
+Sobre a biblioteca: a primeira ideia era carregá-la sob demanda. A revisão mostrou que, em `src/main.tsx`, o `reloadOnChunkError()` recarrega a página em qualquer falha de `import()` dinâmico, inclusive no perfil público, que não tem service worker. Com a rede caída, o visitante cairia na página de erro do navegador. O import estático custa cerca de **6,7 KB gzip** a mais no chunk compartilhado do `ProfileView`, que é lazy (carregado pela página pública e pelo Dashboard, nunca pelo chunk de entrada): de cerca de 5,6 KB para 12,4 KB gzip. Em troca, o QR code aparece junto com o resto da página, sem espaço vazio e sem risco de recarga.
 
 ## Fora do escopo
 
@@ -33,7 +33,7 @@ Sobre a biblioteca: a primeira ideia era carregá-la sob demanda. A revisão mos
 
 - O `ProfileView` ganha a prop `qrCodeUrl?: string | null`. Quando ela tem valor **e** `profile.show_qr_code !== false`, o rodapé (`text-center`) mostra, **acima** do botão "Clique aqui para criar seu LinkHub":
   1. um cartão branco (`#ffffff`), centralizado com `inline-block`, cantos `rounded-xl`, sombra leve (`shadow-md`) e respiro `p-2`, com o QR code de 120 × 120 px dentro;
-  2. logo abaixo, a legenda "Aponte a câmera para abrir este perfil", `text-xs`, na cor do texto do tema com `opacity-60`.
+  2. logo abaixo, a legenda "Aponte a câmera para abrir este perfil", `text-xs`, na cor do texto do tema com `opacity-80`, a mesma do @username. A revisão mediu que, com `opacity-60`, a legenda ficava abaixo de 4,5:1 em vários temas claros.
 - O `ProfileView` não calcula a URL: ela vem pronta de quem o usa. Assim ele continua sem depender do cliente Supabase.
   - `PublicProfile` passa `getPublicProfileUrl(profile)`;
   - `ProfilePreview` passa `getPublicProfileUrl(profile)` com o perfil gravado que recebe do Dashboard.
@@ -109,7 +109,8 @@ O cartão é sempre branco e o fundo do QR code também. Só os módulos mudam d
 | `src/utils/qrCodeColor.ts` | Criar | `getQrModuleColor` |
 | `src/utils/qrCodeColor.test.ts` | Criar | As cinco linhas da tabela de exemplos |
 | `src/components/profile/ProfileQrCode.tsx` | Criar | Cartão, QR code e legenda, dentro do limite de erro próprio |
-| `src/components/profile/ProfileQrCode.test.tsx` | Criar | SVG gerado, cor dos módulos, nome acessível, falha escondida |
+| `src/components/profile/ProfileQrCode.test.tsx` | Criar | SVG gerado, cor dos módulos, nome acessível, legenda (pacote real) |
+| `src/components/profile/ProfileQrCode.error.test.tsx` | Criar | Falha escondida e volta a desenhar com URL nova (pacote simulado) |
 | `src/components/profile/ProfileView.tsx` | Modificar | `show_qr_code?: boolean` em `ProfileViewProfile`, a prop `qrCodeUrl` e, no rodapé, `<ProfileQrCode url={qrCodeUrl} color={getQrModuleColor(theme)} captionColor={textColor} />` |
 | `src/components/profile/ProfileView.test.tsx` | Modificar | Ligado, desligado, ausente (= ligado), sem `qrCodeUrl`, nas duas variantes |
 | `src/pages/PublicProfile.tsx` | Modificar | Passa `qrCodeUrl={getPublicProfileUrl(profile)}` |
@@ -167,7 +168,7 @@ O `DEFAULT true` preenche todos os perfis existentes. O `NOTIFY` faz o PostgREST
   - a legenda;
   - que, se o `QRCodeSVG` lançar erro, nada é desenhado e o resto da árvore continua.
 
-  Para os dois conviverem no mesmo arquivo, o mock embrulha o pacote real: `vi.mock('qrcode.react', async (importOriginal) => { const m = await importOriginal<typeof import('qrcode.react')>(); return { ...m, QRCodeSVG: vi.fn(m.QRCodeSVG) }; })`. Só o teste de falha usa `mockImplementationOnce(() => { throw new Error('falha simulada'); })`. Esse teste também silencia e confere o `console.error` com `vi.spyOn`, porque o React registra o erro mesmo quando o limite o captura.
+  A falha fica num arquivo próprio, `ProfileQrCode.error.test.tsx`, com o pacote inteiro simulado. O `QRCodeSVG` é um `React.forwardRef`, um objeto e não uma função, então não dá para embrulhá-lo com `vi.fn` mantendo o pacote real no mesmo arquivo. O teste silencia o `console.error` com `vi.spyOn` e confere o log do próprio componente (`'QR code do perfil:'`).
 - **`ProfileView`:** passando `qrCodeUrl` explícito, sem nenhum mock do Supabase. Os casos são: ligado, desligado, ausente (= ligado) e sem `qrCodeUrl`, nas variantes `page` e `device`.
 - **`ProfilePreview.test.tsx`:** continua passando sem mudar o mock de `@/lib/supabase`, porque o `publicProfileUrl` importa de `@/lib/siteUrl`. Se algum teste existente precisar de URL previsível, ele moca `@/lib/siteUrl`.
 - **Aba Perfil:** o mock vira `useAutosave: vi.fn((data, save) => { mocks.autosave = { data, save }; return 'idle'; })`. O teste:
@@ -175,7 +176,7 @@ O `DEFAULT true` preenche todos os perfis existentes. O `NOTIFY` faz o PostgREST
   2. chama `mocks.autosave.save(mocks.autosave.data)`;
   3. confere o `update` com `expect.objectContaining({ show_qr_code: false })`.
 - **Build:** confere pelo conteúdo, não pelo nome do arquivo (o chunk do pacote também se chamaria `index-*.js`).
-  - Procura nos `.js` de `dist/assets` uma mensagem de erro própria do `qrcode.react`, que é string literal e sobrevive à minificação: `ECI assignment value out of range`. (`qrcodegen` não serve: é nome de variável e some.) Ela aparece **só** no chunk do `PublicProfile`/`ProfileView`.
+  - Procura nos `.js` de `dist/assets` uma mensagem de erro própria do `qrcode.react`, que é string literal e sobrevive à minificação: `ECI assignment value out of range`. (`qrcodegen` não serve: é nome de variável e some.) Ela aparece **só** num chunk lazy compartilhado (o do `ProfileView`; o Rollup pode dar a ele o nome de outro módulo do grupo, como `publicProfileUrl-*.js`).
   - O chunk de entrada, o `assets/index-*.js` referenciado no `dist/index.html`, não deve contê-la.
 - **Em produção:**
   - a migração aplicada e a coluna conferida com `SELECT`;
