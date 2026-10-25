@@ -42,7 +42,7 @@ afterEach(() => {
 function renderPicker(props: Partial<IconPickerProps> = {}) {
   const onChange = vi.fn();
   const onUpload = vi.fn(async (_file: File) => {});
-  render(
+  const element = (extra: Partial<IconPickerProps> = {}) => (
     <IconPicker
       url="https://exemplo.com.br/pagina"
       iconType="auto"
@@ -51,10 +51,19 @@ function renderPicker(props: Partial<IconPickerProps> = {}) {
       onChange={onChange}
       onUpload={onUpload}
       {...props}
-    />,
+      {...extra}
+    />
   );
-  return { onChange, onUpload };
+  const utils = render(element());
+  return { onChange, onUpload, rerender: (extra: Partial<IconPickerProps>) => utils.rerender(element(extra)) };
 }
+
+const manyBrands = (count: number): BrandEntry[] =>
+  Array.from({ length: count }, (_, i) => ({ s: `marca${i}`, t: `Marca ${i}`, h: '#112233' }));
+const useBrandCatalog = (entries: unknown[]) =>
+  fetchMock.mockImplementation(async (url: string) => jsonResponse(url === BRAND_CATALOG_URL ? entries : lucideCatalog));
+const gridLabels = (testId: string) =>
+  Array.from(screen.getByTestId(testId).querySelectorAll('button')).map((b) => b.getAttribute('aria-label'));
 
 const openTab = (name: string) => fireEvent.mouseDown(screen.getByRole('tab', { name }));
 const maskOf = (button: HTMLElement) => button.querySelector('.link-icon-mask') as HTMLElement;
@@ -86,12 +95,54 @@ describe('IconPicker: topo', () => {
     expect(screen.getByRole('button', { name: 'Automático (pela URL)' }).getAttribute('aria-pressed')).toBe('true');
   });
 
-  it('desabilitado, não grava nada', () => {
+  it('desabilitado, não grava nada (aria-disabled, sem o disabled nativo)', () => {
     const { onChange } = renderPicker({ disabled: true, iconType: 'brand', iconValue: 'github' });
     const auto = screen.getByRole('button', { name: 'Automático (pela URL)' }) as HTMLButtonElement;
-    expect(auto.disabled).toBe(true);
+    expect(auto.disabled).toBe(false);
+    expect(auto.getAttribute('aria-disabled')).toBe('true');
     fireEvent.click(auto);
+
+    const youtube = screen.getByRole('button', { name: 'YouTube' }) as HTMLButtonElement;
+    expect(youtube.disabled).toBe(false);
+    expect(youtube.getAttribute('aria-disabled')).toBe('true');
+    fireEvent.click(youtube);
+
+    const search = screen.getByLabelText('Buscar marca') as HTMLInputElement;
+    expect(search.disabled).toBe(false);
+    expect(search.readOnly).toBe(true);
+    expect(search.getAttribute('aria-disabled')).toBe('true');
+
+    openTab('Emoji');
+    const emoji = screen.getByLabelText('Emoji do link') as HTMLInputElement;
+    expect(emoji.disabled).toBe(false);
+    expect(emoji.readOnly).toBe(true);
+    fireEvent.change(emoji, { target: { value: '🚀' } });
+    const use = screen.getByRole('button', { name: 'Usar' }) as HTMLButtonElement;
+    expect(use.disabled).toBe(false);
+    expect(use.getAttribute('aria-disabled')).toBe('true');
+    fireEvent.click(use);
+    fireEvent.keyDown(emoji, { key: 'Enter' });
+
+    openTab('Upload');
+    // O input de arquivo é o único com o disabled nativo
+    expect((screen.getByLabelText('Arquivo do ícone') as HTMLInputElement).disabled).toBe(true);
     expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('o elemento focado continua focado ao virar disabled (gravação imediata)', () => {
+    const { rerender } = renderPicker({ iconType: 'brand', iconValue: 'github' });
+    const youtube = screen.getByRole('button', { name: 'YouTube' });
+    youtube.focus();
+    expect(document.activeElement).toBe(youtube);
+    rerender({ disabled: true });
+    expect(document.activeElement).toBe(youtube);
+    rerender({ disabled: false, iconValue: 'youtube' });
+    expect(document.activeElement).toBe(youtube);
+
+    const search = screen.getByLabelText('Buscar marca');
+    search.focus();
+    rerender({ disabled: true });
+    expect(document.activeElement).toBe(search);
   });
 });
 
@@ -99,6 +150,8 @@ describe('IconPicker: Marcas', () => {
   it('carrega o catálogo uma vez e, com a busca vazia, mostra primeiro as marcas da detecção', async () => {
     renderPicker();
     expect(liveText()).toBe('Carregando…');
+    // As marcas da detecção já aparecem enquanto o catálogo carrega
+    expect(gridLabels('brand-grid')).toHaveLength(13);
     await screen.findByRole('button', { name: 'Snapchat' });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledWith(BRAND_CATALOG_URL);
@@ -160,10 +213,46 @@ describe('IconPicker: Marcas', () => {
     renderPicker();
     await screen.findByText('Não foi possível carregar as marcas');
     expect(liveText()).toBe('Não foi possível carregar as marcas');
+    expect(gridLabels('brand-grid')).toHaveLength(13);
 
     fireEvent.click(screen.getByRole('button', { name: 'Tentar de novo' }));
     await screen.findByRole('button', { name: 'Snapchat' });
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('IconPicker: Marcas, limite e ordem', () => {
+  it('com ~80 marcas, a grade mostra 60 botões e anuncia "60 de N marcas"', async () => {
+    useBrandCatalog(manyBrands(80));
+    renderPicker();
+    await screen.findByRole('button', { name: 'Marca 0' });
+    expect(gridLabels('brand-grid')).toHaveLength(60);
+    expect(liveText()).toBe('60 de 93 marcas');
+  });
+
+  it('a marca atual fora das 60 primeiras vai para o topo', async () => {
+    useBrandCatalog(manyBrands(80));
+    renderPicker({ iconType: 'brand', iconValue: 'marca79' });
+    const current = await screen.findByRole('button', { name: 'Marca 79' });
+    const labels = gridLabels('brand-grid');
+    expect(labels[0]).toBe('Marca 79');
+    expect(labels).toHaveLength(60);
+    expect(current.getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('ignora entradas do catálogo sem título em texto', async () => {
+    useBrandCatalog([{ s: 'semtitulo', h: '#112233' }, { s: 'numero', t: 42, h: '#112233' }, ...brandCatalog]);
+    renderPicker();
+    await screen.findByRole('button', { name: 'Snapchat' });
+    expect(gridLabels('brand-grid')).toHaveLength(17);
+    expect(gridLabels('brand-grid')).not.toContain(null);
+  });
+
+  it('a busca é type="text" (o Esc do type="search" fecharia o Dialog)', () => {
+    renderPicker();
+    expect(screen.getByLabelText('Buscar marca').getAttribute('type')).toBe('text');
+    openTab('Ícones');
+    expect(screen.getByLabelText('Buscar ícone').getAttribute('type')).toBe('text');
   });
 });
 
@@ -184,7 +273,8 @@ describe('IconPicker: Ícones', () => {
   it('busca por nome e por palavra-chave e grava lucide com o nome', async () => {
     const { onChange } = renderPicker({ iconType: 'lucide', iconValue: 'rocket' });
     openTab('Ícones');
-    await screen.findByText(`${COMMON_LUCIDE_ICONS.length} ícones`);
+    // O rocket atual entra no topo da lista fixa
+    await screen.findByText(`${COMMON_LUCIDE_ICONS.length + 1} ícones`);
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
 
     searchIcons('ancora');
@@ -201,6 +291,32 @@ describe('IconPicker: Ícones', () => {
   });
 });
 
+describe('IconPicker: Ícones, limite e ordem', () => {
+  it('o ícone atual fora da lista fixa vai para o topo', () => {
+    renderPicker({ iconType: 'lucide', iconValue: 'rocket' });
+    const labels = gridLabels('lucide-grid');
+    expect(labels[0]).toBe('rocket');
+    expect(labels.slice(1)).toEqual(COMMON_LUCIDE_ICONS);
+  });
+
+  it('anuncia "60 de N ícones" quando a busca passa de 60 e ignora entradas sem nome', async () => {
+    const big = [
+      ...Array.from({ length: 70 }, (_, i) => ({ n: `seta-${i}`, k: [] as string[] })),
+      { k: ['seta'] },
+      { n: 7, k: ['seta'] },
+    ];
+    fetchMock.mockImplementation(async (url: string) => jsonResponse(url === BRAND_CATALOG_URL ? brandCatalog : big));
+    renderPicker();
+    openTab('Ícones');
+    await screen.findByText(`${COMMON_LUCIDE_ICONS.length} ícones`);
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    searchIcons('seta');
+    act(() => vi.advanceTimersByTime(200));
+    expect(gridLabels('lucide-grid')).toHaveLength(60);
+    expect(liveText()).toBe('60 de 70 ícones');
+  });
+});
+
 describe('IconPicker: Emoji', () => {
   it('grava um emoji válido', () => {
     const { onChange } = renderPicker();
@@ -208,6 +324,16 @@ describe('IconPicker: Emoji', () => {
     fireEvent.change(screen.getByLabelText('Emoji do link'), { target: { value: '🚀' } });
     fireEvent.click(screen.getByRole('button', { name: 'Usar' }));
     expect(onChange).toHaveBeenCalledWith({ icon_type: 'emoji', icon_value: '🚀' });
+  });
+
+  it('Enter no campo também usa o emoji, sem <form>', () => {
+    const { onChange } = renderPicker();
+    openTab('Emoji');
+    expect(document.querySelector('form')).toBeNull();
+    const input = screen.getByLabelText('Emoji do link');
+    fireEvent.change(input, { target: { value: '🎉' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(onChange).toHaveBeenCalledWith({ icon_type: 'emoji', icon_value: '🎉' });
   });
 
   it('recusa texto e dois emojis', () => {
@@ -236,8 +362,8 @@ describe('IconPicker: Favicon', () => {
     const { onChange } = renderPicker({ url });
     openTab('Favicon');
     expect(screen.getByText(/não aponta para um site/)).toBeTruthy();
-    const button = screen.getByRole('button', { name: 'Usar o ícone do site' }) as HTMLButtonElement;
-    expect(button.disabled).toBe(true);
+    const button = screen.getByRole('button', { name: 'Usar o ícone do site' });
+    expect(button.getAttribute('aria-disabled')).toBe('true');
     fireEvent.click(button);
     expect(onChange).not.toHaveBeenCalled();
   });

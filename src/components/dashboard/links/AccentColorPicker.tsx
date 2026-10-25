@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { LinkIcon } from '@/components/links/LinkIcon';
-import { resolveLinkIcon } from '@/lib/linkIcons/resolve';
+import { cn } from '@/lib/utils';
+import { resolveLinkIcon, type LinkIconSource } from '@/lib/linkIcons/resolve';
 import { LINK_ICONS_PUBLIC_PREFIX } from '@/lib/linkIcons/storagePrefix';
 import { normalizeHex } from '@/utils/linkButtonStyle';
 
@@ -14,6 +15,10 @@ export type AccentColorPickerProps = {
   accentColor: string | null | undefined;
   /** Hex oficial do ícone (getOfficialHex, calculado por quem usa o picker); null quando não há. */
   officialHex: string | null;
+  /**
+   * Durante a gravação: os controles ficam com aria-disabled e ignoram clique e tecla, sem o
+   * disabled nativo, para o foco não cair no body.
+   */
   disabled?: boolean;
   onChange: (color: string | null) => void;
 };
@@ -25,12 +30,15 @@ const DARK = { background: '#111827', defaultColor: '#f9fafb' };
 const FALLBACK_CUSTOM = '#1f2937';
 const NOTE = 'A cor vale para ícones de marca e da biblioteca';
 const HEX_ERROR = 'Use uma cor no formato #rrggbb';
+const ARIA_DISABLED_CLASS = 'aria-disabled:cursor-not-allowed aria-disabled:opacity-50';
 
 /** Aceita `#abc`, `abc`, `#aabbcc` e `aabbcc`, com espaços nas pontas. */
 function parseHexInput(text: string): string | null {
   const value = text.trim();
   return normalizeHex(value.startsWith('#') ? value : `#${value}`);
 }
+
+const ariaDisabled = (disabled: boolean) => (disabled ? { 'aria-disabled': true as const } : {});
 
 function PreviewSquare({
   testId,
@@ -41,7 +49,7 @@ function PreviewSquare({
   testId: string;
   background: string;
   defaultColor: string;
-  link: Parameters<typeof LinkIcon>[0]['link'];
+  link: LinkIconSource;
 }) {
   return (
     <span
@@ -64,13 +72,16 @@ export function AccentColorPicker({
   iconValue,
   accentColor,
   officialHex,
-  disabled,
+  disabled = false,
   onChange,
 }: AccentColorPickerProps) {
-  const link = { url, icon_type: iconType, icon_value: iconValue, accent_color: accentColor };
+  const noteId = useId();
+  const link: LinkIconSource = { url, icon_type: iconType, icon_value: iconValue, accent_color: accentColor };
   // O ícone efetivo: um auto sem marca vira favicon e também não aceita cor
-  const appliesToIcon = resolveLinkIcon(link, { defaultColor: LIGHT.defaultColor, uploadPrefix: LINK_ICONS_PUBLIC_PREFIX }).kind === 'mask';
+  const appliesToIcon =
+    resolveLinkIcon(link, { defaultColor: LIGHT.defaultColor, uploadPrefix: LINK_ICONS_PUBLIC_PREFIX }).kind === 'mask';
   const locked = disabled || !appliesToIcon;
+  const describedBy = appliesToIcon ? undefined : noteId;
 
   const current = normalizeHex(accentColor);
   const official = normalizeHex(officialHex);
@@ -96,6 +107,7 @@ export function AccentColorPicker({
   };
 
   const commitDraft = (text: string) => {
+    if (locked) return;
     hexEditedRef.current = false;
     const color = parseHexInput(text);
     if (!color) {
@@ -107,17 +119,22 @@ export function AccentColorPicker({
     apply(color);
   };
 
-  // O <input type="color"> dispara `input` a cada movimento: a cor só é gravada no `change` nativo
-  const colorInputRef = useRef<HTMLInputElement>(null);
+  // O <input type="color"> dispara `input` a cada movimento: a cor só é gravada no `change` nativo.
+  // Ref de callback: o listener acompanha o elemento quando o modo "Escolher cor" abre e fecha.
   const commitRef = useRef(commitDraft);
   commitRef.current = commitDraft;
-  useEffect(() => {
-    const input = colorInputRef.current;
-    if (!input) return;
-    const handleChange = () => commitRef.current(input.value);
-    input.addEventListener('change', handleChange);
-    return () => input.removeEventListener('change', handleChange);
-  }, [mode]);
+  const listenerRef = useRef<{ element: HTMLInputElement; handler: () => void } | null>(null);
+  const colorInputRef = useCallback((element: HTMLInputElement | null) => {
+    if (listenerRef.current) {
+      listenerRef.current.element.removeEventListener('change', listenerRef.current.handler);
+      listenerRef.current = null;
+    }
+    if (element) {
+      const handler = () => commitRef.current(element.value);
+      element.addEventListener('change', handler);
+      listenerRef.current = { element, handler };
+    }
+  }, []);
 
   const handleHexKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Enter') {
@@ -126,58 +143,64 @@ export function AccentColorPicker({
     }
   };
 
-  const draftHex = parseHexInput(draft) ?? FALLBACK_CUSTOM;
+  // Travado, o seletor nativo não abre (nem por clique nem por tecla)
+  const blockColorClick = (event: MouseEvent<HTMLInputElement>) => {
+    if (locked) event.preventDefault();
+  };
+  const blockColorKey = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (locked && (event.key === 'Enter' || event.key === ' ')) event.preventDefault();
+  };
+
+  const draftHex = parseHexInput(draft);
+  const showCustom = mode === 'custom' && appliesToIcon;
+  // No modo "Escolher cor", a prévia mostra o rascunho antes de gravar
+  const previewLink: LinkIconSource = showCustom && draftHex ? { ...link, accent_color: draftHex } : link;
+
+  const choose = (next: Mode) => {
+    if (locked) return;
+    if (next === 'custom') {
+      setCustomOpen(true);
+      return;
+    }
+    setCustomOpen(false);
+    apply(next === 'official' ? official : null);
+  };
+
+  const optionProps = (option: Mode) => ({
+    type: 'button' as const,
+    size: 'sm' as const,
+    variant: mode === option ? ('secondary' as const) : ('outline' as const),
+    'aria-pressed': mode === option,
+    ...ariaDisabled(locked),
+    'aria-describedby': describedBy,
+    onClick: () => choose(option),
+    className: ARIA_DISABLED_CLASS,
+  });
 
   return (
     <div role="group" aria-label="Cor de destaque do ícone" className="space-y-3">
       <div className="flex items-center gap-2">
-        <PreviewSquare testId="accent-preview-light" background={LIGHT.background} defaultColor={LIGHT.defaultColor} link={link} />
-        <PreviewSquare testId="accent-preview-dark" background={DARK.background} defaultColor={DARK.defaultColor} link={link} />
+        <PreviewSquare
+          testId="accent-preview-light"
+          background={LIGHT.background}
+          defaultColor={LIGHT.defaultColor}
+          link={previewLink}
+        />
+        <PreviewSquare testId="accent-preview-dark" background={DARK.background} defaultColor={DARK.defaultColor} link={previewLink} />
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <Button
-          type="button"
-          size="sm"
-          variant={mode === 'none' ? 'secondary' : 'outline'}
-          aria-pressed={mode === 'none'}
-          disabled={locked}
-          onClick={() => {
-            setCustomOpen(false);
-            apply(null);
-          }}
-        >
-          Sem cor
-        </Button>
+        <Button {...optionProps('none')}>Sem cor</Button>
         {official && (
-          <Button
-            type="button"
-            size="sm"
-            variant={mode === 'official' ? 'secondary' : 'outline'}
-            aria-pressed={mode === 'official'}
-            disabled={locked}
-            onClick={() => {
-              setCustomOpen(false);
-              apply(official);
-            }}
-          >
+          <Button {...optionProps('official')}>
             <span aria-hidden="true" className="h-3 w-3 rounded-full border" style={{ backgroundColor: official }} />
             Cor oficial da marca
           </Button>
         )}
-        <Button
-          type="button"
-          size="sm"
-          variant={mode === 'custom' ? 'secondary' : 'outline'}
-          aria-pressed={mode === 'custom'}
-          disabled={locked}
-          onClick={() => setCustomOpen(true)}
-        >
-          Escolher cor
-        </Button>
+        <Button {...optionProps('custom')}>Escolher cor</Button>
       </div>
 
-      {mode === 'custom' && (
+      {showCustom && (
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <Label htmlFor="accent-color-input" className="sr-only">
@@ -187,10 +210,14 @@ export function AccentColorPicker({
               id="accent-color-input"
               ref={colorInputRef}
               type="color"
-              value={draftHex}
-              disabled={locked}
-              onChange={(event) => setDraft(event.target.value)}
-              className="h-9 w-12 cursor-pointer rounded-md border bg-transparent p-1 disabled:cursor-not-allowed disabled:opacity-50"
+              value={draftHex ?? FALLBACK_CUSTOM}
+              {...ariaDisabled(locked)}
+              onClick={blockColorClick}
+              onKeyDown={blockColorKey}
+              onChange={(event) => {
+                if (!locked) setDraft(event.target.value);
+              }}
+              className={cn('h-9 w-12 cursor-pointer rounded-md border bg-transparent p-1', ARIA_DISABLED_CLASS)}
             />
             <Label htmlFor="accent-hex-input" className="sr-only">
               Código hex
@@ -201,10 +228,12 @@ export function AccentColorPicker({
               maxLength={9}
               spellCheck={false}
               autoComplete="off"
-              disabled={locked}
+              readOnly={locked}
+              {...ariaDisabled(locked)}
               aria-invalid={error ? true : undefined}
               aria-describedby={error ? 'accent-hex-error' : undefined}
               onChange={(event) => {
+                if (locked) return;
                 hexEditedRef.current = true;
                 setDraft(event.target.value);
                 setError(null);
@@ -213,7 +242,7 @@ export function AccentColorPicker({
                 if (hexEditedRef.current) commitDraft(event.currentTarget.value);
               }}
               onKeyDown={handleHexKeyDown}
-              className="w-28 font-mono"
+              className={cn('w-28 font-mono', ARIA_DISABLED_CLASS)}
             />
           </div>
           <p id="accent-hex-error" role="alert" className="min-h-4 text-xs text-destructive">
@@ -222,7 +251,12 @@ export function AccentColorPicker({
         </div>
       )}
 
-      {!disabled && !appliesToIcon && <p className="text-xs text-muted-foreground">{NOTE}</p>}
+      {/* Sempre visível quando a cor não se aplica, mesmo durante a gravação */}
+      {!appliesToIcon && (
+        <p id={noteId} className="text-xs text-muted-foreground">
+          {NOTE}
+        </p>
+      )}
     </div>
   );
 }

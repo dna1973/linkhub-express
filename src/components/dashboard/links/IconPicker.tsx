@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent, type ReactNode } from 'react';
 import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,6 +18,7 @@ import { DETECTION_TABLE, getFaviconUrl, getUrlHost } from '@/lib/linkIcons/dete
 import { isSingleEmoji } from '@/lib/linkIcons/emoji';
 import { validateIconFile } from '@/lib/linkIcons/storage';
 import type { IconType } from '@/lib/linkIcons/validate';
+import { BRAND_SLUG_RE, LUCIDE_NAME_RE } from '@/lib/linkIcons/vendor';
 
 export type IconChoice = { icon_type: IconType; icon_value: string | null };
 
@@ -28,6 +29,10 @@ export type IconPickerProps = {
   iconValue: string | null | undefined;
   /** Só para a prévia do topo sair com a cor real. */
   accentColor?: string | null;
+  /**
+   * Durante a gravação: os controles ficam com aria-disabled e ignoram clique e tecla, sem o
+   * disabled nativo, para o foco não cair no body (só o input de arquivo usa o nativo).
+   */
   disabled?: boolean;
   onChange: (choice: IconChoice) => void;
   /** Recebe o arquivo já validado (o SVG original): converter e enviar fica com quem grava. */
@@ -41,23 +46,23 @@ type CatalogState<T> =
   | { status: 'error'; error: string }
   | { status: 'ready'; entries: T[] };
 
+/** Entrada pronta para a busca: os textos já normalizados ficam em `haystack`. */
+type IndexedItem = { value: string; label: string; haystack: string[] };
+
+type GridItem = { value: string; label: string; hex: string | null };
+
 /** Grade com fundo branco em qualquer tema: os ícones de marca pretos não somem no escuro. */
 const GRID_DEFAULT_COLOR = '#1f2937';
 const GRID_BACKGROUNDS = ['#ffffff'];
 const MAX_RESULTS = 60;
 const SEARCH_DEBOUNCE_MS = 200;
 const ACCEPT = '.png,.webp,.svg,image/png,image/webp,image/svg+xml';
+/** Visual de desabilitado para quem usa aria-disabled no lugar do disabled nativo. */
+const ARIA_DISABLED_CLASS = 'aria-disabled:cursor-not-allowed aria-disabled:opacity-50';
 
 const BRAND_ERROR = 'Não foi possível carregar as marcas';
 const LUCIDE_ERROR = 'Não foi possível carregar os ícones';
 const EMOJI_ERROR = 'Use um único emoji';
-
-// As marcas da detecção vêm da tabela (sempre existem), na ordem dela
-const DETECTED_BRANDS: BrandEntry[] = DETECTION_TABLE.filter((entry) => entry.kind === 'brand').map((entry) => ({
-  s: entry.value,
-  t: entry.title,
-  h: entry.hex ?? '',
-}));
 
 const TAB_BY_TYPE: Record<string, TabValue> = {
   brand: 'brands',
@@ -69,7 +74,60 @@ const TAB_BY_TYPE: Record<string, TabValue> = {
 
 /** Sem maiúsculas nem acentos (NFD). */
 function normalizeSearch(text: string): string {
-  return text.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+  return text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+}
+
+const isText = (value: unknown): value is string => typeof value === 'string' && value.trim() !== '';
+const textList = (value: unknown): string[] => (Array.isArray(value) ? value.filter(isText) : []);
+
+// As marcas da detecção vêm da tabela (sempre existem), na ordem dela
+const DETECTED_BRANDS = DETECTION_TABLE.filter((entry) => entry.kind === 'brand').map((entry) => ({
+  slug: entry.value,
+  title: entry.title,
+}));
+
+/** Detecção primeiro (com os apelidos do catálogo), depois o resto do catálogo; ignora entradas malformadas. */
+function buildBrandIndex(catalog: BrandEntry[] | null): IndexedItem[] {
+  const valid = (catalog ?? []).filter((entry) => entry && isText(entry.s) && BRAND_SLUG_RE.test(entry.s) && isText(entry.t));
+  const bySlug = new Map(valid.map((entry) => [entry.s, entry]));
+  const detected = new Set(DETECTED_BRANDS.map((entry) => entry.slug));
+  const index = (value: string, label: string, aliases: string[]): IndexedItem => ({
+    value,
+    label,
+    haystack: [label, ...aliases].map(normalizeSearch),
+  });
+  return [
+    ...DETECTED_BRANDS.map((entry) => index(entry.slug, entry.title, textList(bySlug.get(entry.slug)?.a))),
+    ...valid.filter((entry) => !detected.has(entry.s)).map((entry) => index(entry.s, entry.t, textList(entry.a))),
+  ];
+}
+
+function buildLucideIndex(catalog: LucideEntry[] | null): IndexedItem[] {
+  return (catalog ?? [])
+    .filter((entry) => entry && isText(entry.n) && LUCIDE_NAME_RE.test(entry.n))
+    .map((entry) => ({ value: entry.n, label: entry.n, haystack: [entry.n, ...textList(entry.k)].map(normalizeSearch) }));
+}
+
+/**
+ * Até 60 itens. O item atual que ficaria de fora (mas casa com a busca) vai para o topo;
+ * `pinned` cobre o atual que nem está na lista (catálogo carregando, ícone fora da lista fixa).
+ */
+function limitResults(matches: IndexedItem[], currentValue: string | null, pinned: IndexedItem | null) {
+  let shown = matches.slice(0, MAX_RESULTS);
+  let total = matches.length;
+  if (currentValue && !shown.some((item) => item.value === currentValue)) {
+    const current = matches.find((item) => item.value === currentValue) ?? pinned;
+    if (current) {
+      if (current === pinned) total += 1;
+      shown = [current, ...shown.slice(0, MAX_RESULTS - 1)];
+    }
+  }
+  return { shown, total };
+}
+
+function formatCount(shown: number, total: number, singular: string, pluralForm: string): string {
+  if (total > shown) return `${shown} de ${total} ${pluralForm}`;
+  return `${shown} ${shown === 1 ? singular : pluralForm}`;
 }
 
 function useDebounced<T>(value: T, delay: number): T {
@@ -81,9 +139,7 @@ function useDebounced<T>(value: T, delay: number): T {
   return debounced;
 }
 
-/** Carrega o catálogo quando `active` fica true; o cache do catalog.ts evita baixar de novo. */
-function useCatalog<T>(active: boolean, load: () => Promise<T[]>, errorMessage: string) {
-  const [state, setState] = useState<CatalogState<T>>({ status: 'idle' });
+function useMountedRef() {
   const mounted = useRef(true);
   useEffect(() => {
     mounted.current = true;
@@ -91,6 +147,13 @@ function useCatalog<T>(active: boolean, load: () => Promise<T[]>, errorMessage: 
       mounted.current = false;
     };
   }, []);
+  return mounted;
+}
+
+/** Carrega o catálogo quando `active` fica true; o cache do catalog.ts evita baixar de novo. */
+function useCatalog<T>(active: boolean, load: () => Promise<T[]>, errorMessage: string) {
+  const [state, setState] = useState<CatalogState<T>>({ status: 'idle' });
+  const mounted = useMountedRef();
 
   useEffect(() => {
     if (!active || state.status !== 'idle') return;
@@ -99,15 +162,14 @@ function useCatalog<T>(active: boolean, load: () => Promise<T[]>, errorMessage: 
       (entries) => mounted.current && setState({ status: 'ready', entries }),
       () => mounted.current && setState({ status: 'error', error: errorMessage }),
     );
-  }, [active, state.status, load, errorMessage]);
+  }, [active, state.status, load, errorMessage, mounted]);
 
-  const retry = () => setState({ status: 'idle' });
+  const retry = useCallback(() => setState({ status: 'idle' }), []);
   return { state, retry };
 }
 
-function plural(count: number, singular: string, pluralForm: string): string {
-  return `${count} ${count === 1 ? singular : pluralForm}`;
-}
+/** aria-disabled no lugar do disabled nativo: o foco fica onde está durante a gravação. */
+const ariaDisabled = (disabled: boolean | undefined) => (disabled ? { 'aria-disabled': true as const } : {});
 
 function IconSquare({ children, size = 36 }: { children: ReactNode; size?: number }) {
   return (
@@ -121,44 +183,42 @@ function IconSquare({ children, size = 36 }: { children: ReactNode; size?: numbe
   );
 }
 
-type GridItem = { key: string; label: string; type: 'brand' | 'lucide'; value: string; hex: string | null };
-
-function IconGrid({
-  items,
-  testId,
-  selectedType,
-  selectedValue,
-  disabled,
-  onSelect,
-}: {
+type IconGridProps = {
   items: GridItem[];
+  type: 'brand' | 'lucide';
   testId: string;
-  selectedType: string | null | undefined;
-  selectedValue: string | null | undefined;
+  selectedValue: string | null;
   disabled?: boolean;
-  onSelect: (item: GridItem) => void;
-}) {
+  onSelect: (value: string) => void;
+};
+
+// memo: com 60 máscaras, a grade só redesenha quando os itens, a seleção ou o disabled mudam
+const IconGrid = memo(function IconGrid({ items, type, testId, selectedValue, disabled, onSelect }: IconGridProps) {
   return (
     <div data-testid={testId} className="grid max-h-64 grid-cols-6 gap-2 overflow-y-auto p-1 sm:grid-cols-8">
       {items.map((item) => {
-        const pressed = selectedType === item.type && selectedValue === item.value;
+        const pressed = selectedValue === item.value;
         return (
           <button
-            key={item.key}
+            key={item.value}
             type="button"
             aria-label={item.label}
             aria-pressed={pressed}
+            {...ariaDisabled(disabled)}
             title={item.label}
-            disabled={disabled}
-            onClick={() => onSelect(item)}
+            onClick={() => {
+              if (!disabled) onSelect(item.value);
+            }}
             className={cn(
-              'flex items-center justify-center rounded-md p-0.5 ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50',
-              pressed ? 'ring-2 ring-primary' : 'hover:bg-muted',
+              // Selecionado pela borda; foco pelo anel com afastamento: os dois se distinguem
+              'flex items-center justify-center rounded-lg border-2 p-0.5 ring-offset-2 ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              pressed ? 'border-primary' : 'border-transparent hover:bg-muted',
+              ARIA_DISABLED_CLASS,
             )}
           >
             <IconSquare>
               <LinkIcon
-                link={{ url: '', icon_type: item.type, icon_value: item.value, accent_color: item.hex }}
+                link={{ url: '', icon_type: type, icon_value: item.value, accent_color: item.hex }}
                 defaultColor={GRID_DEFAULT_COLOR}
                 backgrounds={GRID_BACKGROUNDS}
                 size={22}
@@ -169,7 +229,7 @@ function IconGrid({
       })}
     </div>
   );
-}
+});
 
 function LiveStatus({ children }: { children: ReactNode }) {
   return (
@@ -181,26 +241,16 @@ function LiveStatus({ children }: { children: ReactNode }) {
 
 function CatalogStatus<T>({
   state,
-  count,
-  singular,
-  pluralForm,
+  message,
   onRetry,
 }: {
   state: CatalogState<T>;
-  count: number;
-  singular: string;
-  pluralForm: string;
+  message: string;
   onRetry: () => void;
 }) {
   return (
     <div className="flex items-center justify-between gap-2">
-      <LiveStatus>
-        {state.status === 'error'
-          ? state.error
-          : state.status === 'ready'
-            ? plural(count, singular, pluralForm)
-            : 'Carregando…'}
-      </LiveStatus>
+      <LiveStatus>{state.status === 'error' ? state.error : state.status === 'ready' ? message : 'Carregando…'}</LiveStatus>
       {state.status === 'error' && (
         <Button type="button" variant="outline" size="sm" onClick={onRetry}>
           Tentar de novo
@@ -210,135 +260,126 @@ function CatalogStatus<T>({
   );
 }
 
-function BrandsPanel({
-  state,
-  onRetry,
-  iconType,
-  iconValue,
+function SearchInput({
+  id,
+  label,
+  value,
   disabled,
   onChange,
 }: {
-  state: CatalogState<BrandEntry>;
+  id: string;
+  label: string;
+  value: string;
+  disabled?: boolean;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <>
+      <Label htmlFor={id} className="sr-only">
+        {label}
+      </Label>
+      {/* type="text": no type="search", o Esc limpa o campo e ainda fecha o Dialog */}
+      <Input
+        id={id}
+        type="text"
+        placeholder={label}
+        autoComplete="off"
+        value={value}
+        readOnly={disabled}
+        {...ariaDisabled(disabled)}
+        onChange={(event) => {
+          if (!disabled) onChange(event.target.value);
+        }}
+        className={ARIA_DISABLED_CLASS}
+      />
+    </>
+  );
+}
+
+type PanelProps<T> = {
+  state: CatalogState<T>;
   onRetry: () => void;
   iconType: string | null | undefined;
   iconValue: string | null | undefined;
   disabled?: boolean;
   onChange: (choice: IconChoice) => void;
-}) {
+};
+
+function BrandsPanel({ state, onRetry, iconType, iconValue, disabled, onChange }: PanelProps<BrandEntry>) {
   const [query, setQuery] = useState('');
   const search = normalizeSearch(useDebounced(query, SEARCH_DEBOUNCE_MS));
   const catalog = state.status === 'ready' ? state.entries : null;
+  // Sem catálogo (carregando ou com erro), o índice tem só as marcas da detecção
+  const index = useMemo(() => buildBrandIndex(catalog), [catalog]);
+  const currentValue = iconType === 'brand' && iconValue && BRAND_SLUG_RE.test(iconValue) ? iconValue : null;
 
-  const items = useMemo<GridItem[]>(() => {
-    if (!catalog) return [];
-    const bySlug = new Map(catalog.map((entry) => [entry.s, entry]));
-    const detected = new Set(DETECTED_BRANDS.map((entry) => entry.s));
-    // Detecção primeiro (com os apelidos do catálogo), depois o resto do catálogo
-    const all = [
-      ...DETECTED_BRANDS.map((entry) => ({ ...entry, a: bySlug.get(entry.s)?.a })),
-      ...catalog.filter((entry) => !detected.has(entry.s)),
-    ];
-    const matches = search
-      ? all.filter(
-          (entry) =>
-            normalizeSearch(entry.t).includes(search) ||
-            (entry.a ?? []).some((alias) => normalizeSearch(alias).includes(search)),
-        )
-      : all;
-    return matches.slice(0, MAX_RESULTS).map((entry) => ({
-      key: entry.s,
-      label: entry.t,
-      type: 'brand',
-      value: entry.s,
-      // Hex oficial (tabela da detecção, depois o catálogo validado); a máscara ainda passa pelo contraste
-      hex: getBrandHex(entry.s),
-    }));
-  }, [catalog, search]);
+  const { items, message } = useMemo(() => {
+    const matches = search ? index.filter((item) => item.haystack.some((text) => text.includes(search))) : index;
+    // O slug atual fora do índice (catálogo ainda não carregado) entra com o próprio slug
+    const pinned = !search && currentValue ? { value: currentValue, label: currentValue, haystack: [] } : null;
+    const { shown, total } = limitResults(matches, currentValue, pinned);
+    return {
+      items: shown.map<GridItem>((item) => ({
+        value: item.value,
+        label: item.label,
+        // Hex oficial (tabela da detecção, depois o catálogo validado); a máscara ainda passa pelo contraste
+        hex: getBrandHex(item.value),
+      })),
+      message: formatCount(shown.length, total, 'marca', 'marcas'),
+    };
+  }, [index, search, currentValue]);
+
+  const handleSelect = useCallback((value: string) => onChange({ icon_type: 'brand', icon_value: value }), [onChange]);
 
   return (
     <div className="space-y-2">
-      <Label htmlFor="icon-picker-brand-search" className="sr-only">
-        Buscar marca
-      </Label>
-      <Input
-        id="icon-picker-brand-search"
-        type="search"
-        placeholder="Buscar marca"
-        value={query}
+      <SearchInput id="icon-picker-brand-search" label="Buscar marca" value={query} disabled={disabled} onChange={setQuery} />
+      <CatalogStatus state={state} message={message} onRetry={onRetry} />
+      <IconGrid
+        items={items}
+        type="brand"
+        testId="brand-grid"
+        selectedValue={currentValue}
         disabled={disabled}
-        onChange={(event) => setQuery(event.target.value)}
+        onSelect={handleSelect}
       />
-      <CatalogStatus state={state} count={items.length} singular="marca" pluralForm="marcas" onRetry={onRetry} />
-      {catalog && (
-        <IconGrid
-          items={items}
-          testId="brand-grid"
-          selectedType={iconType}
-          selectedValue={iconValue}
-          disabled={disabled}
-          onSelect={(item) => onChange({ icon_type: 'brand', icon_value: item.value })}
-        />
-      )}
     </div>
   );
 }
 
-function IconsPanel({
-  state,
-  onRetry,
-  iconType,
-  iconValue,
-  disabled,
-  onChange,
-}: {
-  state: CatalogState<LucideEntry>;
-  onRetry: () => void;
-  iconType: string | null | undefined;
-  iconValue: string | null | undefined;
-  disabled?: boolean;
-  onChange: (choice: IconChoice) => void;
-}) {
+const COMMON_LUCIDE_ITEMS: IndexedItem[] = COMMON_LUCIDE_ICONS.map((name) => ({ value: name, label: name, haystack: [name] }));
+
+function IconsPanel({ state, onRetry, iconType, iconValue, disabled, onChange }: PanelProps<LucideEntry>) {
   const [query, setQuery] = useState('');
   const search = normalizeSearch(useDebounced(query, SEARCH_DEBOUNCE_MS));
   const catalog = state.status === 'ready' ? state.entries : null;
+  const index = useMemo(() => buildLucideIndex(catalog), [catalog]);
+  const currentValue = iconType === 'lucide' && iconValue && LUCIDE_NAME_RE.test(iconValue) ? iconValue : null;
 
-  const names = useMemo<string[]>(() => {
+  const { items, message } = useMemo(() => {
     // A lista fixa não depende do catálogo: aparece já enquanto ele carrega
-    if (!search) return COMMON_LUCIDE_ICONS;
-    if (!catalog) return [];
-    return catalog
-      .filter(
-        (entry) =>
-          normalizeSearch(entry.n).includes(search) ||
-          (entry.k ?? []).some((keyword) => normalizeSearch(keyword).includes(search)),
-      )
-      .slice(0, MAX_RESULTS)
-      .map((entry) => entry.n);
-  }, [catalog, search]);
+    const matches = search ? index.filter((item) => item.haystack.some((text) => text.includes(search))) : COMMON_LUCIDE_ITEMS;
+    const pinned = !search && currentValue ? { value: currentValue, label: currentValue, haystack: [] } : null;
+    const { shown, total } = limitResults(matches, currentValue, pinned);
+    return {
+      items: shown.map<GridItem>((item) => ({ value: item.value, label: item.label, hex: null })),
+      message: formatCount(shown.length, total, 'ícone', 'ícones'),
+    };
+  }, [index, search, currentValue]);
 
-  const items = names.map<GridItem>((name) => ({ key: name, label: name, type: 'lucide', value: name, hex: null }));
+  const handleSelect = useCallback((value: string) => onChange({ icon_type: 'lucide', icon_value: value }), [onChange]);
 
   return (
     <div className="space-y-2">
-      <Label htmlFor="icon-picker-lucide-search" className="sr-only">
-        Buscar ícone
-      </Label>
-      <Input
-        id="icon-picker-lucide-search"
-        type="search"
-        placeholder="Buscar ícone"
-        value={query}
-        disabled={disabled}
-        onChange={(event) => setQuery(event.target.value)}
-      />
-      <CatalogStatus state={state} count={items.length} singular="ícone" pluralForm="ícones" onRetry={onRetry} />
+      <SearchInput id="icon-picker-lucide-search" label="Buscar ícone" value={query} disabled={disabled} onChange={setQuery} />
+      <CatalogStatus state={state} message={message} onRetry={onRetry} />
       <IconGrid
         items={items}
+        type="lucide"
         testId="lucide-grid"
-        selectedType={iconType}
-        selectedValue={iconValue}
+        selectedValue={currentValue}
         disabled={disabled}
-        onSelect={(item) => onChange({ icon_type: 'lucide', icon_value: item.value })}
+        onSelect={handleSelect}
       />
     </div>
   );
@@ -358,8 +399,9 @@ function EmojiPanel({
   const [value, setValue] = useState(iconType === 'emoji' && iconValue ? iconValue : '');
   const [error, setError] = useState<string | null>(null);
 
-  const submit = (event: FormEvent) => {
-    event.preventDefault();
+  // Sem <form>: o picker fica dentro do formulário do modal de edição
+  const submit = () => {
+    if (disabled) return;
     const emoji = value.trim();
     if (!isSingleEmoji(emoji)) {
       setError(EMOJI_ERROR);
@@ -369,8 +411,15 @@ function EmojiPanel({
     onChange({ icon_type: 'emoji', icon_value: emoji });
   };
 
+  const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      submit();
+    }
+  };
+
   return (
-    <form onSubmit={submit} className="space-y-2">
+    <div className="space-y-2">
       <Label htmlFor="icon-picker-emoji">Emoji do link</Label>
       <div className="flex gap-2">
         <Input
@@ -379,23 +428,26 @@ function EmojiPanel({
           maxLength={32}
           placeholder="🚀"
           autoComplete="off"
-          disabled={disabled}
+          readOnly={disabled}
+          {...ariaDisabled(disabled)}
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? 'icon-picker-emoji-error' : undefined}
           onChange={(event) => {
+            if (disabled) return;
             setValue(event.target.value);
             setError(null);
           }}
-          className="w-24 text-center text-lg"
+          onKeyDown={handleKeyDown}
+          className={cn('w-24 text-center text-lg', ARIA_DISABLED_CLASS)}
         />
-        <Button type="submit" disabled={disabled}>
+        <Button type="button" {...ariaDisabled(disabled)} onClick={submit} className={ARIA_DISABLED_CLASS}>
           Usar
         </Button>
       </div>
       <p id="icon-picker-emoji-error" role="alert" className="min-h-4 text-xs text-destructive">
         {error}
       </p>
-    </form>
+    </div>
   );
 }
 
@@ -412,6 +464,7 @@ function FaviconPanel({
 }) {
   const favicon = getFaviconUrl(url);
   const host = getUrlHost(url);
+  const unavailable = disabled || !favicon;
 
   return (
     <div className="space-y-3">
@@ -430,7 +483,7 @@ function FaviconPanel({
           <p className="text-sm text-muted-foreground">Ícone do site {host}</p>
         </div>
       ) : (
-        <p className="text-sm text-muted-foreground">
+        <p id="icon-picker-favicon-missing" className="text-sm text-muted-foreground">
           Este link não aponta para um site, então não há ícone do site para usar.
         </p>
       )}
@@ -438,8 +491,12 @@ function FaviconPanel({
         type="button"
         variant="outline"
         aria-pressed={iconType === 'favicon'}
-        disabled={disabled || !favicon}
-        onClick={() => onChange({ icon_type: 'favicon', icon_value: null })}
+        {...ariaDisabled(unavailable)}
+        aria-describedby={favicon ? undefined : 'icon-picker-favicon-missing'}
+        onClick={() => {
+          if (!unavailable) onChange({ icon_type: 'favicon', icon_value: null });
+        }}
+        className={ARIA_DISABLED_CLASS}
       >
         Usar o ícone do site
       </Button>
@@ -450,13 +507,7 @@ function FaviconPanel({
 function UploadPanel({ disabled, onUpload }: { disabled?: boolean; onUpload: (file: File) => Promise<void> }) {
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
-  const mounted = useRef(true);
-  useEffect(() => {
-    mounted.current = true;
-    return () => {
-      mounted.current = false;
-    };
-  }, []);
+  const mounted = useMountedRef();
 
   const handleFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const input = event.target;
@@ -485,6 +536,7 @@ function UploadPanel({ disabled, onUpload }: { disabled?: boolean; onUpload: (fi
   return (
     <div className="space-y-2">
       <Label htmlFor="icon-picker-upload">Arquivo do ícone</Label>
+      {/* O único controle com o disabled nativo: o seletor de arquivo não pode abrir durante a gravação */}
       <Input
         id="icon-picker-upload"
         type="file"
@@ -540,8 +592,11 @@ export function IconPicker({ url, iconType, iconValue, accentColor, disabled, on
           variant={isAuto ? 'secondary' : 'outline'}
           size="sm"
           aria-pressed={isAuto}
-          disabled={disabled}
-          onClick={() => onChange({ icon_type: 'auto', icon_value: null })}
+          {...ariaDisabled(disabled)}
+          onClick={() => {
+            if (!disabled) onChange({ icon_type: 'auto', icon_value: null });
+          }}
+          className={ARIA_DISABLED_CLASS}
         >
           Automático (pela URL)
         </Button>
