@@ -1,7 +1,12 @@
 -- Ícones dos links com customização total: tipo e valor do ícone, cor de destaque e bucket dos ícones enviados
 -- Os links existentes ficam com icon_type = 'auto' (o ícone sai da URL)
--- Não espera para sempre por uma consulta longa: falha em 5 s e pode rodar de novo
-SET lock_timeout = '5s';
+-- Tudo numa transação: com erro no meio (e o ON_ERROR_STOP do psql), nada fica aplicado pela metade.
+-- Cada comando é idempotente, então a migração pode rodar de novo.
+BEGIN;
+
+-- Não espera para sempre por uma consulta longa: falha em 5 s e pode rodar de novo.
+-- SET LOCAL vale só até o fim desta transação.
+SET LOCAL lock_timeout = '5s';
 
 ALTER TABLE linkhub.links ADD COLUMN IF NOT EXISTS icon_type TEXT NOT NULL DEFAULT 'auto';
 ALTER TABLE linkhub.links ADD COLUMN IF NOT EXISTS icon_value TEXT;
@@ -61,5 +66,7 @@ CREATE POLICY "linkhub_link_icons_delete_own" ON storage.objects
     bucket_id = 'linkhub-link-icons' AND (storage.foldername(name))[1] = auth.uid()::text
   );
 
--- PostgREST passa a enxergar as colunas sem reiniciar
+-- PostgREST passa a enxergar as colunas sem reiniciar (dentro da transação, o aviso só sai no COMMIT)
 NOTIFY pgrst, 'reload schema';
+
+COMMIT;

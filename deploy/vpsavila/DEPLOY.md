@@ -143,7 +143,7 @@ npm run build
 
 - O `prebuild` roda `scripts/prepare-mediapipe.mjs`, que prepara o motor e o modelo da remoção de fundo em `public/mediapipe/<versão>/`. O primeiro build numa máquina baixa o modelo (15,6 MB) uma vez; os seguintes reaproveitam.
 - Sem internet e sem o modelo, o build **para com erro**, de propósito: um `dist` sem `mediapipe/` publicado por cima do servidor tiraria a remoção de fundo do ar. Rode de novo com internet. Só use `SKIP_MEDIAPIPE=1` se quiser mesmo publicar sem a remoção de fundo.
-- O `prebuild` também roda `scripts/prepare-icons.mjs`, que copia os SVGs de marca (`simple-icons`) e do Lucide (`lucide-static`) de `node_modules` para `public/vendor-icons/<pacote>/<versão>/`, com um `catalog.json` em cada pasta. Se faltar algo, o build também para com erro (`SKIP_VENDOR_ICONS=1` pula, deixando os ícones quebrados).
+- O `prebuild` também roda `scripts/prepare-icons.mjs`, que copia os SVGs de marca (`simple-icons`) e do Lucide (`lucide-static`) de `node_modules` para `public/vendor-icons/<pacote>/<versão>/`, com um `catalog.v1.json` em cada pasta. Se faltar algo, ou se o `node_modules` tiver outra versão de um dos pacotes, o build também para com erro (`SKIP_VENDOR_ICONS=1` pula, deixando os ícones quebrados).
 - Cada deploy envia cerca de 50 MB, quase todos do MediaPipe (`dist/mediapipe/`); os cerca de 5.000 SVGs dos ícones (`dist/vendor-icons/`) somam uns 6 MB.
 
 ### Migrações do banco
@@ -167,17 +167,28 @@ O build novo sobe para `html.new` e só então troca de lugar com o atual, que f
 
 O `dist` vai empacotado num `.tgz`: com os cerca de 5.000 SVGs dos ícones, o `scp -r` arquivo por arquivo fica lento. O `--format ustar` evita que o GNU tar do servidor avise de cabeçalhos `LIBARCHIVE.*` do `tar.exe` do Windows (o aviso seria inofensivo).
 
+No PowerShell, um comando nativo (`tar.exe`, `scp`, `ssh`) que falha **não** interrompe as linhas seguintes. Por isso o procedimento é um bloco único `& { … }`, colado inteiro: cada passo confere o `$LASTEXITCODE` e o `throw` para o bloco no primeiro erro. No servidor, cada linha encadeia os comandos com `&&`, e a troca de pastas só acontece se `html.new/index.html` existir. Se o bloco parar antes da troca, o site continua no ar com o `html` atual.
+
 ```powershell
-tar.exe --format ustar -czf "$env:TEMP\linkhub-dist.tgz" -C dist .
-scp "$env:TEMP\linkhub-dist.tgz" avila@192.168.1.24:/tmp/
-ssh avila@192.168.1.24 'cd ~/docker/linkhub-frontend && rm -rf html.new && mkdir html.new && tar -xzf /tmp/linkhub-dist.tgz -C ~/docker/linkhub-frontend/html.new'
-ssh avila@192.168.1.24 'find ~/docker/linkhub-frontend/html.new -type d -exec chmod 755 {} + && find ~/docker/linkhub-frontend/html.new -type f -exec chmod 644 {} +'
-ssh avila@192.168.1.24 'cd ~/docker/linkhub-frontend && rm -rf html.old && mv html html.old && mv html.new html && docker compose up -d --force-recreate && sleep 40 && docker inspect --format "{{.State.Health.Status}}" linkhub-nginx'
-ssh avila@192.168.1.24 'rm -f /tmp/linkhub-dist.tgz'
-Remove-Item "$env:TEMP\linkhub-dist.tgz"
+& {
+  $tgz = "$env:TEMP\linkhub-dist.tgz"
+  tar.exe --format ustar -czf $tgz -C dist .
+  if ($LASTEXITCODE -ne 0) { throw 'Falhou: empacotar o dist' }
+  ssh avila@192.168.1.24 'rm -f /tmp/linkhub-dist.tgz'
+  if ($LASTEXITCODE -ne 0) { throw 'Falhou: apagar o .tgz antigo no servidor' }
+  scp $tgz avila@192.168.1.24:/tmp/
+  if ($LASTEXITCODE -ne 0) { throw 'Falhou: enviar o .tgz' }
+  ssh avila@192.168.1.24 'cd ~/docker/linkhub-frontend && rm -rf html.new && mkdir html.new && tar -xzf /tmp/linkhub-dist.tgz -C html.new && rm -f /tmp/linkhub-dist.tgz && test -f html.new/index.html && test -f html.new/vendor-icons/simple-icons/16.35.0/youtube.svg'
+  if ($LASTEXITCODE -ne 0) { throw 'Falhou: extrair e conferir o html.new no servidor' }
+  ssh avila@192.168.1.24 'find ~/docker/linkhub-frontend/html.new -type d -exec chmod 755 {} + && find ~/docker/linkhub-frontend/html.new -type f -exec chmod 644 {} +'
+  if ($LASTEXITCODE -ne 0) { throw 'Falhou: chmod do html.new' }
+  ssh avila@192.168.1.24 'cd ~/docker/linkhub-frontend && test -f html.new/index.html && rm -rf html.old && mv html html.old && mv html.new html && docker compose up -d --force-recreate && sleep 40 && docker inspect --format "{{.State.Health.Status}}" linkhub-nginx'
+  if ($LASTEXITCODE -ne 0) { throw 'Falhou: trocar as pastas e recriar o contêiner' }
+  Remove-Item $tgz
+}
 ```
 
-Esperado: `healthy`. Se vier `starting`, repita só o `docker inspect`.
+Esperado: `healthy` no fim, sem nenhuma mensagem `Falhou: …`. Se vier `starting`, repita só o `docker inspect`. Se aparecer `Falhou: …`, corrija a causa e rode o bloco inteiro de novo: cada passo pode ser repetido.
 
 ### Quando o `nginx.conf` mudar
 

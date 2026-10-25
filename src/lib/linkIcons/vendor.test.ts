@@ -24,6 +24,11 @@ describe('versões dos ícones servidos pelo domínio', () => {
     const script = readFileSync(path.join(root, 'scripts', 'prepare-icons.mjs'), 'utf8');
     expect(/const SIMPLE_ICONS_VERSION = '([^']+)'/.exec(script)?.[1]).toBe(SIMPLE_ICONS_VERSION);
     expect(/const LUCIDE_STATIC_VERSION = '([^']+)'/.exec(script)?.[1]).toBe(LUCIDE_STATIC_VERSION);
+
+    // O catálogo que o script grava é o mesmo que o app pede
+    const catalogName = /const CATALOG_NAME = '([^']+)'/.exec(script)?.[1];
+    expect(BRAND_CATALOG_URL.endsWith(`/${catalogName}`)).toBe(true);
+    expect(LUCIDE_CATALOG_URL.endsWith(`/${catalogName}`)).toBe(true);
   });
 });
 
@@ -56,9 +61,10 @@ describe('lucideIconUrl', () => {
 
 describe('catálogos', () => {
   it('ficam ao lado dos SVGs de cada versão', () => {
-    expect(BRAND_CATALOG_URL.endsWith('/catalog.json')).toBe(true);
-    expect(LUCIDE_CATALOG_URL.endsWith('/catalog.json')).toBe(true);
-    expect(BRAND_CATALOG_URL).toBe('/vendor-icons/simple-icons/16.35.0/catalog.json');
-    expect(LUCIDE_CATALOG_URL).toBe('/vendor-icons/lucide/0.462.0/catalog.json');
+    // A versão do formato vai no nome: um formato novo não reaproveita um catálogo antigo em cache
+    expect(BRAND_CATALOG_URL.endsWith('/catalog.v1.json')).toBe(true);
+    expect(LUCIDE_CATALOG_URL.endsWith('/catalog.v1.json')).toBe(true);
+    expect(BRAND_CATALOG_URL).toBe('/vendor-icons/simple-icons/16.35.0/catalog.v1.json');
+    expect(LUCIDE_CATALOG_URL).toBe('/vendor-icons/lucide/0.462.0/catalog.v1.json');
   });
 });

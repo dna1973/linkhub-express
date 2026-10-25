@@ -86,12 +86,12 @@ A conferência contra o `getPublicUrl` real do Supabase fica num segundo teste n
 - `src/lib/linkIcons/storagePrefix.ts`: exporta `LINK_ICONS_BUCKET = 'linkhub-link-icons'`, `getLinkIconsPublicPrefix()` e `LINK_ICONS_PUBLIC_PREFIX`. Sem importar o cliente.
 - `src/lib/supabase.ts`: `export { LINK_ICONS_BUCKET } from './linkIcons/storagePrefix';`, ao lado do `AVATARS_BUCKET`.
 - `deploy/vpsavila/migrations/2026-10-25-link-icons.sql`, conforme a especificação:
-  - começa com `SET lock_timeout = '5s'`;
+  - tudo numa transação: começa com `BEGIN;` e `SET LOCAL lock_timeout = '5s'`;
   - `ALTER TABLE linkhub.links ADD COLUMN IF NOT EXISTS icon_type text NOT NULL DEFAULT 'auto'`, depois `icon_value text` e `accent_color text`;
   - um bloco `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'links_icon_type_check') THEN ALTER TABLE linkhub.links ADD CONSTRAINT … ; END IF; END $$;` para cada uma das três constraints;
   - o bucket com `INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types) VALUES ('linkhub-link-icons','linkhub-link-icons', true, 524288, ARRAY['image/png','image/webp']) ON CONFLICT (id) DO NOTHING;`;
   - as quatro políticas `linkhub_link_icons_public_read`, `_insert_own`, `_update_own` e `_delete_own`, copiadas das de avatares, cada uma precedida de `DROP POLICY IF EXISTS … ON storage.objects;`;
-  - termina com `NOTIFY pgrst, 'reload schema';`.
+  - termina com `NOTIFY pgrst, 'reload schema';` (entregue no commit) e `COMMIT;`.
 - `deploy/vpsavila/linkhub_schema.sql`:
   - na tabela `links`, as três colunas e constraints;
   - na seção 7 (Storage), o bucket e as políticas, com título "bucket de ícones dos links (público, 512 KB, PNG e WebP)".
@@ -126,7 +126,7 @@ Rode `npx tsc --noEmit -p tsconfig.app.json` e `npm test`. Os testes novos são 
 - `brandIconUrl('youtube') === '/vendor-icons/simple-icons/16.35.0/youtube.svg'` e `brandIconUrl('uniqlo_ja')` não é `null`;
 - `brandIconUrl('a")b')`, `brandIconUrl('../x')` e `brandIconUrl('')` são `null`;
 - `lucideIconUrl('building-2') === '/vendor-icons/lucide/0.462.0/building-2.svg'` e `lucideIconUrl('-x')` é `null`;
-- `BRAND_CATALOG_URL` e `LUCIDE_CATALOG_URL` terminam em `/catalog.json`.
+- `BRAND_CATALOG_URL` e `LUCIDE_CATALOG_URL` terminam em `/catalog.v1.json`, o mesmo `CATALOG_NAME` do script.
 
 - [ ] **Passo 3: implementar `src/lib/linkIcons/vendor.ts`**
 
@@ -141,8 +141,8 @@ export const LUCIDE_NAME_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const BRAND_BASE = `/vendor-icons/simple-icons/${SIMPLE_ICONS_VERSION}`;
 const LUCIDE_BASE = `/vendor-icons/lucide/${LUCIDE_STATIC_VERSION}`;
 
-export const BRAND_CATALOG_URL = `${BRAND_BASE}/catalog.json`;
-export const LUCIDE_CATALOG_URL = `${LUCIDE_BASE}/catalog.json`;
+export const BRAND_CATALOG_URL = `${BRAND_BASE}/catalog.v1.json`;
+export const LUCIDE_CATALOG_URL = `${LUCIDE_BASE}/catalog.v1.json`;
 
 export function brandIconUrl(slug: string | null | undefined): string | null {
   return slug && BRAND_SLUG_RE.test(slug) ? `${BRAND_BASE}/${slug}.svg` : null;
@@ -165,10 +165,11 @@ Siga o padrão de `scripts/prepare-mediapipe.mjs`: comentário de cabeçalho, `s
 - **Lucide:**
   - origem: `node_modules/lucide-static/icons/*.svg`; destino: `public/vendor-icons/lucide/<versão>/`;
   - o catálogo vem de `node_modules/lucide-static/tags.json`, como `[{n, k}]`, só com nomes que tenham SVG, ordenado por nome.
-- **"Completo":** existe `.complete`, existe `catalog.json` e a contagem de `.svg` no destino é igual à da origem. Se estiver completo, não copia. Senão, apaga o destino, copia tudo, grava o catálogo e por último o `.complete`.
+- **Catálogo:** o nome traz a versão do formato, `catalog.v1.json` (constante `CATALOG_NAME`); um `catalog.json` antigo é apagado.
+- **"Completo":** existe `.complete`, existe `catalog.v1.json` e a contagem de `.svg` no destino é igual à da origem. Se estiver completo, não copia. Se só faltar o catálogo, regera só ele (gravado num temporário e renomeado). Senão, apaga o destino, copia tudo, grava o catálogo e por último o `.complete`. Os `rm` usam `{ recursive: true, force: true, maxRetries: 5 }`.
 - **Limpeza:** apaga as pastas irmãs de **outras versões** dentro de `public/vendor-icons/simple-icons/` e `public/vendor-icons/lucide/`.
 - **Saída:** `[vendor-icons] simple-icons: N ícones (copiados|em dia)` e o mesmo para o Lucide.
-- **Modo estrito:** com `npm_lifecycle_event === 'prebuild'` ou `REQUIRE_VENDOR_ICONS=1`, depois de tentar, se algo continuar incompleto: `process.exitCode = 1` com mensagem clara. `SKIP_VENDOR_ICONS=1` pula tudo.
+- **Modo estrito:** com `npm_lifecycle_event === 'prebuild'` ou `REQUIRE_VENDOR_ICONS=1`, depois de tentar, se algo continuar incompleto ou se o `node_modules` tiver outra versão de um dos pacotes: `process.exitCode = 1` com mensagem clara (fora do modo estrito, a versão diferente só avisa). `SKIP_VENDOR_ICONS=1` pula tudo.
 
 Em `package.json`:
 - `"predev": "node scripts/prepare-mediapipe.mjs && node scripts/prepare-icons.mjs"`;
@@ -190,7 +191,7 @@ Em `package.json`:
 - Conferir com PowerShell:
   - contagem de `public/vendor-icons/simple-icons/16.35.0/*.svg` igual à da origem (3466);
   - Lucide com 1541;
-  - `catalog.json` existente nas duas pastas;
+  - `catalog.v1.json` existente nas duas pastas;
   - `Test-Path public/vendor-icons/lucide/0.462.0/house.svg` verdadeiro.
 - `npm run build` verde. O `dist/sw.js` não menciona `vendor-icons`. Nenhum `dist/assets/*.js` contém o trecho `M23.498 6.186a3.016`, o começo do path do YouTube.
 - `npx tsc --noEmit -p tsconfig.app.json` e `npm test`.

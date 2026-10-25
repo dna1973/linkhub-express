@@ -62,13 +62,13 @@ Significado e validação de `icon_value`. O banco só limita o tamanho; o app v
 
 ### Migração
 
-Arquivo `deploy/vpsavila/migrations/2026-10-25-link-icons.sql`, idempotente:
-- começa com `SET lock_timeout = '5s'`;
+Arquivo `deploy/vpsavila/migrations/2026-10-25-link-icons.sql`, idempotente e numa transação só (`BEGIN; … COMMIT;`):
+- começa com `BEGIN;` e `SET LOCAL lock_timeout = '5s'`;
 - colunas com `ADD COLUMN IF NOT EXISTS`;
 - as três constraints criadas dentro de blocos `DO $$ … $$`, só se o nome não existir em `pg_constraint`;
 - bucket com `INSERT … ON CONFLICT (id) DO NOTHING`;
 - políticas com `DROP POLICY IF EXISTS` + `CREATE POLICY`;
-- termina com `NOTIFY pgrst, 'reload schema'`.
+- termina com `NOTIFY pgrst, 'reload schema'` (entregue no commit) e `COMMIT;`.
 
 É aplicada antes do frontend, pelo procedimento do `DEPLOY.md` (`scp` + `psql` no servidor).
 
@@ -85,11 +85,12 @@ O `simple-icons` tem 3.466 marcas, e o `index.mjs` dele pesa 5,25 MB. Importar t
   - Constantes `SIMPLE_ICONS_VERSION = '16.35.0'` e `LUCIDE_STATIC_VERSION = '0.462.0'`. O script avisa se o `node_modules` tiver outra versão.
   - Destinos: `public/vendor-icons/simple-icons/<versão>/*.svg` e `public/vendor-icons/lucide/<versão>/*.svg` (cerca de 5.000 arquivos e 6 MB).
   - Catálogos:
-    - **Marcas:** `public/vendor-icons/simple-icons/<versão>/catalog.json`, com `[{ "s": slug, "t": título, "h": "#rrggbb", "a": [apelidos] }]`, cerca de 160 KB. Os apelidos vêm de `aliases.aka`, `aliases.dup[].title`, os valores de `aliases.loc` e `aliases.old`.
-    - **Lucide:** `public/vendor-icons/lucide/<versão>/catalog.json`, com `[{ "n": nome, "k": [palavras-chave] }]`, cerca de 140 KB, a partir de `tags.json`. Só entra ícone que tenha SVG.
-  - "Completo" = o marcador `.complete` existe, o catálogo existe e a contagem de `.svg` na pasta é igual à da origem. Quando a pasta está completa, o script não copia nada.
-  - Apaga as pastas de **outras versões** em `public/vendor-icons/simple-icons/` e `public/vendor-icons/lucide/`, para não irem junto no `dist`.
-  - Com `npm_lifecycle_event === 'prebuild'` ou `REQUIRE_VENDOR_ICONS=1`, sai com código 1 se algo continuar incompleto. Com `SKIP_VENDOR_ICONS=1`, pula tudo.
+    - O nome traz a versão do formato (`catalog.v1.json`): um formato novo ganha outro nome e não reaproveita um catálogo antigo em cache. Um `catalog.json` de antes é apagado pelo script.
+    - **Marcas:** `public/vendor-icons/simple-icons/<versão>/catalog.v1.json`, com `[{ "s": slug, "t": título, "h": "#rrggbb", "a": [apelidos] }]`, cerca de 160 KB. Os apelidos vêm de `aliases.aka`, `aliases.dup[].title`, os valores de `aliases.loc` e `aliases.old`.
+    - **Lucide:** `public/vendor-icons/lucide/<versão>/catalog.v1.json`, com `[{ "n": nome, "k": [palavras-chave] }]`, cerca de 140 KB, a partir de `tags.json`. Só entra ícone que tenha SVG.
+  - "Completo" = o marcador `.complete` existe, o `catalog.v1.json` existe e a contagem de `.svg` na pasta é igual à da origem. Quando a pasta está completa, o script não copia nada. Se só faltar o catálogo, ele é regerado sem recopiar os SVGs.
+  - Apaga as pastas de **outras versões** em `public/vendor-icons/simple-icons/` e `public/vendor-icons/lucide/`, para não irem junto no `dist`. Os `rm` usam `maxRetries: 5` (arquivos presos por instantes no Windows).
+  - Com `npm_lifecycle_event === 'prebuild'` ou `REQUIRE_VENDOR_ICONS=1`, sai com código 1 se algo continuar incompleto ou se o `node_modules` tiver outra versão de um dos pacotes (fora desse modo, a versão diferente só gera aviso). Com `SKIP_VENDOR_ICONS=1`, pula tudo.
   - No `package.json`:
     - `"predev": "node scripts/prepare-mediapipe.mjs && node scripts/prepare-icons.mjs"`
     - `"prebuild": "node scripts/prepare-mediapipe.mjs && node scripts/prepare-icons.mjs"`
