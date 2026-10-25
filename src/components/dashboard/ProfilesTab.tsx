@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { supabase } from '@/lib/supabase';
 import { getPublicProfileUrl } from '@/lib/publicProfileUrl';
 import { useToast } from '@/hooks/use-toast';
-import { MAX_PROFILES, useCurrentProfile, type Profile } from '@/contexts/CurrentProfileContext';
+import { MAX_PROFILES, useCurrentProfile, type DeleteProfileResult, type Profile } from '@/contexts/CurrentProfileContext';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const numberFormat = new Intl.NumberFormat('pt-BR');
@@ -215,9 +215,17 @@ export const ProfilesTab: React.FC<ProfilesTabProps> = ({ onOpenLinks, onCreateP
     const label = labelOf(deleting);
     busyRef.current = true;
     setBusy(true);
-    const result = await deleteProfile(deleting.id);
-    busyRef.current = false;
-    setBusy(false);
+    let result: DeleteProfileResult;
+    try {
+      result = await deleteProfile(deleting.id);
+    } catch (error) {
+      // Falha fora do esperado (rede, por exemplo): mesmo aviso de erro, e o diálogo volta a responder
+      console.error('Error deleting profile:', error);
+      result = { ok: false, error: 'other' };
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+    }
     if (result.ok === false) {
       toast({
         title: 'Erro',

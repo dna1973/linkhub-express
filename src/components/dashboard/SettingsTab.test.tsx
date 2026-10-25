@@ -29,6 +29,10 @@ const mocks = vi.hoisted(() => {
     usernameArgs: [] as unknown[][],
     // Sobrescreve campos do resultado do hook; sem nada, ele conferiu o @ passado
     usernameResult: {} as Record<string, unknown>,
+    // Objetos devolvidos pelo hook, na ordem das chamadas
+    usernameResults: [] as unknown[],
+    // Props do último render do UsernameInput (o componente real continua renderizando)
+    usernameInputProps: null as null | Record<string, unknown>,
   };
 });
 
@@ -40,7 +44,7 @@ vi.mock('@/hooks/use-toast', () => ({ useToast: () => ({ toast: mocks.toast }) }
 vi.mock('@/hooks/useUsernameValidation', () => ({
   useUsernameValidation: (...args: unknown[]) => {
     mocks.usernameArgs.push(args);
-    return {
+    const result = {
       isValid: true,
       isAvailable: true,
       isChecking: false,
@@ -49,6 +53,8 @@ vi.mock('@/hooks/useUsernameValidation', () => ({
       checkedUsername: args[0],
       ...mocks.usernameResult,
     };
+    mocks.usernameResults.push(result);
+    return result;
   },
 }));
 vi.mock('@/hooks/useAutosave', () => ({
@@ -57,6 +63,15 @@ vi.mock('@/hooks/useAutosave', () => ({
     return 'idle';
   },
 }));
+vi.mock('@/components/ui/username-input', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/components/ui/username-input')>();
+  return {
+    UsernameInput: (props: Parameters<typeof actual.UsernameInput>[0]) => {
+      mocks.usernameInputProps = props as unknown as Record<string, unknown>;
+      return <actual.UsernameInput {...props} />;
+    },
+  };
+});
 vi.mock('./AuthProviderInfo', () => ({ AuthProviderInfo: () => null }));
 vi.mock('@/lib/supabase', () => ({
   AVATARS_BUCKET: 'linkhub-avatars',
@@ -131,6 +146,8 @@ beforeEach(() => {
   mocks.profileEq.mockReset();
   mocks.usernameArgs = [];
   mocks.usernameResult = {};
+  mocks.usernameResults = [];
+  mocks.usernameInputProps = null;
   useDesignStore.getState().setCustomTheme({
     ...originalTheme,
     background: { type: 'gradient', colors: ['#0F172A', '#1e293b'] },
@@ -560,5 +577,18 @@ describe('SettingsTab, perfil atual', () => {
     mocks.usernameResult = { checkedUsername: 'admin' };
     fireEvent.change(screen.getByLabelText('Nome Completo'), { target: { value: 'Daniel A' } });
     expect(mocks.autosave!.enabled).toBe(true);
+  });
+
+  it('uma validação só por @: o UsernameInput recebe o resultado da aba e não roda o hook', () => {
+    renderTab();
+    const validation = mocks.usernameInputProps!.validation;
+    expect(validation).toBeDefined();
+    // O resultado que chegou ao campo é o da última chamada, a da aba
+    expect(validation).toBe(mocks.usernameResults[mocks.usernameResults.length - 1]);
+
+    // Cada render da aba chama o hook uma vez: trocar o nome rende uma chamada a mais, não duas
+    const before = mocks.usernameArgs.length;
+    fireEvent.change(screen.getByLabelText('Nome Completo'), { target: { value: 'Daniel A' } });
+    expect(mocks.usernameArgs.length - before).toBe(1);
   });
 });

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -31,6 +31,7 @@ export const NewProfileDialog: React.FC<NewProfileDialogProps> = ({ open, onOpen
   const [username, setUsername] = useState('');
   const [fullName, setFullName] = useState('');
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   const [fieldError, setFieldError] = useState<string | null>(null);
   const [limitReached, setLimitReached] = useState(false);
   // Sem perfil atual: um @ que já é de outro perfil da conta também conta como em uso
@@ -65,12 +66,20 @@ export const NewProfileDialog: React.FC<NewProfileDialogProps> = ({ open, onOpen
     !saving;
 
   const handleSubmit = async () => {
+    // O estado só muda no próximo render: dois cliques no mesmo lote veriam saving ainda false
+    if (savingRef.current) return;
     if (!canSubmit) return;
+    savingRef.current = true;
     setSaving(true);
     setFieldError(null);
     setLimitReached(false);
-    const result = await createProfile({ username, full_name: fullName.trim() });
-    setSaving(false);
+    let result: Awaited<ReturnType<typeof createProfile>>;
+    try {
+      result = await createProfile({ username, full_name: fullName.trim() });
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
 
     if (result.ok === false) {
       if (result.error === 'limit') setLimitReached(true);

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { NewProfileDialog } from './NewProfileDialog';
 
 const mocks = vi.hoisted(() => ({
@@ -189,5 +189,17 @@ describe('NewProfileDialog', () => {
     rerender(<NewProfileDialog open onOpenChange={onOpenChange} onCreated={onCreated} />);
     expect(usernameField().value).toBe('');
     expect((screen.getByLabelText('Nome') as HTMLInputElement).value).toBe('');
+  });
+
+  it('dois cliques em "Continuar" no mesmo lote: uma criação só', () => {
+    mocks.createProfile.mockReturnValue(new Promise(() => {}));
+    renderDialog();
+    fill();
+    // O segundo chega antes de o botão ficar desabilitado
+    act(() => {
+      continuar().click();
+      continuar().click();
+    });
+    expect(mocks.createProfile).toHaveBeenCalledTimes(1);
   });
 });

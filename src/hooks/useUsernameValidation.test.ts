@@ -123,4 +123,37 @@ describe('useUsernameValidation', () => {
     expect(result.current.isAvailable).toBe(true);
     expect(result.current.error).toBeNull();
   });
+
+  it('trocar o @ antes do debounce não consulta o abandonado', async () => {
+    mocks.rows = [];
+    const { result, rerender } = renderHook(({ u }) => useUsernameValidation(u, 100), { initialProps: { u: 'loja' } });
+    rerender({ u: 'loja_nova' });
+    await waitFor(() => expect(result.current.checkedUsername).toBe('loja_nova'));
+    expect(mocks.eq.mock.calls).toEqual([['username', 'loja_nova']]);
+  });
+
+  it('desmontar antes do debounce não consulta nada', async () => {
+    const { unmount } = renderHook(() => useUsernameValidation('loja', 50));
+    unmount();
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    expect(mocks.eq).not.toHaveBeenCalled();
+  });
+
+  it('@ reservado sugere variações', async () => {
+    const { result } = renderHook(() => useUsernameValidation('admin', 0));
+    await waitFor(() => expect(result.current.checkedUsername).toBe('admin'));
+    expect(result.current.suggestions).toEqual(['admin1', 'admin2', 'admin3', 'admin_', '_admin']);
+  });
+
+  it('@ em uso sugere variações; @ disponível, nenhuma', async () => {
+    const { result, rerender } = renderHook(({ u }) => useUsernameValidation(u, 0), { initialProps: { u: 'dna' } });
+    await waitFor(() => expect(result.current.checkedUsername).toBe('dna'));
+    expect(result.current.isAvailable).toBe(false);
+    expect(result.current.suggestions).toEqual(['dna1', 'dna2', 'dna3', 'dna_', '_dna']);
+
+    mocks.rows = [];
+    rerender({ u: 'loja_nova' });
+    await waitFor(() => expect(result.current.checkedUsername).toBe('loja_nova'));
+    expect(result.current.suggestions).toEqual([]);
+  });
 });

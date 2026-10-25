@@ -287,4 +287,36 @@ describe('ProfilesTab', () => {
     fireEvent.keyDown(campo, { key: 'Enter' });
     await waitFor(() => expect(mocks.deleteProfile).toHaveBeenCalledWith('p2'));
   });
+
+  it('se deleteProfile lançar, mostra o erro e o diálogo continua utilizável', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    mocks.deleteProfile.mockRejectedValueOnce(new Error('rede'));
+    renderTab();
+    fireEvent.click(screen.getByRole('button', { name: 'Excluir @pro' }));
+    fireEvent.change(screen.getByLabelText('Para confirmar, digite @pro'), { target: { value: 'pro' } });
+    fireEvent.click(confirmButton());
+
+    await waitFor(() =>
+      expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({ variant: 'destructive' })),
+    );
+    await waitFor(() => expect(confirmButton().disabled).toBe(false));
+    fireEvent.click(confirmButton());
+    await waitFor(() => expect(mocks.deleteProfile).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Perfil excluído' })));
+  });
+
+  it('se deleteProfile lançar, Cancelar fecha o diálogo', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    mocks.deleteProfile.mockRejectedValueOnce(new Error('rede'));
+    renderTab();
+    fireEvent.click(screen.getByRole('button', { name: 'Excluir @pro' }));
+    fireEvent.change(screen.getByLabelText('Para confirmar, digite @pro'), { target: { value: 'pro' } });
+    fireEvent.click(confirmButton());
+    await waitFor(() =>
+      expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({ variant: 'destructive' })),
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  });
 });
