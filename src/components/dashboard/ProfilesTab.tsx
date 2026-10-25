@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 import { ExternalLink, Loader2, Plus, Trash2 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -22,16 +22,29 @@ interface ProfilesTabProps {
 
 type Stats = { views: number | null; clicks: number | null };
 
-/** "@dna" ou, para perfil sem @, o nome. */
-const labelOf = (profile: Profile) => (profile.username ? `@${profile.username}` : profile.full_name || 'perfil sem nome');
+/** Perfil sem nome, no card e no diálogo de exclusão. */
+export const UNNAMED_PROFILE = 'Perfil sem nome';
+/** O que se digita para excluir um perfil sem @ e sem nome. */
+const CONFIRM_WORD = 'excluir';
 
-/** O que confirma a exclusão: o @ (com ou sem a arroba) ou, para perfil sem @, o nome. */
+/** "@dna" ou, para perfil sem @, o nome. */
+const labelOf = (profile: Profile) => (profile.username ? `@${profile.username}` : profile.full_name?.trim() || UNNAMED_PROFILE);
+
+/** O que confirma a exclusão: o @ (com ou sem a arroba), o nome (perfil sem @) ou "excluir" (sem @ e sem nome). */
 export function confirmationMatches(profile: Pick<Profile, 'username' | 'full_name'>, typed: string): boolean {
   const value = typed.trim();
   if (profile.username) return value.replace(/^@/, '') === profile.username;
   const name = (profile.full_name || '').trim();
-  return name !== '' && value === name;
+  return value === (name || CONFIRM_WORD);
 }
+
+function confirmationHint(profile: Profile): string {
+  if (profile.username) return `Para confirmar, digite @${profile.username}`;
+  const name = (profile.full_name || '').trim();
+  return name ? `Para confirmar, digite o nome do perfil: ${name}` : `Para confirmar, digite ${CONFIRM_WORD}`;
+}
+
+const LOAD_ERROR = 'Não foi possível carregar';
 
 /** Visitas e cliques dos últimos 30 dias: contagem head, duas consultas por perfil (até 10 perfis). */
 function useLast30Days(profileId: string): Stats | null {
@@ -85,9 +98,12 @@ function ProfileCard({ profile, isCurrent, isOnly, onOpen, onDelete }: ProfileCa
   const stats = useLast30Days(profile.id);
   const publicUrl = getPublicProfileUrl(profile);
   const label = labelOf(profile);
-  // Carregando: reticências; erro: travessão
+  const onlyHintId = useId();
+  // Carregando: reticências; erro: travessão, explicado no aria-label e no title
   const show = (value: number | null | undefined) =>
     stats === null ? '…' : value === null || value === undefined ? '—' : numberFormat.format(value);
+  const errorProps = (value: number | null | undefined) =>
+    stats !== null && (value === null || value === undefined) ? { 'aria-label': LOAD_ERROR, title: LOAD_ERROR } : {};
 
   return (
     <Card data-testid="profile-card" className={isCurrent ? 'border-primary' : undefined}>
@@ -99,7 +115,7 @@ function ProfileCard({ profile, isCurrent, isOnly, onOpen, onDelete }: ProfileCa
           </Avatar>
           <div className="min-w-0 flex-1">
             <p className="truncate font-medium">
-              {profile.full_name || 'Sem nome'}
+              {profile.full_name?.trim() || UNNAMED_PROFILE}
               {isCurrent && <span className="ml-2 text-xs font-normal text-primary">atual</span>}
             </p>
             <p className="truncate text-sm text-muted-foreground">
@@ -124,11 +140,15 @@ function ProfileCard({ profile, isCurrent, isOnly, onOpen, onDelete }: ProfileCa
         <dl className="grid grid-cols-2 gap-2 text-sm">
           <div className="rounded-md bg-muted/50 p-2">
             <dt className="text-xs text-muted-foreground">Visitas (30 dias)</dt>
-            <dd className="font-semibold" data-testid="profile-views">{show(stats?.views)}</dd>
+            <dd className="font-semibold" data-testid="profile-views" {...errorProps(stats?.views)}>
+              {show(stats?.views)}
+            </dd>
           </div>
           <div className="rounded-md bg-muted/50 p-2">
             <dt className="text-xs text-muted-foreground">Cliques (30 dias)</dt>
-            <dd className="font-semibold" data-testid="profile-clicks">{show(stats?.clicks)}</dd>
+            <dd className="font-semibold" data-testid="profile-clicks" {...errorProps(stats?.clicks)}>
+              {show(stats?.clicks)}
+            </dd>
           </div>
         </dl>
 
@@ -143,13 +163,16 @@ function ProfileCard({ profile, isCurrent, isOnly, onOpen, onDelete }: ProfileCa
             disabled={isOnly}
             onClick={onDelete}
             aria-label={`Excluir ${label}`}
+            aria-describedby={isOnly ? onlyHintId : undefined}
           >
             <Trash2 className="mr-1.5 h-3.5 w-3.5" aria-hidden />
             Excluir
           </Button>
         </div>
         {isOnly && (
-          <p className="text-xs text-muted-foreground">Este é o seu único perfil. Para excluí-lo, crie outro antes.</p>
+          <p id={onlyHintId} className="text-xs text-muted-foreground">
+            Este é o seu único perfil. Para excluí-lo, crie outro antes.
+          </p>
         )}
       </CardContent>
     </Card>
@@ -162,6 +185,12 @@ export const ProfilesTab: React.FC<ProfilesTabProps> = ({ onOpenLinks, onCreateP
   const [deleting, setDeleting] = useState<Profile | null>(null);
   const [typed, setTyped] = useState('');
   const [busy, setBusy] = useState(false);
+  // O estado só muda no próximo render: dois cliques no mesmo lote veriam busy ainda false
+  const busyRef = useRef(false);
+  // Excluído o perfil, o botão que abriu o diálogo some: o foco vai para o título da aba
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  const focusTitleOnCloseRef = useRef(false);
+  const limitHintId = useId();
 
   const atLimit = profiles.length >= MAX_PROFILES;
   const isOnly = profiles.length <= 1;
@@ -177,14 +206,17 @@ export const ProfilesTab: React.FC<ProfilesTabProps> = ({ onOpenLinks, onCreateP
   };
 
   const closeDelete = () => {
-    if (!busy) setDeleting(null);
+    if (!busyRef.current) setDeleting(null);
   };
 
   const confirmDelete = async () => {
+    if (busyRef.current) return;
     if (!deleting || !confirmationMatches(deleting, typed)) return;
     const label = labelOf(deleting);
+    busyRef.current = true;
     setBusy(true);
     const result = await deleteProfile(deleting.id);
+    busyRef.current = false;
     setBusy(false);
     if (result.ok === false) {
       toast({
@@ -197,6 +229,7 @@ export const ProfilesTab: React.FC<ProfilesTabProps> = ({ onOpenLinks, onCreateP
       });
       return;
     }
+    focusTitleOnCloseRef.current = true;
     setDeleting(null);
     toast({ title: 'Perfil excluído', description: `${label} e os dados dele foram apagados.` });
   };
@@ -204,7 +237,9 @@ export const ProfilesTab: React.FC<ProfilesTabProps> = ({ onOpenLinks, onCreateP
   return (
     <div className="space-y-4">
       <div>
-        <h3 className="text-lg font-medium">Meus perfis</h3>
+        <h3 ref={titleRef} tabIndex={-1} className="text-lg font-medium focus:outline-none">
+          Meus perfis
+        </h3>
         <p className="text-sm text-muted-foreground">
           Cada perfil tem endereço, visual, links e estatísticas próprios. Quem visita um perfil não vê os outros.
         </p>
@@ -224,11 +259,11 @@ export const ProfilesTab: React.FC<ProfilesTabProps> = ({ onOpenLinks, onCreateP
 
         <Card className="border-dashed">
           <CardContent className="flex h-full flex-col items-start justify-center gap-2 p-4">
-            <Button onClick={onCreateProfile} disabled={atLimit}>
+            <Button onClick={onCreateProfile} disabled={atLimit} aria-describedby={limitHintId}>
               <Plus className="mr-2 h-4 w-4" aria-hidden />
               Criar novo perfil
             </Button>
-            <p className="text-xs text-muted-foreground">
+            <p id={limitHintId} className="text-xs text-muted-foreground">
               {atLimit
                 ? `Você chegou ao limite de ${MAX_PROFILES} perfis. Exclua um para criar outro.`
                 : `Até ${MAX_PROFILES} perfis por conta (${profiles.length} em uso).`}
@@ -238,7 +273,15 @@ export const ProfilesTab: React.FC<ProfilesTabProps> = ({ onOpenLinks, onCreateP
       </div>
 
       <Dialog open={!!deleting} onOpenChange={(next) => { if (!next) closeDelete(); }}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent
+          className="sm:max-w-md"
+          onCloseAutoFocus={(event) => {
+            if (!focusTitleOnCloseRef.current) return;
+            focusTitleOnCloseRef.current = false;
+            event.preventDefault();
+            titleRef.current?.focus();
+          }}
+        >
           {deleting && (
             <>
               <DialogHeader>
@@ -249,15 +292,16 @@ export const ProfilesTab: React.FC<ProfilesTabProps> = ({ onOpenLinks, onCreateP
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-2">
-                <Label htmlFor="delete-profile-confirm">
-                  {deleting.username
-                    ? `Para confirmar, digite @${deleting.username}`
-                    : `Para confirmar, digite o nome do perfil: ${deleting.full_name || ''}`}
-                </Label>
+                <Label htmlFor="delete-profile-confirm">{confirmationHint(deleting)}</Label>
                 <Input
                   id="delete-profile-confirm"
                   value={typed}
                   onChange={(e) => setTyped(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key !== 'Enter') return;
+                    e.preventDefault();
+                    void confirmDelete();
+                  }}
                   autoComplete="off"
                   disabled={busy}
                 />
