@@ -20,6 +20,9 @@ const mocks = vi.hoisted(() => {
     prepareIconUpload: vi.fn(),
     // Último data/callback/enabled que o diálogo passou ao useAutosave (o teste salva na mão)
     autosave: null as null | { data: { title: string; url: string }; save: (data: unknown) => Promise<void>; enabled: boolean },
+    // Últimas props dos seletores: chamar o onChange direto testa valores que a interface não produz
+    iconPicker: null as null | { onChange: (choice: { icon_type: string; icon_value: string | null }) => void },
+    accentPicker: null as null | { onChange: (color: string | null) => void },
   };
 });
 
@@ -38,6 +41,28 @@ vi.mock('@/lib/supabase', () => ({
     })),
   },
 }));
+vi.mock('./IconPicker', async (importOriginal) => {
+  const React = await import('react');
+  const mod = await importOriginal<typeof import('./IconPicker')>();
+  return {
+    ...mod,
+    IconPicker: (props: Parameters<typeof mod.IconPicker>[0]) => {
+      mocks.iconPicker = props as never;
+      return React.createElement(mod.IconPicker, props);
+    },
+  };
+});
+vi.mock('./AccentColorPicker', async (importOriginal) => {
+  const React = await import('react');
+  const mod = await importOriginal<typeof import('./AccentColorPicker')>();
+  return {
+    ...mod,
+    AccentColorPicker: (props: Parameters<typeof mod.AccentColorPicker>[0]) => {
+      mocks.accentPicker = props as never;
+      return React.createElement(mod.AccentColorPicker, props);
+    },
+  };
+});
 vi.mock('@/lib/linkIcons/storage', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/linkIcons/storage')>()),
   prepareIconUpload: mocks.prepareIconUpload,
@@ -62,6 +87,12 @@ const baseLink: EditableLink = {
 
 let fetchMock: ReturnType<typeof vi.fn>;
 
+function deferred<T>() {
+  let resolve: (value: T) => void = () => {};
+  const promise = new Promise<T>((done) => (resolve = done));
+  return { promise, resolve };
+}
+
 beforeEach(() => {
   resetCatalogCacheForTests();
   vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -73,6 +104,8 @@ beforeEach(() => {
   vi.stubGlobal('fetch', fetchMock);
   mocks.toast.mockReset();
   mocks.autosave = null;
+  mocks.iconPicker = null;
+  mocks.accentPicker = null;
   mocks.storageFrom.mockClear();
   mocks.update.mockReset().mockReturnValue({ error: null });
   mocks.storage.upload.mockReset().mockResolvedValue({ data: {}, error: null });
@@ -189,12 +222,16 @@ describe('EditLinkDialog: ícone gravado na hora', () => {
     const { onSaved } = renderDialog();
     openTab('Ícones');
     fireEvent.click(screen.getByRole('button', { name: 'star' }));
+    // Desabilitado já no clique, antes de a fila chamar o update
+    expect(isDisabled(autoButton())).toBe(true);
 
-    expect(mocks.update).toHaveBeenCalledWith(
-      'links',
-      { icon_type: 'lucide', icon_value: 'star', accent_color: null },
-      'id',
-      5,
+    await waitFor(() =>
+      expect(mocks.update).toHaveBeenCalledWith(
+        'links',
+        { icon_type: 'lucide', icon_value: 'star', accent_color: null },
+        'id',
+        5,
+      ),
     );
     expect(isDisabled(autoButton())).toBe(true);
     expect(screen.getByText('Gravando…')).toBeTruthy();
@@ -434,5 +471,223 @@ describe('EditLinkDialog: catálogo de marcas', () => {
   it('ícone que não é marca não baixa o catálogo de marcas ao abrir', () => {
     renderDialog({ url: 'https://meusite.com', icon_type: 'lucide', icon_value: 'star' });
     expect(fetchMock).not.toHaveBeenCalledWith(BRAND_CATALOG_URL);
+  });
+
+  it('marca fora da tabela: o catálogo é pedido ao abrir e a "Cor oficial" só aparece depois do fetch', async () => {
+    const pending = deferred<unknown>();
+    fetchMock.mockImplementation(() => pending.promise);
+    renderDialog({ url: 'https://nubank.com.br', icon_value: 'nubank' });
+
+    // Antes de qualquer interação
+    expect(fetchMock).toHaveBeenCalledWith(BRAND_CATALOG_URL);
+    expect(screen.queryByRole('button', { name: /Cor oficial da marca/ })).toBeNull();
+
+    await act(async () => pending.resolve({ ok: true, status: 200, json: async () => brandCatalog }));
+    expect(await screen.findByRole('button', { name: /Cor oficial da marca/ })).toBeTruthy();
+  });
+});
+
+describe('EditLinkDialog: gravações no link certo e em fila', () => {
+  const pick = (file: File) =>
+    fireEvent.change(screen.getByLabelText('Arquivo do ícone'), { target: { files: [file] } });
+  const pngFile = () => new File([new Uint8Array(10)], 'logo.png', { type: 'image/png' });
+  const B_UPLOAD_URL = `${LINK_ICONS_PUBLIC_PREFIX}u1/6-222.png`;
+
+  it('upload que termina depois de trocar de link grava no link A e não mexe na tela de B', async () => {
+    const pending = deferred<{ data: object; error: null }>();
+    mocks.storage.upload.mockReturnValue(pending.promise);
+    const { rerender, onSaved, onOpenChange } = renderDialog({
+      url: 'https://meusite.com',
+      icon_type: 'upload',
+      icon_value: OLD_UPLOAD_URL,
+    });
+    pick(pngFile());
+    await waitFor(() => expect(mocks.storage.upload).toHaveBeenCalled());
+
+    const linkB: EditableLink = {
+      id: 6,
+      title: 'Outro',
+      url: 'https://outro.com',
+      icon_type: 'upload',
+      icon_value: B_UPLOAD_URL,
+      accent_color: null,
+    };
+    rerender(<EditLinkDialog open link={linkB} userId="u1" onOpenChange={onOpenChange} onSaved={onSaved} />);
+    await act(async () => pending.resolve({ data: {}, error: null }));
+
+    await waitFor(() => expect(mocks.update).toHaveBeenCalledTimes(1));
+    const [, values, column, id] = mocks.update.mock.calls[0];
+    expect(column).toBe('id');
+    expect(id).toBe(5);
+    expect((values as { icon_value: string }).icon_value).toMatch(/u1\/5-\d+\.png$/);
+    await waitFor(() => expect(mocks.storage.remove).toHaveBeenCalledWith([OLD_UPLOAD_PATH]));
+    expect(mocks.storage.remove).not.toHaveBeenCalledWith(['u1/6-222.png']);
+    // A tela continua a de B
+    expect(titleInput().value).toBe('Outro');
+    const img = screen.getByTestId('icon-picker-preview').querySelector('img') as HTMLImageElement;
+    expect(img.getAttribute('src')).toBe(B_UPLOAD_URL);
+  });
+
+  it('autosave da URL em voo e cor escolhida à mão: o banco termina com a cor manual', async () => {
+    const pending = deferred<{ error: null }>();
+    mocks.update.mockReturnValueOnce(pending.promise);
+    renderDialog({ icon_type: 'auto', icon_value: null, accent_color: '#ff0000' });
+    fireEvent.change(urlInput(), { target: { value: 'https://instagram.com/perfil' } });
+
+    let autosaveDone: Promise<void> = Promise.resolve();
+    act(() => {
+      autosaveDone = mocks.autosave!.save(mocks.autosave!.data);
+    });
+    await act(async () => {});
+    expect(mocks.update).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Sem cor' }));
+    await act(async () => {});
+    // A cor espera o autosave terminar
+    expect(mocks.update).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      pending.resolve({ error: null });
+      await autosaveDone;
+    });
+    await waitFor(() => expect(mocks.update).toHaveBeenCalledTimes(2));
+    expect(iconUpdates()[0]).toEqual({ title: 'Canal', url: 'https://instagram.com/perfil', accent_color: '#ff0069' });
+    expect(iconUpdates()[1]).toEqual({ accent_color: null });
+    expect(mocks.update.mock.invocationCallOrder[0]).toBeLessThan(mocks.update.mock.invocationCallOrder[1]);
+    // A tela fica com a escolha manual
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Sem cor' }).getAttribute('aria-pressed')).toBe('true'),
+    );
+  });
+
+  it('dois cliques com o update pendente gravam uma vez só', async () => {
+    const pending = deferred<{ error: null }>();
+    mocks.update.mockReturnValue(pending.promise);
+    renderDialog();
+    act(() => {
+      mocks.iconPicker!.onChange({ icon_type: 'lucide', icon_value: 'star' });
+      mocks.iconPicker!.onChange({ icon_type: 'lucide', icon_value: 'heart' });
+    });
+    openTab('Ícones');
+    fireEvent.click(screen.getByRole('button', { name: 'heart' }));
+
+    await act(async () => pending.resolve({ error: null }));
+    expect(mocks.update).toHaveBeenCalledTimes(1);
+    expect(iconUpdates()[0]).toEqual({ icon_type: 'lucide', icon_value: 'star', accent_color: null });
+  });
+
+  it('a cor que acompanha usa a URL gravada quando o ícone anterior é automático', async () => {
+    renderDialog({ icon_type: 'auto', icon_value: null, accent_color: '#ff0000' });
+    // URL digitada e ainda não gravada: a cor era a oficial do YouTube (URL gravada)
+    fireEvent.change(urlInput(), { target: { value: 'https://exemplo.com.br' } });
+    act(() => mocks.iconPicker!.onChange({ icon_type: 'brand', icon_value: 'instagram' }));
+
+    await waitFor(() => expect(mocks.update).toHaveBeenCalledTimes(1));
+    expect(iconUpdates()[0]).toEqual({ icon_type: 'brand', icon_value: 'instagram', accent_color: '#ff0069' });
+  });
+
+  it('exceção no update de um clique desfaz e mostra o toast', async () => {
+    mocks.update.mockImplementation(() => {
+      throw new Error('rede');
+    });
+    renderDialog();
+    openTab('Ícones');
+    fireEvent.click(screen.getByRole('button', { name: 'star' }));
+
+    await waitFor(() =>
+      expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({ variant: 'destructive' })),
+    );
+    expect(previewMask().style.maskImage).toContain('youtube.svg');
+  });
+
+  it('exceção no update do upload desfaz e apaga o arquivo novo', async () => {
+    mocks.update.mockImplementation(() => {
+      throw new Error('rede');
+    });
+    renderDialog({ url: 'https://meusite.com', icon_type: 'upload', icon_value: OLD_UPLOAD_URL });
+    pick(pngFile());
+
+    expect(await screen.findByText('Não foi possível salvar o ícone enviado. Tente de novo.')).toBeTruthy();
+    const [newPath] = mocks.storage.upload.mock.calls[0];
+    expect(mocks.storage.remove).toHaveBeenCalledWith([newPath]);
+    expect(mocks.storage.remove).not.toHaveBeenCalledWith([OLD_UPLOAD_PATH]);
+    const img = screen.getByTestId('icon-picker-preview').querySelector('img') as HTMLImageElement;
+    expect(img.getAttribute('src')).toBe(OLD_UPLOAD_URL);
+  });
+});
+
+describe('EditLinkDialog: validação antes de gravar', () => {
+  it('valor de ícone inválido não chama o update e mostra o toast', () => {
+    renderDialog();
+    act(() => mocks.iconPicker!.onChange({ icon_type: 'lucide', icon_value: 'x")' }));
+    expect(mocks.update).not.toHaveBeenCalled();
+    expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({ variant: 'destructive' }));
+  });
+
+  it('cor inválida não chama o update', async () => {
+    renderDialog();
+    act(() => mocks.accentPicker!.onChange('vermelho'));
+    act(() => mocks.accentPicker!.onChange('#12345'));
+    await act(async () => {});
+    expect(mocks.update).not.toHaveBeenCalled();
+  });
+
+  it('a cor é gravada normalizada', async () => {
+    renderDialog();
+    act(() => mocks.accentPicker!.onChange('#ABC'));
+    await waitFor(() => expect(mocks.update).toHaveBeenCalledTimes(1));
+    expect(iconUpdates()[0]).toEqual({ accent_color: '#aabbcc' });
+  });
+
+  it('userId vazio no upload rejeita cedo', async () => {
+    renderDialog({}, { userId: '' });
+    openTab('Upload');
+    fireEvent.change(screen.getByLabelText('Arquivo do ícone'), {
+      target: { files: [new File([new Uint8Array(10)], 'logo.png', { type: 'image/png' })] },
+    });
+
+    expect(await screen.findByText('Não foi possível enviar a imagem. Tente de novo.')).toBeTruthy();
+    expect(mocks.prepareIconUpload).not.toHaveBeenCalled();
+    expect(mocks.storage.upload).not.toHaveBeenCalled();
+  });
+});
+
+describe('EditLinkDialog: fechar e acessibilidade', () => {
+  it('ao fechar, título e URL válidos e diferentes do gravado são gravados', async () => {
+    const { onOpenChange, onSaved } = renderDialog();
+    fireEvent.change(titleInput(), { target: { value: 'Canal novo' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Fechar' }));
+
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    await waitFor(() => expect(mocks.update).toHaveBeenCalledTimes(1));
+    expect(iconUpdates()[0]).toEqual({ title: 'Canal novo', url: 'https://youtube.com/@canal' });
+    await waitFor(() => expect(onSaved).toHaveBeenCalled());
+  });
+
+  it('ao fechar sem mudanças ou com campo inválido, nada é gravado', async () => {
+    const { onOpenChange } = renderDialog();
+    fireEvent.click(screen.getByRole('button', { name: 'Fechar' }));
+    fireEvent.change(urlInput(), { target: { value: 'javascript:alert(1)' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Fechar' }));
+
+    expect(onOpenChange).toHaveBeenCalledTimes(2);
+    await act(async () => {});
+    expect(mocks.update).not.toHaveBeenCalled();
+  });
+
+  it('avisos por campo, títulos h3, status fora do aria-live e foco no título', () => {
+    renderDialog();
+    expect(document.activeElement).toBe(titleInput());
+    expect(screen.getByRole('heading', { level: 3, name: 'Ícone' })).toBeTruthy();
+    expect(screen.getByRole('heading', { level: 3, name: 'Cor de destaque' })).toBeTruthy();
+    expect(screen.getByText('Autosave ativo').closest('[aria-live]')).toBeNull();
+
+    fireEvent.change(titleInput(), { target: { value: '' } });
+    fireEvent.change(urlInput(), { target: { value: 'javascript:alert(1)' } });
+    const titleWarning = screen.getByText('O título não pode ficar vazio');
+    const urlWarning = screen.getByText('Corrija a URL para salvar');
+    expect(titleWarning.id).toBeTruthy();
+    expect(titleWarning.id).not.toBe(urlWarning.id);
+    expect(titleInput().getAttribute('aria-describedby')).toBe(titleWarning.id);
+    expect(urlInput().getAttribute('aria-describedby')).toBe(urlWarning.id);
   });
 });
