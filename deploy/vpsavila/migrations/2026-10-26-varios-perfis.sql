@@ -49,6 +49,20 @@ ON CONFLICT DO NOTHING;
 -- (CREATE TABLE, acima) pega ShareRowExclusiveLock, os dois até o COMMIT. Enquanto a transação durar,
 -- login e renovação de sessão de TODOS os apps da VPS (expert_ink e outros) esperam. Rode em horário calmo.
 ALTER TABLE linkhub.profiles DROP CONSTRAINT IF EXISTS profiles_id_fkey;
+
+-- Se a FK para auth.users tiver outro nome no banco, o DROP acima não a pega e os perfis novos
+-- (id gerado, fora de auth.users) falhariam. Para a migração aqui em vez de seguir pela metade.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE contype = 'f'
+      AND conrelid = 'linkhub.profiles'::regclass
+      AND confrelid = 'auth.users'::regclass
+  ) THEN
+    RAISE EXCEPTION 'linkhub.profiles ainda tem FK para auth.users com outro nome: remova-a antes de seguir.';
+  END IF;
+END $$;
 ALTER TABLE linkhub.profiles ALTER COLUMN id SET DEFAULT gen_random_uuid();
 
 -- 4. Exclusão em cascata a partir do perfil -----------------------------------
@@ -107,6 +121,8 @@ GRANT EXECUTE ON FUNCTION linkhub.owns_profile(uuid) TO anon, authenticated;
 
 -- Registra o dono de um perfil novo: o primeiro (insert direto, inclusive pelo frontend antigo)
 -- e os criados pelo create_profile. Perfil criado por service_role (auth.uid() nulo) fica sem dono.
+-- O insert direto não pega a trava consultiva do create_profile: numa corrida muito improvável entre
+-- os dois, a conta poderia passar de 10 perfis. Aceito conscientemente (ver a política de insert).
 CREATE OR REPLACE FUNCTION linkhub.register_profile_owner()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -312,9 +328,11 @@ DROP POLICY IF EXISTS "Public profiles are viewable by everyone" ON linkhub.prof
 CREATE POLICY "Public profiles are viewable by everyone" ON linkhub.profiles
   FOR SELECT USING (true);
 
+-- Esse insert direto não pega a trava consultiva do create_profile. Numa corrida muito improvável
+-- entre os dois, a conta poderia passar de 10 perfis. Risco aceito conscientemente; a regra fica como está.
 DROP POLICY IF EXISTS "Users can insert their own profile" ON linkhub.profiles;
 CREATE POLICY "Users can insert their own profile" ON linkhub.profiles
-  FOR INSERT WITH CHECK (
+  FOR INSERT TO authenticated WITH CHECK (
     auth.uid() = id
     AND NOT EXISTS (SELECT 1 FROM linkhub.profile_owners WHERE owner_id = auth.uid())
   );

@@ -24,9 +24,29 @@ function reservedFromSql(sql: string): string[] {
 
 const countLines = (sql: string, line: string) => sql.split(/\r?\n/).filter((l) => l.trim() === line).length;
 
-/** Cabeçalho de cada CREATE OR REPLACE FUNCTION (até o corpo). */
-const functionHeaders = (sql: string) =>
-  sql.split('CREATE OR REPLACE FUNCTION').slice(1).map((part) => part.split('AS $$')[0]);
+/**
+ * Opções de cada CREATE [OR REPLACE] FUNCTION: o que vem antes do corpo $$ ... $$ e o que vem
+ * entre o fim do corpo e o `;`. SECURITY DEFINER e SET search_path podem estar dos dois lados.
+ */
+const functionOptions = (sql: string) =>
+  sql
+    .split(/CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION/i)
+    .slice(1)
+    .map((part) => {
+      const open = part.indexOf('$$');
+      const close = open < 0 ? -1 : part.indexOf('$$', open + 2);
+      if (close < 0) throw new Error('corpo $$ da função não encontrado');
+      const end = part.indexOf(';', close + 2);
+      if (end < 0) throw new Error('fim do CREATE FUNCTION não encontrado');
+      return part.slice(0, open) + part.slice(close + 2, end + 1);
+    });
+
+/** Posição de cada ocorrência de `needle` em `text`. */
+const positionsOf = (text: string, needle: string) => {
+  const found: number[] = [];
+  for (let i = text.indexOf(needle); i > -1; i = text.indexOf(needle, i + 1)) found.push(i);
+  return found;
+};
 
 describe('migração dos vários perfis', () => {
   it('o create_profile reserva os mesmos @ que o useUsernameValidation', () => {
@@ -59,9 +79,9 @@ describe('migração dos vários perfis', () => {
 
   it('toda função SECURITY DEFINER fixa search_path vazio', () => {
     for (const sql of [MIGRATION, SCHEMA]) {
-      const headers = functionHeaders(sql).filter((h) => h.includes('SECURITY DEFINER'));
-      expect(headers.length).toBeGreaterThanOrEqual(7);
-      for (const header of headers) expect(header).toContain("SET search_path = ''");
+      const definers = functionOptions(sql).filter((o) => /SECURITY\s+DEFINER/i.test(o));
+      expect(definers.length).toBeGreaterThanOrEqual(7);
+      for (const options of definers) expect(options).toMatch(/SET\s+search_path\s*=\s*''/i);
     }
   });
 
@@ -82,10 +102,22 @@ describe('migração dos vários perfis', () => {
   });
 
   it('no esquema, os REVOKE vêm depois dos GRANT ALL da seção 6', () => {
-    const grantAll = SCHEMA.indexOf('GRANT ALL ON ALL FUNCTIONS IN SCHEMA linkhub');
-    expect(grantAll).toBeGreaterThan(-1);
-    expect(SCHEMA.indexOf('REVOKE ALL ON FUNCTION linkhub.create_profile')).toBeGreaterThan(grantAll);
-    expect(SCHEMA.indexOf('REVOKE ALL ON linkhub.profile_owners')).toBeGreaterThan(grantAll);
+    const grants = ['GRANT ALL ON ALL TABLES', 'GRANT ALL ON ALL FUNCTIONS'].map((g) => SCHEMA.lastIndexOf(g));
+    for (const grant of grants) expect(grant).toBeGreaterThan(-1);
+    const lastGrant = Math.max(...grants);
+
+    const revokes = [
+      ...['create_profile(text, text)', 'list_own_profiles()', 'delete_own_profile(uuid)'].map(
+        (fn) => `REVOKE ALL ON FUNCTION linkhub.${fn}`,
+      ),
+      'REVOKE ALL ON FUNCTION linkhub.',
+      'REVOKE ALL ON linkhub.profile_owners',
+    ];
+    for (const revoke of revokes) {
+      const found = positionsOf(SCHEMA, revoke);
+      expect(found.length, revoke).toBeGreaterThan(0);
+      for (const position of found) expect(position, revoke).toBeGreaterThan(lastGrant);
+    }
   });
 
   it('remove a leitura pública dos dois buckets e não a recria', () => {

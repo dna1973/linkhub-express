@@ -189,6 +189,8 @@ GRANT EXECUTE ON FUNCTION linkhub.owns_profile(uuid) TO anon, authenticated;
 
 -- Registra o dono de um perfil novo: o primeiro (insert direto, inclusive pelo frontend antigo)
 -- e os criados pelo create_profile. Perfil criado por service_role (auth.uid() nulo) fica sem dono.
+-- O insert direto não pega a trava consultiva do create_profile: numa corrida muito improvável entre
+-- os dois, a conta poderia passar de 10 perfis. Aceito conscientemente (ver a política de insert).
 CREATE OR REPLACE FUNCTION linkhub.register_profile_owner()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -389,8 +391,10 @@ ALTER TABLE linkhub.user_roles     ENABLE ROW LEVEL SECURITY;
 -- profiles: só o PRIMEIRO perfil entra por insert direto, com o id da conta; os outros, pelo create_profile
 CREATE POLICY "Public profiles are viewable by everyone" ON linkhub.profiles
   FOR SELECT USING (true);
+-- Esse insert direto não pega a trava consultiva do create_profile. Numa corrida muito improvável
+-- entre os dois, a conta poderia passar de 10 perfis. Risco aceito conscientemente; a regra fica como está.
 CREATE POLICY "Users can insert their own profile" ON linkhub.profiles
-  FOR INSERT WITH CHECK (
+  FOR INSERT TO authenticated WITH CHECK (
     auth.uid() = id
     AND NOT EXISTS (SELECT 1 FROM linkhub.profile_owners WHERE owner_id = auth.uid())
   );
