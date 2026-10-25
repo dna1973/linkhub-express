@@ -109,6 +109,35 @@ describe('AddLinkDialog', () => {
     expect(onAdd).toHaveBeenCalledWith({ title: 'Meus projetos', url: 'https://github.com/dna' });
   });
 
+  it('título só com espaços usa o automático', async () => {
+    const { onAdd } = renderDialog();
+    setUrl('https://youtube.com/@canal');
+    setTitle(' ');
+
+    await act(async () => {
+      fireEvent.click(addButton());
+    });
+
+    expect(onAdd).toHaveBeenCalledWith({ title: 'YouTube', url: 'https://youtube.com/@canal' });
+  });
+
+  it('durante "Adicionando…", Cancelar e Esc não fecham nem limpam', async () => {
+    const pending = deferred<boolean>();
+    const { onOpenChange } = renderDialog(vi.fn(() => pending.promise));
+    setUrl('https://github.com/dna');
+    fireEvent.click(addButton());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+
+    expect(onOpenChange).not.toHaveBeenCalled();
+    expect(urlInput().value).toBe('https://github.com/dna');
+
+    await act(async () => pending.resolve(false));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
   it('se onAdd devolver false, mantém os campos e não fecha', async () => {
     const onAdd = vi.fn(async () => false);
     const { onOpenChange } = renderDialog(onAdd);
@@ -134,6 +163,26 @@ describe('AddLinkDialog', () => {
     expect(onAdd).not.toHaveBeenCalled();
   });
 
+  it('URL recusada: o erro fica ligado ao campo e o foco volta para a URL', () => {
+    renderDialog();
+    setUrl('javascript:alert(1)');
+    titleInput().focus();
+    fireEvent.click(addButton());
+
+    const alert = screen.getByRole('alert');
+    expect(alert.id).toBeTruthy();
+    expect(urlInput().getAttribute('aria-invalid')).toBe('true');
+    expect(urlInput().getAttribute('aria-describedby')).toBe(alert.id);
+    expect(titleInput().getAttribute('aria-invalid')).toBeNull();
+    expect(document.activeElement).toBe(urlInput());
+
+    // Corrigir a URL tira o erro
+    setUrl('https://github.com/dna');
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(urlInput().getAttribute('aria-invalid')).toBeNull();
+    expect(urlInput().getAttribute('aria-describedby')).toBeNull();
+  });
+
   it('URL vazia é recusada', () => {
     const { onAdd } = renderDialog();
     fireEvent.click(addButton());
@@ -151,5 +200,10 @@ describe('AddLinkDialog', () => {
 
     expect(screen.getByText('Informe um título')).toBeTruthy();
     expect(onAdd).not.toHaveBeenCalled();
+    const alert = screen.getByRole('alert');
+    expect(titleInput().getAttribute('aria-invalid')).toBe('true');
+    expect(titleInput().getAttribute('aria-describedby')).toBe(alert.id);
+    expect(urlInput().getAttribute('aria-invalid')).toBeNull();
+    expect(document.activeElement).toBe(titleInput());
   });
 });

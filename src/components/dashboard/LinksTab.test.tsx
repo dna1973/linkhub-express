@@ -121,6 +121,34 @@ describe('LinksTab', () => {
     expect(mocks.storage.remove).not.toHaveBeenCalled();
   });
 
+  it('delete com erro não apaga o arquivo', async () => {
+    mocks.deleteEq.mockReturnValue({ error: { message: 'falhou' } });
+    await renderTab();
+    fireEvent.click(screen.getAllByRole('button', { name: 'Excluir link' })[2]);
+
+    await waitFor(() => expect(mocks.deleteEq).toHaveBeenCalledWith('id', 7));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(mocks.storage.remove).not.toHaveBeenCalled();
+  });
+
+  it('upload de outro usuário não é apagado', async () => {
+    (mocks.links[2] as { icon_value: string }).icon_value = `${LINK_ICONS_PUBLIC_PREFIX}u2/7-123.png`;
+    await renderTab();
+    fireEvent.click(screen.getAllByRole('button', { name: 'Excluir link' })[2]);
+
+    await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Link removido' })));
+    expect(mocks.deleteEq).toHaveBeenCalledWith('id', 7);
+    expect(mocks.storage.remove).not.toHaveBeenCalled();
+  });
+
+  it('"Abrir link" abre a URL com noopener e noreferrer', async () => {
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null);
+    await renderTab();
+    fireEvent.click(screen.getAllByRole('button', { name: 'Abrir link' })[0]);
+
+    expect(open).toHaveBeenCalledWith('https://youtube.com/@canal', '_blank', 'noopener,noreferrer');
+  });
+
   it('falha ao apagar o arquivo vai só para o console', async () => {
     mocks.storage.remove.mockResolvedValue({ error: new Error('sem permissão') });
     await renderTab();

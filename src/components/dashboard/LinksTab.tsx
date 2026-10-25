@@ -14,7 +14,7 @@ import { linkIconPathFromUrl } from '@/lib/linkIcons/storage';
 import { formatClicks } from '@/lib/formatClicks';
 import { useToast } from '@/hooks/use-toast';
 import { useAutosave } from '@/hooks/useAutosave';
-import { isValidUrl, sanitizeText } from '@/utils/sanitize';
+import { isValidUrl, safeOpenUrl, sanitizeText } from '@/utils/sanitize';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
   DndContext,
@@ -132,7 +132,7 @@ const SortableLink: React.FC<SortableLinkProps> = ({ link, onDelete, onEdit, pro
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => window.open(link.url, '_blank')}
+                onClick={() => safeOpenUrl(link.url)}
                 className="h-7 w-7 p-0"
                 aria-label="Abrir link"
               >
@@ -195,6 +195,8 @@ export const LinksTab: React.FC<LinksTabProps> = ({ profile, onProfileUpdate }) 
   // O AddLinkDialog já validou a URL e decidiu o título (digitado ou automático)
   const handleAddLink = async (data: { title: string; url: string }): Promise<boolean> => {
     if (!user) return false;
+    // Defesa: o diálogo já recusa, mas o insert não depende disso
+    if (!isValidUrl(data.url)) return false;
 
     const sanitizedTitle = sanitizeText(data.title, 100);
     if (!sanitizedTitle) {

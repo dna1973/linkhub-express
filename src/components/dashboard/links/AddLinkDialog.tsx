@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -18,6 +18,10 @@ function getAutoTitle(url: string): string {
   return detectIconFromUrl(url)?.title ?? getUrlHost(url) ?? '';
 }
 
+const ERROR_ID = 'add-link-error';
+
+type FieldError = { field: 'url' | 'title'; message: string };
+
 function getPreviewLabel(url: string): string {
   const detected = detectIconFromUrl(url);
   if (detected) return `Ícone detectado: ${detected.title}`;
@@ -30,7 +34,9 @@ export const AddLinkDialog: React.FC<AddLinkDialogProps> = ({ open, onOpenChange
   // Enquanto o usuário não digita no título, ele acompanha a URL
   const [titleTouched, setTitleTouched] = useState(false);
   const [adding, setAdding] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<FieldError | null>(null);
+  const urlRef = useRef<HTMLInputElement>(null);
+  const titleRef = useRef<HTMLInputElement>(null);
 
   const autoTitle = getAutoTitle(url);
   const shownTitle = titleTouched ? title : autoTitle;
@@ -44,21 +50,30 @@ export const AddLinkDialog: React.FC<AddLinkDialogProps> = ({ open, onOpenChange
   };
 
   const handleOpenChange = (next: boolean) => {
-    if (!next && !adding) reset();
+    // Enquanto grava, fechar perderia o retorno do onAdd
+    if (!next && adding) return;
+    if (!next) reset();
     onOpenChange(next);
   };
+
+  // O erro fica ligado ao campo recusado (aria-invalid + aria-describedby)
+  const errorProps = (field: FieldError['field']) =>
+    error?.field === field ? { 'aria-invalid': true as const, 'aria-describedby': ERROR_ID } : {};
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (adding) return;
 
     if (!isValidUrl(url)) {
-      setError('A URL fornecida não é válida');
+      setError({ field: 'url', message: 'A URL fornecida não é válida' });
+      urlRef.current?.focus();
       return;
     }
-    const finalTitle = shownTitle.trim();
+    // Título só com espaços conta como vazio: vale o automático
+    const finalTitle = (titleTouched ? title.trim() : '') || autoTitle.trim();
     if (!finalTitle) {
-      setError('Informe um título');
+      setError({ field: 'title', message: 'Informe um título' });
+      titleRef.current?.focus();
       return;
     }
 
@@ -92,7 +107,9 @@ export const AddLinkDialog: React.FC<AddLinkDialogProps> = ({ open, onOpenChange
               </label>
               <Input
                 id="add-link-url"
+                ref={urlRef}
                 autoFocus
+                {...errorProps('url')}
                 inputMode="url"
                 autoComplete="off"
                 value={url}
@@ -120,6 +137,8 @@ export const AddLinkDialog: React.FC<AddLinkDialogProps> = ({ open, onOpenChange
               </label>
               <Input
                 id="add-link-title"
+                ref={titleRef}
+                {...errorProps('title')}
                 value={shownTitle}
                 onChange={(e) => {
                   const value = e.target.value;
@@ -135,8 +154,8 @@ export const AddLinkDialog: React.FC<AddLinkDialogProps> = ({ open, onOpenChange
           </div>
 
           {error && (
-            <p role="alert" className="text-sm text-destructive">
-              {error}
+            <p id={ERROR_ID} role="alert" className="text-sm text-destructive">
+              {error.message}
             </p>
           )}
 
