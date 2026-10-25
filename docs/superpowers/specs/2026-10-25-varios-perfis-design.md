@@ -114,6 +114,7 @@ A migração roda como `postgres` (`-U postgres`), que é dono das tabelas e tem
      - INSERT e UPDATE `TO authenticated`: `bucket_id = '<bucket>' AND linkhub.owns_profile_folder(name)`;
      - SELECT e DELETE `TO authenticated`: `bucket_id = '<bucket>' AND owner_id = auth.uid()::text`. O `remove()` precisa das duas. Pelo `owner_id`, que é quem enviou, a limpeza continua funcionando **depois** que a RPC apagou o perfil. Em produção, nenhum objeto desses buckets tem `owner_id` nulo;
      - **`linkhub_avatars_public_read` e `linkhub_link_icons_public_read` são removidas** (`DROP POLICY IF EXISTS`), para o anônimo não listar `storage.objects` nem ver o `owner_id`.
+     - `storage.objects` pertence a `supabase_storage_admin`. Se o ensaio falhar com "must be owner of table objects", as políticas do Storage passam para um arquivo à parte, rodado como `supabase_admin`, e as funções continuam com dono `postgres`.
 7. `NOTIFY pgrst, 'reload schema'` e `COMMIT`.
 
 O `deploy/vpsavila/linkhub_schema.sql` recebe o estado final. Os `REVOKE`/`GRANT` das funções e da tabela `profile_owners` vêm **depois** da seção 6 do arquivo, porque os `GRANT ALL ON ALL FUNCTIONS/TABLES … TO anon` dela devolveriam o acesso. O `src/integrations/supabase/types.ts` recebe:
