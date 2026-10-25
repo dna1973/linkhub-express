@@ -5,8 +5,12 @@ import Analytics from './Analytics';
 
 const mocks = vi.hoisted(() => ({
   calls: [] as unknown[][],
-  current: { id: 'p2' } as { id: string } | null,
+  current: { id: 'p2' } as { id: string; username?: string; full_name?: string } | null,
   navigate: vi.fn(),
+  profileLoading: false,
+  profileError: null as string | null,
+  // Resposta de cada consulta: devolve as linhas (ou uma promessa delas)
+  respond: (_table: string, _profileId: unknown): unknown => [],
 }));
 
 vi.mock('@/contexts/AuthContext', () => {
@@ -14,7 +18,11 @@ vi.mock('@/contexts/AuthContext', () => {
   return { useAuth: () => ({ user }) };
 });
 vi.mock('@/contexts/CurrentProfileContext', () => ({
-  useCurrentProfile: () => ({ currentProfile: mocks.current }),
+  useCurrentProfile: () => ({
+    currentProfile: mocks.current,
+    loading: mocks.profileLoading,
+    error: mocks.profileError,
+  }),
 }));
 vi.mock('react-router-dom', () => ({ useNavigate: () => mocks.navigate }));
 // Gráficos e mapas não interessam aqui: só as consultas
@@ -33,13 +41,16 @@ vi.mock('@/lib/supabase', () => {
   // Cada encadeamento registra [tabela, método, ...argumentos] e resolve com lista vazia
   const query = (table: string) => {
     const q: any = {};
+    let owner: unknown = null;
     for (const method of ['select', 'eq', 'gte', 'lte', 'order']) {
       q[method] = (...args: unknown[]) => {
         mocks.calls.push([table, method, ...args]);
+        if (method === 'eq') owner = args[1];
         return q;
       };
     }
-    q.then = (resolve: (value: unknown) => void) => resolve({ data: [], error: null });
+    q.then = (resolve: (value: unknown) => void, reject: (reason: unknown) => void) =>
+      Promise.resolve(mocks.respond(table, owner)).then((data) => ({ data, error: null })).then(resolve, reject);
     return q;
   };
   return { supabase: { from: (table: string) => query(table) } };
@@ -50,6 +61,9 @@ const eqCalls = () => mocks.calls.filter((call) => call[1] === 'eq');
 beforeEach(() => {
   mocks.calls = [];
   mocks.current = { id: 'p2' };
+  mocks.profileLoading = false;
+  mocks.profileError = null;
+  mocks.respond = () => [];
   vi.spyOn(console, 'log').mockImplementation(() => {});
 });
 afterEach(() => {
@@ -84,5 +98,85 @@ describe('Analytics por perfil', () => {
     render(<Analytics />);
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(mocks.calls).toHaveLength(0);
+  });
+
+  it('a resposta atrasada do perfil anterior não sobrescreve a do perfil atual', async () => {
+    const rows = (n: number) => Array.from({ length: n }, () => ({ viewed_at: new Date().toISOString() }));
+    let releaseP2: (value: unknown) => void = () => {};
+    const p2Views = new Promise((resolve) => {
+      releaseP2 = resolve;
+    });
+    mocks.respond = (table, owner) => {
+      if (table !== 'profile_views') return [];
+      return owner === 'p2' ? p2Views : rows(3);
+    };
+
+    const { rerender } = render(<Analytics />);
+    await waitFor(() => expect(eqCalls()).toContainEqual(['profile_views', 'eq', 'profile_id', 'p2']));
+
+    mocks.current = { id: 'p3' };
+    rerender(<Analytics />);
+    expect(await screen.findByText('Total de Visualizações')).toBeTruthy();
+    const total = () => screen.getByText('Total de Visualizações').parentElement?.parentElement?.textContent ?? '';
+    await waitFor(() => expect(total()).toContain('3'));
+
+    releaseP2(rows(7));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(total()).toContain('3');
+    expect(total()).not.toContain('7');
+  });
+
+  it('a resposta do perfil anterior não encerra o carregamento do atual', async () => {
+    let releaseP2: (value: unknown) => void = () => {};
+    const p2Views = new Promise((resolve) => {
+      releaseP2 = resolve;
+    });
+    const p3Views = new Promise(() => {});
+    mocks.respond = (table, owner) => (table === 'profile_views' ? (owner === 'p2' ? p2Views : p3Views) : []);
+
+    const { rerender } = render(<Analytics />);
+    await waitFor(() => expect(eqCalls()).toContainEqual(['profile_views', 'eq', 'profile_id', 'p2']));
+    mocks.current = { id: 'p3' };
+    rerender(<Analytics />);
+    await waitFor(() => expect(eqCalls()).toContainEqual(['profile_views', 'eq', 'profile_id', 'p3']));
+
+    releaseP2([]);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(document.querySelector('.animate-spin')).toBeTruthy();
+  });
+
+  it('enquanto o contexto carrega, mostra o spinner e não busca', async () => {
+    mocks.current = null;
+    mocks.profileLoading = true;
+    render(<Analytics />);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(document.querySelector('.animate-spin')).toBeTruthy();
+    expect(screen.queryByText('Analytics')).toBeNull();
+    expect(mocks.calls).toHaveLength(0);
+  });
+
+  it('sem perfil atual depois da carga, mostra o erro do contexto', async () => {
+    mocks.current = null;
+    mocks.profileError = 'Não foi possível carregar seus perfis.';
+    render(<Analytics />);
+    expect(await screen.findByText('Não foi possível carregar seus perfis.')).toBeTruthy();
+    expect(document.querySelector('.animate-spin')).toBeNull();
+  });
+
+  it('sem perfil atual e sem mensagem do contexto, mostra o texto padrão', async () => {
+    mocks.current = null;
+    render(<Analytics />);
+    expect(await screen.findByText('Não foi possível carregar o seu perfil.')).toBeTruthy();
+  });
+
+  it('o subtítulo mostra o @ do perfil atual, ou o nome se não houver @', async () => {
+    mocks.current = { id: 'p2', username: 'dna', full_name: 'Daniel' };
+    const { unmount } = render(<Analytics />);
+    expect(await screen.findByText('Acompanhe o desempenho de @dna')).toBeTruthy();
+    unmount();
+
+    mocks.current = { id: 'p2', full_name: 'Minha loja' };
+    render(<Analytics />);
+    expect(await screen.findByText('Acompanhe o desempenho de Minha loja')).toBeTruthy();
   });
 });

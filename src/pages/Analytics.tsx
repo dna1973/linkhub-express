@@ -45,8 +45,9 @@ const Analytics = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   // Estatísticas do perfil atual (o seletor da sidebar troca)
-  const { currentProfile } = useCurrentProfile();
+  const { currentProfile, loading: profileLoading, error: profileError } = useCurrentProfile();
   const profileId = currentProfile?.id ?? null;
+  const profileLabel = currentProfile?.username ? `@${currentProfile.username}` : currentProfile?.full_name || '';
   // Só a carga mais recente mexe na tela: trocar de perfil ou de período descarta a anterior
   const requestRef = useRef(0);
   const [loading, setLoading] = useState(true);
@@ -390,7 +391,15 @@ const Analytics = () => {
   };
   const insights = useAnalyticsInsights(analyticsData);
 
-  if (loading) {
+  if (!profileLoading && !currentProfile) {
+    return (
+      <div className="flex items-center justify-center min-h-screen p-8">
+        <p className="text-muted-foreground">{profileError || 'Não foi possível carregar o seu perfil.'}</p>
+      </div>
+    );
+  }
+
+  if (profileLoading || loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -404,7 +413,9 @@ const Analytics = () => {
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
           <h1 className="text-4xl font-bold">Analytics</h1>
-          <p className="text-muted-foreground mt-2">Acompanhe o desempenho do seu perfil</p>
+          <p className="text-muted-foreground mt-2">
+            {profileLabel ? `Acompanhe o desempenho de ${profileLabel}` : 'Acompanhe o desempenho do seu perfil'}
+          </p>
         </div>
         
         <Select value={timeRange} onValueChange={setTimeRange}>
