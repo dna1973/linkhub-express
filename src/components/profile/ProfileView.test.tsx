@@ -127,7 +127,25 @@ describe('ProfileView', () => {
       const mask = screen.getByRole('button', { name: /^X$/ }).querySelector<HTMLElement>('span.link-icon-mask');
       expect(mask).not.toBeNull();
       expect(mask!.style.backgroundColor).toBe('rgb(255, 255, 255)');
-      expect(mask!.style.backgroundColor).not.toBe('rgb(0, 0, 0)');
+    });
+
+    it('accent_color com contraste no botão sólido escuro: a máscara usa a cor de destaque', () => {
+      const escuro = {
+        ...theme,
+        buttonStyle: { type: 'solid', color: '#111827' },
+      } as ThemeConfig;
+      render(
+        <ProfileView
+          variant="page"
+          profile={profile}
+          links={[{ id: 6, title: 'X em verde', url: 'https://x.com/dna', accent_color: '#25d366' }]}
+          theme={escuro}
+          onLinkClick={vi.fn()}
+        />,
+      );
+      const mask = screen.getByRole('button', { name: /X em verde/ }).querySelector<HTMLElement>('span.link-icon-mask');
+      expect(mask).not.toBeNull();
+      expect(mask!.style.backgroundColor).toBe('rgb(37, 211, 102)');
     });
   });
 
