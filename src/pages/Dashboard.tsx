@@ -211,6 +211,7 @@ const Dashboard = () => {
 
         <OnboardingDialog
           open={showOnboarding}
+          profile={profile}
           onComplete={(userType) => {
             setShowOnboarding(false);
             loadProfile();

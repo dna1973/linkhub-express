@@ -3,7 +3,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { supabase, AVATARS_BUCKET } from '@/lib/supabase';
-import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Megaphone, Briefcase, User, ArrowLeft, ArrowRight, Check, Instagram, Youtube, Facebook, Linkedin, Github, Globe, Mail, Music, MessageCircle, ShoppingBag, Plus } from 'lucide-react';
 import { ONBOARDING_TEMPLATES, filterTemplates } from './onboardingTemplates';
@@ -16,6 +15,8 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 
 interface OnboardingDialogProps {
   open: boolean;
+  /** Perfil que está sendo montado: nome, foto e gravações vêm dele, não da conta. */
+  profile: { id: string; full_name?: string | null; avatar_url?: string | null } | null;
   onComplete: (userType: string) => void;
 }
 
@@ -65,8 +66,7 @@ const DEFAULT_AVATARS = [
   'https://api.dicebear.com/9.x/glass/svg?seed=Lily&backgroundColor=c0aede,d1d4f9',
 ];
 
-export const OnboardingDialog: React.FC<OnboardingDialogProps> = ({ open, onComplete }) => {
-  const { user } = useAuth();
+export const OnboardingDialog: React.FC<OnboardingDialogProps> = ({ open, profile, onComplete }) => {
   const { toast } = useToast();
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [selectedType, setSelectedType] = useState<string | null>(null);
@@ -77,9 +77,10 @@ export const OnboardingDialog: React.FC<OnboardingDialogProps> = ({ open, onComp
   const [saving, setSaving] = useState(false);
 
   // Profile details state (step 2)
-  const [profileName, setProfileName] = useState(user?.user_metadata?.full_name || user?.user_metadata?.name || '');
+  // Do perfil, não do Google: o nome digitado em "Novo perfil" não pode ser sobrescrito
+  const [profileName, setProfileName] = useState(profile?.full_name || '');
   const [profileBio, setProfileBio] = useState('');
-  const [avatarPreview, setAvatarPreview] = useState<string | null>(user?.user_metadata?.avatar_url || null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(profile?.avatar_url || null);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -119,29 +120,24 @@ export const OnboardingDialog: React.FC<OnboardingDialogProps> = ({ open, onComp
   };
 
   const uploadAvatarIfNeeded = async (): Promise<string | null> => {
-    if (!user) return null;
+    if (!profile) return null;
 
-    // If user selected a file, upload it
+    // Arquivo escolhido: sobe para a pasta do perfil
     if (avatarFile) {
       const fileName = `avatar-${Date.now()}.jpg`;
-      const filePath = `${user.id}/${fileName}`;
+      const filePath = `${profile.id}/${fileName}`;
       const { error: uploadError } = await supabase.storage.from(AVATARS_BUCKET).upload(filePath, avatarFile);
       if (uploadError) throw uploadError;
       const { data } = supabase.storage.from(AVATARS_BUCKET).getPublicUrl(filePath);
       return data.publicUrl;
     }
 
-    // If user selected a default avatar URL
-    if (avatarPreview && avatarPreview !== user?.user_metadata?.avatar_url) {
-      return avatarPreview;
-    }
-
-    // Keep existing or null
+    // Avatar padrão escolhido, ou a foto que o perfil já tinha
     return avatarPreview;
   };
 
   const handleFinish = async () => {
-    if (!user || !selectedType) return;
+    if (!profile || !selectedType) return;
 
     setSaving(true);
     try {
@@ -163,7 +159,7 @@ export const OnboardingDialog: React.FC<OnboardingDialogProps> = ({ open, onComp
       const { error: profileError } = await supabase
         .from('profiles')
         .update(updateData)
-        .eq('id', user.id);
+        .eq('id', profile.id);
       if (profileError) throw profileError;
 
       // 3. Create links for selected platforms (only if user provided a URL)
@@ -177,7 +173,7 @@ export const OnboardingDialog: React.FC<OnboardingDialogProps> = ({ open, onComp
             const platform = PLATFORMS.find(p => p.id === platformId)!;
             const url = platformUrls[platformId]!.trim();
             return {
-              user_id: user.id,
+              user_id: profile.id,
               title: platform.label,
               url,
               position: index,
@@ -213,7 +209,7 @@ export const OnboardingDialog: React.FC<OnboardingDialogProps> = ({ open, onComp
       return;
     }
     // Skip step 4 — finish without platforms
-    if (!user || !selectedType) return;
+    if (!profile || !selectedType) return;
     setSaving(true);
     try {
       const avatarUrl = await uploadAvatarIfNeeded();
@@ -225,7 +221,7 @@ export const OnboardingDialog: React.FC<OnboardingDialogProps> = ({ open, onComp
       if (profileBio.trim()) updateData.bio = profileBio.trim();
       if (avatarUrl) updateData.avatar_url = avatarUrl;
 
-      const { error } = await supabase.from('profiles').update(updateData).eq('id', user.id);
+      const { error } = await supabase.from('profiles').update(updateData).eq('id', profile.id);
       if (error) throw error;
       onComplete(selectedType);
       toast({ title: 'Bem-vindo!', description: 'Você pode adicionar seus links depois.' });
