@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,10 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Palette, Sparkles, Save, Type, Zap, Image, UserCircle, LayoutTemplate } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { useDesignStore, ThemeConfig } from '@/stores/useDesignStore';
-import { PREDEFINED_THEMES } from '@/utils/themes';
+import { createDefaultCustomTheme, DEFAULT_THEME_ID, useDesignStore, ThemeConfig } from '@/stores/useDesignStore';
+import { PREDEFINED_THEMES, resolveThemeConfig } from '@/utils/themes';
 import { ONBOARDING_TEMPLATES, filterTemplates } from '@/components/dashboard/onboardingTemplates';
 import type { TemplateFilter } from '@/components/dashboard/onboardingTemplates';
 import { TemplateMockup } from '@/components/dashboard/TemplateMockup';
@@ -61,34 +60,31 @@ const BACKGROUND_PATTERNS: { id: NonNullable<ThemeConfig['background']['pattern'
   { id: 'stripes', name: 'Listras', preview: 'linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)' },
 ];
 
+/** Tema salvo do perfil para iniciar o editor. Sem tema salvo, o padrão (nada vem do perfil anterior). */
+function initialDesignOf(profile: any): { themeId: string; config: ThemeConfig } {
+  const raw = profile?.theme_options;
+  const options = raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, any>) : null;
+  const config = resolveThemeConfig(options);
+  if (!config) return { themeId: DEFAULT_THEME_ID, config: createDefaultCustomTheme() };
+  return { themeId: options.themeId || 'custom', config };
+}
+
 export const DesignTab: React.FC<DesignTabProps> = ({ profile, onProfileUpdate }) => {
-  const { user } = useAuth();
   const { toast } = useToast();
-  const { currentTheme, customTheme, setCurrentTheme, setCustomTheme } = useDesignStore();
-  const [selectedTheme, setSelectedTheme] = useState('pebble-blue');
-  const [customConfig, setCustomConfig] = useState<ThemeConfig>(customTheme);
+  const { setCurrentTheme, setCustomTheme } = useDesignStore();
+  // Começa pelo tema salvo deste perfil. O Dashboard remonta a aba ao trocar de perfil (key),
+  // e o CurrentProfileContext aplica o tema no store; nada do perfil anterior fica aqui.
+  const [initialDesign] = useState(() => initialDesignOf(profile));
+  const [selectedTheme, setSelectedTheme] = useState(initialDesign.themeId);
+  const [customConfig, setCustomConfig] = useState<ThemeConfig>(initialDesign.config);
   const [loading, setLoading] = useState(false);
   const [activeCustomTab, setActiveCustomTab] = useState<'background' | 'typography' | 'buttons' | 'avatar'>('background');
   const [templateFilter, setTemplateFilter] = useState<TemplateFilter>('todos');
 
-  useEffect(() => {
-    if (profile?.theme_options) {
-      const themeOptions = profile.theme_options;
-      if (themeOptions.themeId) {
-        setSelectedTheme(themeOptions.themeId);
-        setCurrentTheme(themeOptions.themeId);
-      }
-      if (themeOptions.custom) {
-        setCustomTheme(themeOptions.custom);
-        setCustomConfig(themeOptions.custom);
-      }
-    }
-  }, [profile, setCurrentTheme, setCustomTheme]);
-
   // Recebe o id por parâmetro para não depender de estado ainda não atualizado.
   // Grava sempre a config que está na tela (modelos e edição manual usam customConfig).
   const handleSaveTheme = async (themeId: string) => {
-    if (!user) return;
+    if (!profile?.id) return;
 
     setLoading(true);
 
@@ -106,7 +102,7 @@ export const DesignTab: React.FC<DesignTabProps> = ({ profile, onProfileUpdate }
     const { error } = await supabase
       .from('profiles')
       .update({ theme_options: themeOptions as any })
-      .eq('id', user.id);
+      .eq('id', profile.id);
 
     if (error) {
       toast({
