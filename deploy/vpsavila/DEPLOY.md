@@ -157,7 +157,7 @@ scp deploy/vpsavila/migrations/2026-10-25-show-qr-code.sql avila@192.168.1.24:/t
 ssh avila@192.168.1.24 'docker exec -i supabase-db psql -U postgres -d postgres -v ON_ERROR_STOP=1 < /tmp/2026-10-25-show-qr-code.sql && rm /tmp/2026-10-25-show-qr-code.sql'
 ```
 
-Esperado: `SET`, `ALTER TABLE` e `NOTIFY`. Com erro, o `ON_ERROR_STOP` para tudo e **o frontend novo não deve ser publicado** até a migração passar.
+Esperado: as linhas de cada comando da migração e nenhum `ERROR`. A do QR code imprime `SET`, `ALTER TABLE` e `NOTIFY`; a dos ícones (`2026-10-25-link-icons.sql`) imprime `BEGIN`, `SET`, três `ALTER TABLE`, três `DO`, `INSERT 0 1` (ou `INSERT 0 0` se o bucket já existir), pares `DROP POLICY`/`CREATE POLICY`, `NOTIFY` e `COMMIT`. Com erro, o `ON_ERROR_STOP` para tudo e **o frontend novo não deve ser publicado** até a migração passar.
 
 Escreva as migrações de forma idempotente (`IF NOT EXISTS` e afins), para poderem rodar de novo sem quebrar nada.
 
@@ -208,9 +208,11 @@ Esperado no `nginx -t`: `syntax is ok` e `test is successful`. Se falhar, pare: 
 curl.exe -s https://linkhub.avila.ia.br/ | Select-String -Pattern 'assets/index-[^"]+\.js'
 curl.exe -s -o NUL -w '%{http_code}\n' https://linkhub.avila.ia.br/mediapipe/1.1.1/models/selfie_multiclass_256x256.tflite
 curl.exe -s -o NUL -w '%{http_code} %{content_type}\n' https://linkhub.avila.ia.br/vendor-icons/simple-icons/16.35.0/youtube.svg
+curl.exe -s -o NUL -D - https://linkhub.avila.ia.br/vendor-icons/simple-icons/16.35.0/youtube.svg | Select-String -Pattern '^cache-control'
+curl.exe -s -o NUL -w '%{http_code}\n' https://linkhub.avila.ia.br/vendor-icons/simple-icons/16.35.0/nao-existe.svg
 ```
 
-Esperado: o mesmo `index-*.js` do `dist/index.html`, `200` no modelo e `200 image/svg+xml` no ícone do YouTube.
+Esperado: o mesmo `index-*.js` do `dist/index.html`, `200` no modelo, `200 image/svg+xml` no ícone do YouTube, `cache-control: public, max-age=2592000` e `404` no SVG inexistente. Os dois últimos provam que o bloco `/vendor-icons/` do `nginx.conf` está em vigor: sem ele, o SVG vem sem esse cache e o inexistente volta o `index.html` com `200`.
 
 ### Subir a versão dos ícones (simple-icons / lucide-static)
 

@@ -218,7 +218,8 @@ Os testes cobrem as duas implementações: simples, tom de pele, família 👨�
   - devolve `canvasToBlob(canvas, 'image/png')`, do `src/utils/cropImage.ts`; `SecurityError` (canvas sujo) ou blob `null` viram o erro "Não foi possível converter este SVG";
   - revoga a objectURL no `finally`.
   - **Segurança:** o SVG renderizado como imagem não executa script nem carrega recursos externos.
-- PNG e WebP enviados acima de 256 px também são reduzidos para 256 px (`scaleCanvas`) antes do upload, quando o canvas estiver disponível.
+- PNG e WebP enviados são **sempre reencodados** antes do upload quando há canvas 2D (decisão da revisão, por privacidade: tira EXIF/GPS antes do bucket público). Acima de 256 px, são desenhados direto no canvas final de 256 px (sem `scaleCanvas`, para não criar um canvas do tamanho original, que no iOS falha acima de ~16,7 MP); até 256 px, no tamanho original. Sem canvas 2D ou com `toBlob` nulo, sobe o arquivo original.
+- O SVG tem teto de **1 MB** (`LINK_ICON_SVG_MAX_BYTES`) antes de ser lido; o PNG resultante da conversão é conferido contra os 512 KB do bucket. A leitura de imagem desiste depois de 10 s.
 - `validateIconFile(file)`:
   - tipo pelo MIME, com reserva na extensão (`.png`, `.webp`, `.svg`), porque `file.type` às vezes vem vazio;
   - limite de 512 KB para PNG e WebP;

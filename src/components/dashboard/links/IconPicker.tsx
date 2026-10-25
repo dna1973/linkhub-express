@@ -546,7 +546,7 @@ function UploadPanel({ disabled, onUpload }: { disabled?: boolean; onUpload: (fi
         onChange={handleFile}
       />
       <p id="icon-picker-upload-hint" className="text-xs text-muted-foreground">
-        PNG, WebP ou SVG, até 512 KB. O SVG é convertido em PNG.
+        PNG ou WebP até 512 KB; SVG até 1 MB, convertido em PNG.
       </p>
       <p aria-live="polite" className="flex min-h-4 items-center gap-1 text-xs text-muted-foreground">
         {uploading && (
