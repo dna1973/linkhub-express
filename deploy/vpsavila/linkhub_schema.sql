@@ -35,6 +35,7 @@ CREATE TABLE linkhub.profiles (
   preferred_domain TEXT DEFAULT 'default',
   theme_options JSONB DEFAULT '{}',
   show_username BOOLEAN NOT NULL DEFAULT true,
+  show_qr_code BOOLEAN NOT NULL DEFAULT true,
   user_type TEXT DEFAULT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),

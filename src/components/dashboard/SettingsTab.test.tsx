@@ -15,6 +15,8 @@ const mocks = vi.hoisted(() => {
     storage,
     storageFrom: vi.fn(() => storage),
     profileUpdate: vi.fn(),
+    // Último formData e callback que a aba passou ao useAutosave (o teste chama o salvamento na mão)
+    autosave: null as null | { data: unknown; save: (data: unknown) => Promise<void> },
   };
 });
 
@@ -26,7 +28,12 @@ vi.mock('@/hooks/use-toast', () => ({ useToast: () => ({ toast: mocks.toast }) }
 vi.mock('@/hooks/useUsernameValidation', () => ({
   useUsernameValidation: () => ({ isValid: true, isAvailable: true, isChecking: false, error: null, suggestions: [] }),
 }));
-vi.mock('@/hooks/useAutosave', () => ({ useAutosave: () => 'idle' }));
+vi.mock('@/hooks/useAutosave', () => ({
+  useAutosave: (data: unknown, save: (data: unknown) => Promise<void>) => {
+    mocks.autosave = { data, save };
+    return 'idle';
+  },
+}));
 vi.mock('./AuthProviderInfo', () => ({ AuthProviderInfo: () => null }));
 vi.mock('@/lib/supabase', () => ({
   AVATARS_BUCKET: 'linkhub-avatars',
@@ -359,5 +366,41 @@ describe('SettingsTab, foto de perfil', () => {
     await waitFor(() => expect(mocks.storage.remove).toHaveBeenCalledWith(['u1/123.jpg']));
     expect(mocks.storageFrom).toHaveBeenCalledWith('linkhub-avatars');
     expect(mocks.storageFrom).not.toHaveBeenCalledWith('avatars');
+  });
+});
+
+describe('SettingsTab, QR code e link público', () => {
+  it('interruptor do QR code começa ligado e grava show_qr_code false', async () => {
+    renderTab();
+    const toggle = screen.getByRole('switch', { name: 'Exibir QR code no perfil público' });
+    expect(toggle.getAttribute('aria-checked')).toBe('true');
+
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute('aria-checked')).toBe('false');
+
+    await act(async () => {
+      await mocks.autosave!.save(mocks.autosave!.data);
+    });
+    expect(mocks.profileUpdate).toHaveBeenCalledWith(expect.objectContaining({ show_qr_code: false, show_username: true }));
+  });
+
+  it('perfil gravado com show_qr_code false começa desligado', () => {
+    render(
+      <SettingsTab
+        profile={{ username: 'dna', full_name: 'Daniel', avatar_url: '', show_qr_code: false }}
+        onProfileUpdate={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole('switch', { name: 'Exibir QR code no perfil público' }).getAttribute('aria-checked')).toBe('false');
+  });
+
+  it('o link para compartilhar usa a regra única (domínio personalizado com https://)', () => {
+    render(
+      <SettingsTab
+        profile={{ username: 'dna', full_name: 'Daniel', avatar_url: '', preferred_domain: 'custom', custom_domain: 'https://meusite.com' }}
+        onProfileUpdate={vi.fn()}
+      />,
+    );
+    expect(screen.getByDisplayValue('https://meusite.com/dna')).toBeTruthy();
   });
 });

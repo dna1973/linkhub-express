@@ -145,6 +145,16 @@ npm run build
 - Sem internet e sem o modelo, o build **para com erro**, de propósito: um `dist` sem `mediapipe/` publicado por cima do servidor tiraria a remoção de fundo do ar. Rode de novo com internet. Só use `SKIP_MEDIAPIPE=1` se quiser mesmo publicar sem a remoção de fundo.
 - Cada deploy envia cerca de 44 MB, quase todos do MediaPipe (`dist/mediapipe/`).
 
+### Migrações do banco
+
+Quando o deploy trouxer um arquivo novo em `deploy/vpsavila/migrations/`, aplique-o **antes** de publicar o frontend. O frontend novo pode gravar colunas que só existem depois da migração, e o antigo ignora colunas novas, então essa ordem é sempre segura:
+
+```powershell
+Get-Content deploy/vpsavila/migrations/<arquivo>.sql -Raw | ssh avila@192.168.1.24 'docker exec -i supabase-db psql -U postgres -d postgres -v ON_ERROR_STOP=1'
+```
+
+As migrações usam `IF NOT EXISTS`: rodar de novo não quebra nada.
+
 ### Publicar
 
 O build novo sobe para `html.new` e só então troca de lugar com o atual, que fica em `html.old` para voltar se precisar. Nada é apagado antes de o novo estar inteiro no servidor. Como a troca muda a pasta montada no contêiner, o `--force-recreate` é obrigatório.

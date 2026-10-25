@@ -10,7 +10,9 @@ import { Switch } from '@/components/ui/switch';
 import { UsernameInput } from '@/components/ui/username-input';
 import { USER_TYPE_LABELS } from './OnboardingDialog';
 import { Copy, Check, Upload, ExternalLink, Trash2, Globe, Loader2, CheckCircle2, Megaphone, Briefcase, User, Eraser } from 'lucide-react';
-import { supabase, AVATARS_BUCKET, PUBLIC_SITE_URL } from '@/lib/supabase';
+import { supabase, AVATARS_BUCKET } from '@/lib/supabase';
+import { PUBLIC_SITE_URL } from '@/lib/siteUrl';
+import { getPublicProfileUrl } from '@/lib/publicProfileUrl';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { useUsernameValidation } from '@/hooks/useUsernameValidation';
@@ -56,6 +58,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
     custom_domain: profile?.custom_domain || '',
     preferred_domain: profile?.preferred_domain === 'custom' ? 'custom' : 'default',
     show_username: profile?.show_username ?? true,
+    show_qr_code: profile?.show_qr_code ?? true,
     user_type: profile?.user_type || '',
   });
 
@@ -89,25 +92,19 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
         custom_domain: profile.custom_domain || '',
         preferred_domain: profile.preferred_domain === 'custom' ? 'custom' : 'default',
         show_username: profile.show_username ?? true,
+        show_qr_code: profile.show_qr_code ?? true,
         user_type: profile.user_type || '',
       });
     }
   }, [profile]);
 
-  // Determinar o domínio baseado na preferência do usuário
-  const getSelectedDomain = () => {
-    if (formData.preferred_domain === 'custom' && formData.custom_domain) {
-      const domain = formData.custom_domain.startsWith('http') 
-        ? formData.custom_domain 
-        : `https://${formData.custom_domain}`;
-      return domain;
-    }
-    return PUBLIC_SITE_URL;
-  };
-  
-  const publicUrl = profile?.username 
-    ? `${getSelectedDomain()}/${profile.username}`
-    : 'Configure seu @username primeiro';
+  // Username gravado (o digitado pode estar inválido ou em uso) com o domínio do formulário, ainda não salvo
+  const publicUrl =
+    getPublicProfileUrl({
+      username: profile?.username,
+      preferred_domain: formData.preferred_domain,
+      custom_domain: formData.custom_domain,
+    }) ?? 'Configure seu @username primeiro';
 
   // Shareable URL via edge function (serves proper OG meta tags for social previews)
   const shareableUrl = profile?.username
@@ -137,6 +134,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
         custom_domain: data.custom_domain || null,
         preferred_domain: data.preferred_domain,
         show_username: data.show_username,
+        show_qr_code: data.show_qr_code,
         user_type: data.user_type || null,
       })
       .eq('id', user.id);
@@ -453,14 +451,30 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
           {/* Show Username Toggle */}
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
-              <Label>Exibir @username no perfil público</Label>
+              <Label htmlFor="show_username">Exibir @username no perfil público</Label>
               <p className="text-xs text-muted-foreground">
                 Quando desativado, o @username não aparecerá na sua página pública.
               </p>
             </div>
             <Switch
+              id="show_username"
               checked={formData.show_username}
               onCheckedChange={(checked) => handleInputChange('show_username', checked as any)}
+            />
+          </div>
+
+          {/* QR code no rodapé do perfil público */}
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label htmlFor="show_qr_code">Exibir QR code no perfil público</Label>
+              <p className="text-xs text-muted-foreground">
+                Quando desativado, o QR code não aparecerá no rodapé da sua página pública.
+              </p>
+            </div>
+            <Switch
+              id="show_qr_code"
+              checked={formData.show_qr_code}
+              onCheckedChange={(checked) => handleInputChange('show_qr_code', checked as any)}
             />
           </div>
 

@@ -154,6 +154,7 @@ export type Database = {
           full_name: string | null
           id: string
           preferred_domain: string | null
+          show_qr_code: boolean
           show_username: boolean
           theme_options: Json | null
           updated_at: string
@@ -168,6 +169,7 @@ export type Database = {
           full_name?: string | null
           id: string
           preferred_domain?: string | null
+          show_qr_code?: boolean
           show_username?: boolean
           theme_options?: Json | null
           updated_at?: string
@@ -182,6 +184,7 @@ export type Database = {
           full_name?: string | null
           id?: string
           preferred_domain?: string | null
+          show_qr_code?: boolean
           show_username?: boolean
           theme_options?: Json | null
           updated_at?: string

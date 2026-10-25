@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { BrandLogo } from '@/components/BrandLogo';
 import { useTheme } from 'next-themes';
 import { useAuth } from '@/contexts/AuthContext';
-import { PUBLIC_SITE_URL } from '@/lib/supabase';
+import { getPublicProfileUrl } from '@/lib/publicProfileUrl';
 import { useNavigate } from 'react-router-dom';
 import {
   Sidebar,
@@ -71,13 +71,8 @@ export function AppSidebar({ activeTab, onTabChange, profile }: AppSidebarProps)
     if (isMobile) setOpenMobile(false);
   };
 
-  const getPublicUrl = () => {
-    if (!profile?.username) return '';
-    if (profile?.preferred_domain === 'custom' && profile?.custom_domain) {
-      return `https://${profile.custom_domain}/${profile.username}`;
-    }
-    return `${PUBLIC_SITE_URL}/${profile.username}`;
-  };
+  // Mesma regra do QR code e da aba Perfil (aceita domínio personalizado gravado com https://)
+  const getPublicUrl = () => getPublicProfileUrl(profile);
 
   const handleViewProfile = () => {
     const url = getPublicUrl();
