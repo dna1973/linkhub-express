@@ -1,233 +1,270 @@
 # Vários perfis por conta — especificação
 
 **Data:** 25/10/2026
-**Situação:** desenho aprovado pelo Daniel em 25/10/2026 (abordagem 1).
+**Situação:** desenho aprovado pelo Daniel em 25/10/2026. A revisão contra o código e o banco de produção levou à variante **"vínculo escondido"**, também aprovada por ele.
 
 ## Objetivo
 
-Uma conta passa a ter mais de um perfil público, por exemplo pessoal, profissional e de setores. Cada perfil tem o próprio @username, foto, tema, links, QR code e estatísticas. No painel, o dono troca de perfil por um seletor na sidebar e gerencia todos numa página "Meus perfis".
+Uma conta passa a ter mais de um perfil público, por exemplo pessoal, profissional e de setores. Cada perfil tem o próprio @username, foto, tema, links, QR code e estatísticas. No painel, o dono troca de perfil por um seletor na sidebar e gerencia todos numa página "Meus perfis". **Quem está de fora não consegue descobrir, nem pela API, que dois perfis são da mesma conta.**
 
 ## Decisões do Daniel
 
 | Pergunta | Escolha |
 |---|---|
-| Quem edita | Só o dono da conta (um dono por perfil; sem colaboradores por enquanto) |
+| Quem edita | Só o dono da conta (sem colaboradores por enquanto) |
 | Limite | Até **10 perfis por conta** |
 | Troca no painel | **Seletor no topo da sidebar** e página **"Meus perfis"** |
-| Estatísticas | Analytics **por perfil** (como hoje) + visitas e cliques de cada perfil lado a lado em "Meus perfis" (últimos 30 dias) |
-| Criar perfil | Um passo com @username e nome, depois o **onboarding atual** aplicado ao perfil novo |
-| Abordagem | **1**: o perfil vira entidade própria, **preservando os identificadores atuais** |
+| Estatísticas | Analytics **por perfil**; em "Meus perfis", visitas e cliques de cada perfil nos últimos 30 dias |
+| Criar perfil | **@username (obrigatório) e nome**, depois o **onboarding atual** aplicado ao perfil novo |
+| Privacidade | **Esconder o vínculo** entre perfis da mesma conta |
 
 ## Fora do escopo
 
 - Colaboradores, convites, papéis por perfil e transferência de perfil entre contas.
-- Analytics consolidada de todos os perfis com gráficos.
-- Duplicar um perfil existente.
-- Domínio personalizado diferente por perfil. Hoje o domínio já é campo do perfil e continua assim, sem mudança.
+- Analytics consolidada com gráficos.
+- Duplicar perfil.
+- Limpeza de arquivos do Storage ao excluir uma conta pelo Admin (não existe hoje; continua igual).
 
-## Princípio da migração
+## Modelo de dados
 
-Hoje `profiles.id` **é** o id da conta (`auth.users.id`), e todo o resto aponta para ele. Os dados existentes não mudam de identificador:
-- cada perfil atual mantém o seu `id`;
-- ele ganha `owner_id`, igual ao próprio `id`;
-- os links ganham `profile_id`, igual ao `user_id` atual;
-- `profile_views.profile_id` e `link_clicks.profile_id` já guardam o id do perfil e não mudam.
+Hoje `profiles.id` é o id da conta, e todos os dados apontam para ele: `links.user_id`, `profile_views.profile_id` e `link_clicks.profile_id`. Conferido em produção: 1 perfil, 8 links, 57 visitas, 12 cliques e nenhum órfão.
 
-Perfis novos ganham `id` gerado (`gen_random_uuid()`).
+**O que fica igual:**
+- **`profiles.id`:** continua sendo a chave do perfil. Os perfis existentes **não mudam de id**, e perfis novos ganham id gerado.
+- **`links.user_id`:** continua guardando o **id do perfil**, como hoje (o nome é histórico). Os links **não** ganham coluna nova. O `types.ts` e o esquema ganham um comentário explicando isso.
+- **`profile_views.profile_id` e `link_clicks.profile_id`:** não mudam.
 
-Por isso, a ordem **migração → frontend** é segura. O frontend antigo continua funcionando com os perfis existentes, porque para eles `id = owner_id = user_id`.
+**O que é novo:**
+- **Dono:** fica numa tabela separada, `linkhub.profile_owners`, que **só o próprio dono lê**. A tabela `profiles`, de leitura pública, não ganha nenhuma coluna de dono, e por isso o vínculo fica escondido.
 
-## Dados
+### Migração `deploy/vpsavila/migrations/2026-10-26-varios-perfis.sql`
 
-Arquivo `deploy/vpsavila/migrations/2026-10-26-varios-perfis.sql`. Roda numa transação (`BEGIN … COMMIT`), com `SET LOCAL lock_timeout = '5s'`, é idempotente e termina com `NOTIFY pgrst, 'reload schema'`.
+O arquivo roda numa transação (`BEGIN … COMMIT`), com `SET LOCAL lock_timeout = '5s'`, e é idempotente. Todas as funções `SECURITY DEFINER` usam `SET search_path = ''` e nomes qualificados, como as que já existem no repositório. Ordem:
 
-### `linkhub.profiles`
+1. **Tabela `linkhub.profile_owners`** (`CREATE TABLE IF NOT EXISTS`):
+   - colunas:
+     - `profile_id uuid PRIMARY KEY REFERENCES linkhub.profiles(id) ON DELETE CASCADE`;
+     - `owner_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE`;
+     - `created_at timestamptz NOT NULL DEFAULT now()`;
+   - índice `profile_owners_owner_idx (owner_id)`;
+   - RLS ligada; política `"Owners can view their own profile links"` com `FOR SELECT TO authenticated USING (owner_id = auth.uid())`;
+   - **nenhuma** política de insert, update ou delete: a tabela só é escrita por gatilho e funções;
+   - permissões: `REVOKE ALL … FROM PUBLIC, anon` e `GRANT SELECT … TO authenticated`.
+2. **Preenchimento:** `INSERT INTO linkhub.profile_owners (profile_id, owner_id) SELECT id, id FROM linkhub.profiles WHERE id IN (SELECT id FROM auth.users) ON CONFLICT DO NOTHING`. Os perfis atuais têm `id` igual ao da conta.
+3. **`profiles`:**
+   - `ALTER TABLE linkhub.profiles DROP CONSTRAINT IF EXISTS profiles_id_fkey`;
+   - `ALTER COLUMN id SET DEFAULT gen_random_uuid()`.
+4. **FKs com exclusão em cascata a partir do perfil:**
+   - antes, `DELETE` dos órfãos em `links`, `profile_views` e `link_clicks` (hoje são 0, mas a FK falharia);
+   - depois, cada FK num bloco `DO` que testa `pg_constraint` com `conrelid`, como em `2026-10-25-link-icons.sql`:
+     - `links_user_id_profile_fkey`: `links.user_id → profiles(id) ON DELETE CASCADE`;
+     - `profile_views_profile_id_fkey`;
+     - `link_clicks_profile_id_fkey`.
+5. **Funções e gatilhos** (`CREATE OR REPLACE FUNCTION` + `DROP TRIGGER IF EXISTS` / `CREATE TRIGGER`):
+   - **`linkhub.owns_profile(p_profile_id uuid) RETURNS boolean`**:
+     - `STABLE SECURITY DEFINER`, devolve `EXISTS (SELECT 1 FROM linkhub.profile_owners WHERE profile_id = p_profile_id AND owner_id = auth.uid())`;
+     - usada pelas políticas, para elas não dependerem de permissão de leitura na tabela de donos;
+     - para `anon`, devolve falso, porque `auth.uid()` é nulo;
+     - permissões: `GRANT EXECUTE … TO anon, authenticated`.
+   - **`linkhub.register_profile_owner()`**: gatilho `AFTER INSERT ON linkhub.profiles`, `SECURITY DEFINER`. Faz `INSERT INTO linkhub.profile_owners VALUES (NEW.id, auth.uid()) ON CONFLICT DO NOTHING` quando `auth.uid()` não é nulo. Cobre o primeiro perfil criado pelo insert direto, inclusive pelo frontend antigo.
+   - **`linkhub.cleanup_owned_profile()`**: gatilho `AFTER DELETE ON linkhub.profile_owners`, `SECURITY DEFINER`. Faz `DELETE FROM linkhub.profiles WHERE id = OLD.profile_id`. Com isso, excluir uma conta em `auth.users` → apaga `profile_owners` em cascata → apaga os perfis → apaga links, visitas e cliques em cascata.
+   - **`linkhub.protect_profile_id()`**: gatilho `BEFORE UPDATE ON linkhub.profiles`. Recusa `NEW.id <> OLD.id`, com `HINT = 'linkhub_immutable_id'`.
+   - **`linkhub.create_profile(p_username text, p_full_name text) RETURNS uuid`**, `SECURITY DEFINER`:
+     1. com `auth.uid()` nulo, recusa com `HINT 'linkhub_not_authenticated'`;
+     2. pega a trava `pg_advisory_xact_lock(hashtext('linkhub.profiles'), hashtext(auth.uid()::text))`;
+     3. com 10 ou mais perfis do dono, recusa com `HINT 'linkhub_profile_limit'`;
+     4. se `p_username` não casar com `^[a-z0-9_]{3,20}$`, recusa com `HINT 'linkhub_invalid_username'`;
+     5. insere o perfil com `id` gerado, `username` e `full_name` (aparado, até 100 caracteres); o gatilho registra o dono;
+     6. devolve o `id`. O @ duplicado cai no `unique` do banco (`23505`), e o frontend mostra "Este username já está em uso".
+   - **`linkhub.list_own_profiles() RETURNS SETOF linkhub.profiles`**, `STABLE SECURITY DEFINER`: devolve os perfis de `auth.uid()`, `ORDER BY created_at, id`.
+   - **`linkhub.delete_own_profile(p_profile_id uuid) RETURNS jsonb`**, `SECURITY DEFINER`:
+     1. pega a mesma trava do `create_profile`;
+     2. faz `SELECT … FROM linkhub.profiles p JOIN linkhub.profile_owners o ON o.profile_id = p.id WHERE p.id = p_profile_id AND o.owner_id = auth.uid() FOR UPDATE`; sem linha (inclusive para `anon`), recusa com `HINT 'linkhub_not_owner'`;
+     3. se for o único perfil do dono, recusa com `HINT 'linkhub_last_profile'`;
+     4. guarda `avatar_url` e os `icon_value` dos links com `icon_type = 'upload'`;
+     5. apaga o perfil (links, visitas, cliques e dono saem em cascata);
+     6. devolve `{ "avatar_url": …, "icon_urls": [ … ] }`.
 
-- Acrescentar `owner_id uuid`, preenchido com `owner_id = id` onde estiver nulo. Depois:
-  - `SET NOT NULL`;
-  - FK `profiles_owner_id_fkey` → `auth.users(id) ON DELETE CASCADE`;
-  - índice `profiles_owner_id_idx`.
-- Remover `profiles_id_fkey`, que liga `id` a `auth.users`, e definir `id DEFAULT gen_random_uuid()`.
-- Limite de 10 por conta:
-  - função `linkhub.enforce_profile_limit()`, em gatilho `BEFORE INSERT`, que conta os perfis de `NEW.owner_id`;
-  - se já houver 10, lança `RAISE EXCEPTION 'Limite de 10 perfis por conta' USING ERRCODE = 'P0001'`;
-  - o gatilho é criado só se ainda não existir.
-- Coluna nova: `created_at` já existe e serve para a ordem dos perfis.
+     Os arquivos não são apagados pelo SQL, porque o gatilho `protect_objects_delete` do Storage bloqueia. O cliente remove depois.
+   - Todas as recusas usam `RAISE EXCEPTION '<mensagem em português>' USING ERRCODE = 'P0001', HINT = '<código>'`. O PostgREST devolve o `hint`, e o frontend decide pelo `hint`, nunca pela mensagem.
+   - Permissões das três funções chamáveis (`create_profile`, `list_own_profiles` e `delete_own_profile`): `REVOKE ALL … FROM PUBLIC, anon` e `GRANT EXECUTE … TO authenticated`. O ACL padrão do schema dá `EXECUTE` a `PUBLIC` e `anon`, e por isso o `REVOKE` explícito é necessário.
+6. **Políticas.** Mesmos nomes de hoje, com `DROP POLICY IF EXISTS` + `CREATE POLICY`, para nenhuma política antiga sobrar somada por OR:
+   - **`profiles`**:
+     - `"Users can insert their own profile"` fica igual, `WITH CHECK (auth.uid() = id)`: só o **primeiro** perfil entra por insert direto, e com `id` igual ao da conta, o que impede apropriar o id de outra conta. Os outros perfis entram pelo `create_profile`;
+     - `"Users can update their own profile"`: `USING (linkhub.owns_profile(id)) WITH CHECK (linkhub.owns_profile(id))`;
+     - leitura pública como hoje;
+     - sem política de delete.
+   - **`links`**: `"Users can insert their own links"`, `"… update …"` e `"… delete …"` usam `linkhub.owns_profile(user_id)`. No update, a regra vale em `USING` e em `WITH CHECK`, o que impede mover um link para o perfil de outra pessoa. A leitura pública fica como hoje.
+   - **`profile_views` e `link_clicks`**:
+     - `"Users can view their own profile views"` e `"Users can view their own link clicks"`: `USING (linkhub.owns_profile(profile_id))`;
+     - os inserts validados (`"Validated profile view inserts only"` e `"Validated link click inserts only"`) **ficam iguais**, porque `links.user_id` continua sendo o id do perfil.
+7. `NOTIFY pgrst, 'reload schema'` e `COMMIT`.
 
-### `linkhub.links`
+O `deploy/vpsavila/linkhub_schema.sql` recebe o estado final. Os `REVOKE`/`GRANT` das funções vêm **depois** da seção 6 do arquivo, porque o `GRANT ALL ON ALL FUNCTIONS … TO anon` dela devolveria o acesso. O `src/integrations/supabase/types.ts` recebe:
+- a tabela `profile_owners`;
+- as funções `create_profile`, `list_own_profiles`, `delete_own_profile` e `owns_profile`;
+- o comentário sobre `links.user_id`.
 
-- Acrescentar `profile_id uuid`, preenchido com `profile_id = user_id`. Depois:
-  - `SET NOT NULL`;
-  - FK `links_profile_id_fkey` → `linkhub.profiles(id) ON DELETE CASCADE`;
-  - índice `links_profile_id_idx (profile_id, position)`.
-- `user_id` continua: passa a significar o **dono** (conta) e segue usado pelas regras de acesso.
+### Compatibilidade com o frontend atual (entre a migração e o deploy)
 
-### `linkhub.profile_views` e `linkhub.link_clicks`
+- **Primeiro perfil:** ainda entra por insert direto com `id = user.id`. O gatilho registra o dono, e a política continua aceitando.
+- **Links:** continuam com `user_id` igual ao id do perfil e passam pela política nova.
+- **Leituras:** iguais.
 
-- Apagar órfãos (registros cujo `profile_id` não existe em `profiles`; hoje são 0 nas visitas).
-- Acrescentar FKs `… → linkhub.profiles(id) ON DELETE CASCADE`, para que excluir um perfil apague as estatísticas dele.
-
-### Regras de acesso (RLS)
-
-As políticas são trocadas com `DROP POLICY IF EXISTS` + `CREATE POLICY` e passam de "é a minha conta" para "é um perfil meu".
-
-**Perfis:**
-- leitura pública: como hoje;
-- insert: `WITH CHECK (owner_id = auth.uid())`;
-- update: `USING (owner_id = auth.uid()) WITH CHECK (owner_id = auth.uid())`;
-- **sem** política de delete: a exclusão é pela função abaixo.
-
-**Links:**
-- leitura pública: como hoje;
-- insert, update e delete: `auth.uid() = user_id AND EXISTS (SELECT 1 FROM linkhub.profiles p WHERE p.id = links.profile_id AND p.owner_id = auth.uid())`. O update usa o mesmo par em `USING` e `WITH CHECK`.
-
-**Visitas e cliques:**
-- select: `profile_id IN (SELECT id FROM linkhub.profiles WHERE owner_id = auth.uid())`;
-- o insert validado dos cliques passa a conferir `links.profile_id = link_clicks.profile_id`, no lugar de `links.user_id = profile_id`.
-
-**Storage:** sem mudança. Os buckets `linkhub-avatars` e `linkhub-link-icons` continuam em pastas por **conta** (`auth.uid()`). O caminho dos ícones já leva o id do link, que é único.
-
-### Exclusão de perfil: `linkhub.delete_own_profile(p_profile_id uuid)`
-
-- `SECURITY DEFINER` com `SET search_path = linkhub, public`.
-- Recusa:
-  - se o perfil não for de `auth.uid()`;
-  - se for o **último** perfil da conta ("Não é possível excluir o único perfil").
-- Antes de apagar, coleta e **devolve** os arquivos a remover do Storage:
-  - `avatar_url`;
-  - os `icon_value` dos links com `icon_type = 'upload'`.
-- Depois apaga o perfil. Links, visitas e cliques saem em cascata.
-- Retorno: `jsonb` com `{ avatar_url, icon_urls: [] }`.
-- Quem chamou remove os arquivos pelos helpers que já existem: `linkIconPathFromUrl`, e a mesma regra do avatar na aba Perfil, sempre na pasta da conta.
-- `GRANT EXECUTE` só para `authenticated`.
-
-### Esquema e tipos
-
-- `deploy/vpsavila/linkhub_schema.sql` recebe o estado final:
-  - `profiles` com `owner_id` e `id` com padrão gerado;
-  - `links.profile_id`, FKs, índices, gatilho, função e políticas novas.
-- `src/integrations/supabase/types.ts` recebe:
-  - `owner_id` em `profiles` e `profile_id` em `links`;
-  - a função `delete_own_profile` em `Functions`.
+O deploy do frontend e da edge function `linkhub-admin-users` acontece na **mesma janela**, logo depois da migração. Com perfis novos, a versão antiga do Admin agrupa errado.
 
 ## Painel
 
 ### Perfil atual: `src/contexts/CurrentProfileContext.tsx` (novo)
 
-Provider em volta do Dashboard. Expõe:
-- `profiles`, ordenados por `created_at`;
-- `currentProfile`;
-- `selectProfile(id)`;
-- `reloadProfiles()`;
-- `createProfile({ username, full_name })`, que devolve o perfil criado;
-- `deleteProfile(id)`, que chama a RPC e depois limpa o Storage;
-- `loading`.
+O Provider fica no `App`, em volta das rotas `/dashboard` e `/analytics`, e reinicia quando o `user` muda. Ele expõe:
+- `profiles`, `currentProfile`, `loading` e `error`;
+- `selectProfile(id)` e `reloadProfiles()`;
+- `createProfile({ username, full_name })`, que devolve o `id` ou um erro tipado (`limit`, `taken`, `invalid`, `other`) a partir do `hint` ou do `23505`;
+- `deleteProfile(id)`.
 
 Regras:
-- **Carga:** `select('*').eq('owner_id', user.id).order('created_at')`.
-- **Conta sem perfil** (conta nova): cria o primeiro com `owner_id = user.id` e o nome e a foto do provedor, como o `Dashboard` faz hoje, e abre o onboarding.
+- **Carga:** `supabase.rpc('list_own_profiles')`.
+- **Conta sem perfil:** só quando a RPC **deu certo e veio vazia**, nunca em erro de rede. Nesse caso:
+  - cria o primeiro perfil com `insert({ id: user.id, full_name, avatar_url })`, usando nome e foto do provedor, como o `Dashboard` faz hoje;
+  - se der `23505`, recarrega a lista: outra carga simultânea já criou o perfil, e a chave primária garante a idempotência;
+  - o onboarding abre porque o `user_type` é nulo.
 - **Perfil selecionado:**
-  - fica guardado em `localStorage` na chave `linkhub:currentProfile:<userId>`, lida e gravada dentro de `try/catch`;
-  - se não existir mais, cai no primeiro perfil.
+  - fica em `localStorage` na chave `linkhub:currentProfile:<userId>`, lido e gravado dentro de `try/catch`;
+  - se ele não existir mais, cai no primeiro;
+  - depois de excluir o perfil atual, seleciona o primeiro restante.
 - **Trocar de perfil:**
-  - recarrega o tema no `useDesignStore` a partir do `theme_options` do perfil novo;
-  - **se o perfil não tiver tema, volta ao tema padrão**, para não herdar o tema do perfil anterior;
-  - recarrega a lista de links e a prévia, e dispara `linksUpdated`.
+  - aplica o tema do perfil novo no `useDesignStore`;
+  - **sem tema salvo, chama `resetDesign()`**, ação nova no store que volta ao estado inicial (`pebble-blue` e o `customTheme` inicial);
+  - dispara `linksUpdated`.
+- **`deleteProfile`:**
+  1. chama a RPC;
+  2. remove do Storage, em **melhor esforço**, o avatar e os ícones devolvidos. A falha só vai para o console, sem toast, porque o perfil já saiu;
+  3. recarrega a lista.
 
-### Onde o `user.id` vira o perfil atual
+  O avatar usa o helper novo `avatarPathFromUrl(url, userId)`, no molde do `linkIconPathFromUrl`. Ele ignora URLs do provedor ou de outra pasta, e passa a ser usado também pela aba Perfil no lugar da regra `includes('supabase')`.
 
-| Arquivo | Hoje | Passa a |
-|---|---|---|
-| `src/pages/Dashboard.tsx` | carrega e cria o perfil por `id = user.id` | usa o contexto; o onboarding abre quando `currentProfile.user_type` é nulo |
-| `src/components/dashboard/SettingsTab.tsx` | `update … eq('id', user.id)` (2 lugares) | `eq('id', currentProfile.id)`; avatar continua na pasta `user.id` |
-| `src/components/dashboard/DesignTab.tsx` | `update theme_options eq('id', user.id)` | `eq('id', currentProfile.id)` |
-| `src/components/dashboard/LinksTab.tsx` | links por `user_id`; insert com `user_id` | lista por `profile_id = currentProfile.id`; insert com `user_id: user.id` **e** `profile_id: currentProfile.id` |
-| `src/components/dashboard/ProfilePreview.tsx` | links por `user_id` | por `profile_id` do perfil recebido |
-| `src/components/dashboard/OnboardingDialog.tsx` | `update … eq('id', user.id)`; links com `user_id` | recebe `profileId`; `update eq('id', profileId)`; links com `user_id` e `profile_id` |
-| `src/hooks/useAnalyticsData.ts`, `src/pages/Analytics.tsx` | `profile_id = user.id`; links por `user_id` | perfil atual (`profile_id`); links por `profile_id` |
-| `src/components/dashboard/LinkClicksDialog.tsx` | recebe `profileId` (que hoje é o user id) | recebe o id do perfil atual |
-| `src/hooks/useUsernameValidation.ts` | disponível se o dono do @ é `user.id` | aceita `currentProfileId` e considera disponível se o @ for **desse perfil** |
-| `src/pages/PublicProfile.tsx` | links por `user_id = profile.id` | links por `profile_id = profile.id` |
+### Nada vaza entre perfis
 
-A página `/analytics` (rota própria) usa o mesmo contexto. O Provider fica no `App` em volta das rotas autenticadas (`/dashboard` e `/analytics`), ou a página lê a seleção pelo mesmo `localStorage` e carrega o perfil. O plano escolhe a opção mais simples de testar.
+- As abas (`TabsContent`), a `ProfilePreview` e o `OnboardingDialog` recebem `key={currentProfile.id}`, e por isso remontam ao trocar de perfil.
+- O `OnboardingDialog` recebe o `profile` (id, `full_name`, `avatar_url`) e inicializa nome e foto **a partir do perfil**, não do `user.user_metadata`. Assim, o nome digitado no "Novo perfil" não é sobrescrito pelos dados do Google.
+- A `SettingsTab` usa `resetKey = currentProfile.id` no `useAutosave`.
+- A `DesignTab` inicializa `selectedTheme` e `customConfig` a partir do perfil atual, com reserva no tema padrão, e não guarda estado entre perfis, por causa do `key`.
+
+### Onde o perfil atual substitui `user.id`
+
+| Arquivo | Passa a |
+|---|---|
+| `src/pages/Dashboard.tsx` | usa o contexto, sem carregar nem criar o perfil por conta própria; acrescenta a aba `profiles` ao rótulo do cabeçalho do celular; oculta a coluna de prévia **e** o botão "Prévia" nas abas `analytics` e `profiles` |
+| `src/components/dashboard/SettingsTab.tsx` | `eq('id', currentProfile.id)` nos 2 `update`; usa `avatarPathFromUrl` |
+| `src/components/dashboard/DesignTab.tsx` | `eq('id', currentProfile.id)` |
+| `src/components/dashboard/LinksTab.tsx` | lista por `user_id = currentProfile.id`; insert com `user_id: currentProfile.id`; `profileId={currentProfile.id}` no `SortableLink` |
+| `src/components/dashboard/links/EditLinkDialog.tsx` | sem mudança no `update` (por `id` do link) |
+| `src/components/dashboard/ProfilePreview.tsx` | links por `user_id = profile.id`, o perfil recebido; efeito depende de `profile.id` |
+| `src/components/dashboard/OnboardingDialog.tsx` | recebe `profile`; `update eq('id', profile.id)`; links com `user_id: profile.id` |
+| `src/pages/Analytics.tsx` | `profile_id` e links pelo perfil atual; efeito depende de `currentProfile.id` |
+| `src/hooks/useAnalyticsData.ts` | **removido**, porque não é usado em lugar nenhum |
+| `src/hooks/useUsernameValidation.ts` | aceita `currentProfileId` (nas dependências do `useCallback`); o @ fica disponível se for **desse perfil** |
+| `src/pages/PublicProfile.tsx` | **sem mudança**: já busca links por `user_id = profile.id` |
+| `src/components/dashboard/AppSidebar.tsx` | seletor (abaixo); "Ver Perfil" e "Copiar link" pelo perfil atual |
+
+**Continuam com `user.id`, e está certo:**
+- `user_roles.user_id`, usado no `AppSidebar` e no `Admin`, porque o papel é da conta;
+- a **pasta do Storage** nos uploads, que fica em `SettingsTab`, `OnboardingDialog`, `EditLinkDialog` e na remoção de ícone do `LinksTab`.
 
 ### Seletor na sidebar (`AppSidebar.tsx`)
 
-- O bloco "LinkHub @dna" do topo vira um botão de menu (`DropdownMenu` do shadcn).
-- O menu tem:
-  - um item por perfil, com avatar (24 px), nome e @, e o atual marcado (`aria-checked`);
-  - "Criar novo perfil", desabilitado com a dica "Limite de 10 perfis" quando houver 10;
-  - "Meus perfis", que abre a aba nova.
-- Com a sidebar recolhida, fica só o avatar do perfil atual como gatilho.
-- "Ver Perfil" e "Copiar link" passam a usar o perfil atual (`getPublicProfileUrl(currentProfile)`).
+- O bloco "LinkHub @dna" vira um `DropdownMenu`.
+- Um item por perfil, com avatar de 24 px, nome e @; o atual aparece marcado (`DropdownMenuRadioItem`).
+- "Criar novo perfil" fica desabilitado, com a dica "Limite de 10 perfis", quando houver 10.
+- "Meus perfis" abre a aba nova.
+- Com a sidebar recolhida, o gatilho é só o avatar do perfil atual, com `aria-label` "Trocar de perfil (atual: @x)".
 
 ### Aba "Meus perfis" (`src/components/dashboard/ProfilesTab.tsx`, nova)
 
-- Fica no menu da sidebar, em "Painel de Controle", com ícone `Users`. O Dashboard ganha a aba `profiles`.
-- Um card por perfil:
+- No menu, em "Painel de Controle", com o ícone `Users`.
+- **Um card por perfil:**
   - avatar, nome, @ e link público;
-  - visitas e cliques dos últimos 30 dias: contagens `head` em `profile_views` e `link_clicks` por `profile_id`, `viewed_at`/`clicked_at` ≥ agora − 30 dias, com até 10 perfis × 2 consultas;
-  - botões "Abrir" (seleciona e vai para Links) e "Excluir".
+  - visitas e cliques dos últimos 30 dias, por contagem `head` em `profile_views`/`link_clicks` com `profile_id`; com até 10 perfis, são 2 consultas por perfil;
+  - botão "Abrir", que seleciona o perfil e vai para Links;
+  - botão "Excluir".
 - **Excluir:**
-  - diálogo que exige digitar o @username, ou o nome, se o perfil não tiver @;
-  - avisa que links, estatísticas, foto e ícones enviados serão apagados;
-  - fica desabilitado com explicação quando é o único perfil.
-- **Card "Criar novo perfil":** some, ou fica desabilitado com a explicação, quando houver 10.
-- A coluna de prévia do Dashboard fica oculta nesta aba, como já acontece com Analytics.
+  - pede para digitar o @ (perfil sem @, como um primeiro perfil que nunca o configurou: pede o nome);
+  - explica o que será apagado;
+  - fica bloqueado, com explicação, quando é o único perfil.
+- **Criar:** card "Criar novo perfil", desabilitado com explicação quando houver 10.
 
 ### Criar perfil (`src/components/dashboard/NewProfileDialog.tsx`, novo)
 
-- Campos @username (`UsernameInput` + `useUsernameValidation` sem perfil atual) e nome.
-- "Continuar":
-  1. chama `createProfile`, que faz `insert({ owner_id: user.id, username, full_name })`;
+- **Campos:** @username (obrigatório, `UsernameInput` + `useUsernameValidation` sem perfil atual) e nome.
+- **"Continuar":**
+  1. chama `createProfile`;
   2. seleciona o perfil novo;
-  3. o Dashboard abre o `OnboardingDialog` para ele, porque o `user_type` é nulo.
+  3. o Dashboard abre o `OnboardingDialog` para ele.
 - **Erros:**
-  - @ indisponível: aviso no campo;
-  - limite (`P0001` / mensagem do gatilho): "Você já tem 10 perfis";
-  - outros: toast.
+  - `taken`/`invalid`: aviso no campo;
+  - `limit`: "Você já tem 10 perfis";
+  - `other`: toast.
 
-## Admin
+## Admin (`supabase/functions/linkhub-admin-users/index.ts` e `src/pages/Admin.tsx`)
 
-`supabase/functions/linkhub-admin-users/index.ts`, mais `src/pages/Admin.tsx`:
-- **Lista:** contas com seus perfis. Por conta: e-mail, papel e perfis (`username`, nome, avatar, número de links). Os contadores somam todos os perfis da conta.
-- **Excluir conta:** apaga **todos** os perfis do dono (`owner_id`). Links, visitas e cliques saem em cascata. A conta em `auth.users` continua, como hoje.
-- **Estatísticas gerais:** "usuários" passa a contar **contas** (`count(DISTINCT owner_id)`), e ganha um contador de perfis.
+- **Lista:**
+  - a resposta passa a ser `users[]` com `profiles[]` (`id`, `username`, `full_name`, `avatar_url`, `user_type`, `links_count`), mais papel e e-mail;
+  - a edge function lê `auth.users`, `profile_owners`, `profiles` e `links` com `service_role` e agrupa por conta;
+  - a busca procura no e-mail e nos @ de todos os perfis da conta;
+  - a paginação é por **conta**, 50 por página.
+- **Estatísticas:**
+  - "Usuários" conta as contas distintas de `profile_owners`, pelo `Set` na edge function, que serve para a escala atual;
+  - o card novo "Perfis" conta todos os perfis.
+- **Excluir conta:**
+  - apaga `profile_owners` do dono; o gatilho apaga os perfis, e links, visitas e cliques saem em cascata;
+  - depois apaga `user_roles`;
+  - confere o `error` de cada passo;
+  - os arquivos do Storage ficam, como hoje.
+  - No `Admin.tsx`, a confirmação avisa que **todos os perfis** da conta serão apagados, e os contadores locais diminuem.
 
-## Compatibilidade
+## Página pública, QR code e prévia para redes sociais
 
-- **Sem mudança:** página pública, QR code, edge function `linkhub-profile-og` (busca por @), ícones dos links e buckets.
-- **Contas atuais:** ficam com um perfil cada e o mesmo id. O seletor mostra um item só.
-- **Links criados pelo frontend antigo depois da migração:** não ficam sem `profile_id`, porque a coluna é `NOT NULL`. O frontend antigo insere sem `profile_id` e falharia; por isso a migração cria um gatilho `BEFORE INSERT` em `links` que preenche `profile_id = user_id` quando ele vier nulo. É uma transição: o gatilho é inofensivo depois e fica documentado.
+Não mudam. Continuam funcionando por @username e por `links.user_id = profile.id`, que já é o id do perfil.
 
 ## Testes
 
-- **Banco** (validados por leitura, porque não há Postgres local):
-  - a migração é idempotente;
-  - preenchimentos e FKs;
-  - políticas;
-  - gatilho de limite;
-  - função de exclusão (dono, último perfil, retorno dos arquivos).
-
-  Depois de aplicada, conferências por SQL em produção.
-- **`CurrentProfileContext.test.tsx`:**
-  - carrega e ordena os perfis;
-  - cria o primeiro quando não há;
-  - lê e grava a seleção no `localStorage` (com e sem `localStorage`);
-  - cai no primeiro perfil quando o guardado sumiu;
-  - a troca aplica o tema e volta ao padrão quando não há;
-  - `createProfile` trata o limite;
-  - `deleteProfile` chama a RPC e depois remove os arquivos devolvidos (`storage.remove` com os caminhos certos).
-- **`AppSidebar`:** o menu lista os perfis, marca o atual, troca ao clicar e desabilita "Criar" com 10.
-- **`ProfilesTab.test.tsx`:**
-  - cards com contagens;
-  - "Abrir" seleciona;
-  - "Excluir" exige o @, fica bloqueado no único perfil e chama `deleteProfile`.
-- **`NewProfileDialog.test.tsx`:** @ disponível, @ em uso, erro de limite e sucesso abrindo o onboarding.
-- **Ajustes nos testes existentes** (`SettingsTab`, `LinksTab`, `ProfilePreview`, `OnboardingDialog`, `useUsernameValidation`, `PublicProfile`, se houver): passam a usar o perfil atual (`profile_id` e `eq('id', profileId)`).
+- **Banco, em produção, sem efeito:**
+  - rodar a migração **duas vezes** dentro de `BEGIN; … ROLLBACK;`, o que prova a idempotência;
+  - no mesmo bloco, simular contas com `SET LOCAL role authenticated` e `SET LOCAL request.jwt.claims = '{"sub":"<uuid>"}'`. Casos:
+    - criar o 11º perfil é recusado (`linkhub_profile_limit`);
+    - inserir link no perfil de outra conta é recusado;
+    - mover um link para perfil alheio por update é recusado;
+    - trocar o `id` de um perfil é recusado;
+    - excluir o último perfil é recusado;
+    - chamar as RPCs como `anon` é recusado;
+    - ler `profile_owners` de outra conta devolve vazio;
+    - `anon` lendo `profile_owners` recebe permissão negada;
+    - excluir uma conta de teste apaga perfis, links e estatísticas dela.
+  - Os casos de concorrência são conferidos na revisão do SQL.
+  - Depois do `ROLLBACK`, aplicar de verdade e repetir as conferências de leitura.
+- **Vitest:**
+  - `CurrentProfileContext.test.tsx`:
+    - carga pela RPC;
+    - primeiro perfil criado só com a lista vazia;
+    - duas cargas simultâneas fazem um único insert, e o `23505` recarrega a lista;
+    - erro de rede não cria nada;
+    - seleção em `localStorage`, com e sem `localStorage`;
+    - perfil guardado que sumiu cai no primeiro;
+    - a troca aplica o tema ou chama `resetDesign()`;
+    - `createProfile` mapeia `hint` e `23505`;
+    - `deleteProfile` chama a RPC, remove os arquivos pelos helpers e seleciona o primeiro.
+  - `AppSidebar.test.tsx` e `AppSidebar.desktop.test.tsx`: usar o Provider; o seletor lista, marca e troca o perfil; "Criar" fica desabilitado com 10.
+  - `ProfilesTab.test.tsx`, `NewProfileDialog.test.tsx`.
+  - **Novos:**
+    - `OnboardingDialog.test.tsx`: usa nome e foto do perfil, grava em `profile.id` e cria links com `user_id: profile.id`;
+    - `DesignTab.test.tsx`: não herda o tema na troca;
+    - `useUsernameValidation.test.ts`: o @ do próprio perfil fica disponível;
+    - `Analytics` por perfil.
+  - **Ajustes:** `SettingsTab`, `LinksTab`, `ProfilePreview`, `EditLinkDialog` (se mudar) e o helper `avatarPathFromUrl`.
 - **Em produção:**
-  - migração conferida (owner, `profile_id`, FKs, políticas, gatilhos e função);
-  - criar um perfil de teste pelo painel, com seletor, onboarding, link e página pública;
-  - trocar entre os perfis e conferir que tema e links não vazam;
-  - excluir o perfil de teste e conferir no banco e nos buckets que nada sobrou.
-  - O perfil `dna` não é alterado.
+  - criar um perfil de teste;
+  - conferir o seletor, o onboarding com o nome certo, um link e a página pública;
+  - trocar entre os perfis e conferir que tema, links e prévia não vazam;
+  - excluir o perfil de teste e conferir no banco e nos buckets que nada sobrou;
+  - conferir que o perfil `dna` ficou intacto (id, links e estatísticas).
