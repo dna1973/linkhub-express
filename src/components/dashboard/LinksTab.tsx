@@ -169,24 +169,32 @@ export const LinksTab: React.FC<LinksTabProps> = ({ profile, onProfileUpdate }) 
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editingLink, setEditingLink] = useState<Link | null>(null);
 
+  const fetchLinks = async (id: string): Promise<Link[] | null> => {
+    const { data, error } = await supabase
+      .from('links')
+      .select('*')
+      .eq('user_id', id)
+      .order('position');
+
+    return !error && data ? data : null;
+  };
+
+  // Trocar de perfil descarta a resposta do anterior, que pode chegar depois
   useEffect(() => {
-    if (profileId) {
-      loadLinks();
-    }
+    if (!profileId) return;
+    let active = true;
+    fetchLinks(profileId).then((data) => {
+      if (active && data) setLinks(data);
+    });
+    return () => {
+      active = false;
+    };
   }, [profileId]);
 
   const loadLinks = async () => {
     if (!profileId) return;
-
-    const { data, error } = await supabase
-      .from('links')
-      .select('*')
-      .eq('user_id', profileId)
-      .order('position');
-
-    if (!error && data) {
-      setLinks(data);
-    }
+    const data = await fetchLinks(profileId);
+    if (data) setLinks(data);
   };
 
   // O AddLinkDialog já validou a URL e decidiu o título (digitado ou automático)

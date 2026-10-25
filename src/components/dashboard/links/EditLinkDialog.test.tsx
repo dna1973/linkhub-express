@@ -302,6 +302,20 @@ describe('EditLinkDialog: ícone gravado na hora', () => {
     expect(screen.getByRole('button', { name: /Cor oficial da marca/ }).getAttribute('aria-pressed')).toBe('true');
   });
 
+  it('arquivo anterior na pasta de outro perfil não é apagado', async () => {
+    const { onSaved } = renderDialog({
+      url: 'https://meusite.com',
+      icon_type: 'upload',
+      icon_value: `${LINK_ICONS_PUBLIC_PREFIX}p2/5-111.png`,
+    });
+    openTab('Marcas');
+    fireEvent.click(await screen.findByRole('button', { name: 'YouTube' }));
+
+    await waitFor(() => expect(onSaved).toHaveBeenCalled());
+    expect(iconUpdates()[0]).toEqual({ icon_type: 'brand', icon_value: 'youtube', accent_color: null });
+    expect(mocks.storage.remove).not.toHaveBeenCalled();
+  });
+
   it('trocar de upload para marca apaga o arquivo antigo depois do update', async () => {
     const { onSaved } = renderDialog({ url: 'https://meusite.com', icon_type: 'upload', icon_value: OLD_UPLOAD_URL });
     openTab('Marcas');

@@ -36,6 +36,8 @@ export const ProfilePreview: React.FC<ProfilePreviewProps> = ({ profile, headerE
   useEffect(() => {
     if (!profileId) return;
     let active = true;
+    // Não mostra os links do perfil anterior enquanto os do novo carregam
+    setLinks([]);
 
     const loadLinks = async () => {
       const { data, error } = await supabase

@@ -40,7 +40,7 @@ type IconState = { icon_type: string | null; icon_value: string | null; accent_c
 /** O que está gravado no banco para um link, conforme as gravações deste diálogo. */
 type SavedState = Fields & IconState;
 /** Link e abertura em que uma gravação começou: depois de cada await, só mexe na tela se ainda forem os mesmos. */
-type TaskContext = { linkId: number; session: number };
+type TaskContext = { linkId: number; session: number; profileId: string };
 
 const URL_WARNING = 'Corrija a URL para salvar';
 const TITLE_WARNING = 'O título não pode ficar vazio';
@@ -194,7 +194,7 @@ export const EditLinkDialog: React.FC<EditLinkDialogProps> = ({ open, onOpenChan
 
   const captureContext = (): TaskContext | null => {
     const id = activeIdRef.current;
-    return id === null ? null : { linkId: id, session: sessionRef.current };
+    return id === null ? null : { linkId: id, session: sessionRef.current, profileId: profileIdRef.current };
   };
   /** A mesma abertura do mesmo link: pode desfazer o que está na tela. */
   const isSameSession = (ctx: TaskContext) =>
@@ -319,7 +319,7 @@ export const EditLinkDialog: React.FC<EditLinkDialogProps> = ({ open, onOpenChan
     savedByIdRef.current.set(ctx.linkId, { ...saved, ...next });
     if (isActiveLink(ctx)) applyIcon(next);
     if (saved.icon_type === 'upload' && saved.icon_value !== next.icon_value) {
-      const oldPath = linkIconPathFromUrl(saved.icon_value, profileIdRef.current, LINK_ICONS_PUBLIC_PREFIX);
+      const oldPath = linkIconPathFromUrl(saved.icon_value, ctx.profileId, LINK_ICONS_PUBLIC_PREFIX);
       if (oldPath) await removeIconFile(oldPath);
     }
     onSavedRef.current();
@@ -369,7 +369,7 @@ export const EditLinkDialog: React.FC<EditLinkDialogProps> = ({ open, onOpenChan
   // Os erros rejeitam com a mensagem legível, que o IconPicker mostra (sem toast, para não duplicar).
   const handleUpload = async (file: File) => {
     const ctx = captureContext();
-    const owner = profileIdRef.current;
+    const owner = ctx?.profileId;
     if (!ctx || !owner) throw new Error(UPLOAD_ERROR);
     if (isBusy(ctx.linkId)) return;
     setBusy(ctx.linkId, true);

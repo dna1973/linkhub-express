@@ -6,7 +6,7 @@ import { safeOpenUrl } from '@/utils/sanitize';
 import { supabase } from '@/lib/supabase';
 import { ProfilePreview } from './ProfilePreview';
 
-const mocks = vi.hoisted(() => ({ eq: vi.fn() }));
+const mocks = vi.hoisted(() => ({ eq: vi.fn(), hold: null as Promise<void> | null }));
 
 vi.mock('@/contexts/AuthContext', () => {
   // Mesmo objeto a cada render, como no AuthContext real
@@ -25,7 +25,10 @@ vi.mock('@/lib/supabase', () => {
     return chain;
   };
   chain.order = () =>
-    Promise.resolve({ data: [{ id: 7, title: 'Meu site', url: 'https://youtube.com/@x', position: 0 }], error: null });
+    (mocks.hold ?? Promise.resolve()).then(() => ({
+      data: [{ id: 7, title: 'Meu site', url: 'https://youtube.com/@x', position: 0 }],
+      error: null,
+    }));
   return { supabase: { from: vi.fn(() => chain) } };
 });
 
@@ -33,6 +36,7 @@ beforeEach(() => {
   vi.mocked(supabase.from).mockClear();
   vi.mocked(safeOpenUrl).mockClear();
   mocks.eq.mockClear();
+  mocks.hold = null;
 });
 afterEach(() => cleanup());
 
@@ -138,6 +142,17 @@ describe('ProfilePreview', () => {
 
     await waitFor(() => expect(mocks.eq).toHaveBeenCalledWith('user_id', 'p2'));
     expect(supabase.from).toHaveBeenCalledTimes(2);
+  });
+
+  it('ao trocar de perfil, esconde os links do anterior enquanto os do novo carregam', async () => {
+    const { rerender } = render(<ProfilePreview profile={{ id: 'p1', username: 'dna' }} />);
+    await screen.findByRole('button', { name: /Meu site/ });
+
+    mocks.hold = new Promise<void>(() => {});
+    rerender(<ProfilePreview profile={{ id: 'p2', username: 'loja' }} />);
+
+    await waitFor(() => expect(mocks.eq).toHaveBeenCalledWith('user_id', 'p2'));
+    expect(screen.queryByRole('button', { name: /Meu site/ })).toBeNull();
   });
 
   it('sem id de perfil não busca links', () => {

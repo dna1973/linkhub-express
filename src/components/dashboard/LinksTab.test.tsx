@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => {
     update: vi.fn(),
     select: vi.fn(),
     selectEq: vi.fn(),
+    linksFor: null as null | ((id: unknown) => unknown),
   };
 });
 
@@ -33,7 +34,7 @@ vi.mock('@/lib/supabase', () => ({
           return {
             order: async () => {
               mocks.select();
-              return { data: mocks.links, error: null };
+              return { data: mocks.linksFor ? await mocks.linksFor(value) : mocks.links, error: null };
             },
           };
         },
@@ -57,6 +58,7 @@ beforeEach(() => {
   mocks.update.mockReset().mockReturnValue({ error: null });
   mocks.select.mockReset();
   mocks.selectEq.mockReset();
+  mocks.linksFor = null;
   // O seletor de ícone baixa o catálogo de marcas ao abrir
   vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, status: 200, json: async () => [] })));
   mocks.links = [
@@ -87,6 +89,25 @@ async function renderTab() {
 }
 
 describe('LinksTab', () => {
+  it('a resposta atrasada do perfil anterior não sobrescreve a do atual', async () => {
+    let releaseP1: (value: unknown) => void = () => {};
+    const p1Links = new Promise((resolve) => {
+      releaseP1 = resolve;
+    });
+    const row = (id: number, title: string) => ({ ...baseLink, id, title, url: 'https://exemplo.com', clicks: 0 });
+    mocks.linksFor = (id) => (id === 'p1' ? p1Links : [row(9, 'Link da loja')]);
+
+    const { rerender } = render(<LinksTab profile={{ id: 'p1', username: 'dna' }} onProfileUpdate={vi.fn()} />);
+    await waitFor(() => expect(mocks.selectEq).toHaveBeenCalledWith('user_id', 'p1'));
+    rerender(<LinksTab profile={{ id: 'p2', username: 'loja' }} onProfileUpdate={vi.fn()} />);
+    await screen.findByText('Link da loja');
+
+    releaseP1([row(8, 'Link antigo')]);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(screen.getByText('Link da loja')).toBeTruthy();
+    expect(screen.queryByText('Link antigo')).toBeNull();
+  });
+
   it('lista os links do perfil recebido', async () => {
     await renderTab();
     expect(mocks.selectEq).toHaveBeenCalledWith('user_id', 'p1');
