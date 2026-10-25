@@ -24,6 +24,7 @@ export interface CurrentProfileContextValue {
   currentProfile: Profile | null;
   /** Só a primeira carga da conta. As recargas depois de salvar não voltam a true. */
   loading: boolean;
+  /** Só vale com !currentProfile: uma recarga que falha com perfil na tela também grava o erro. */
   error: string | null;
   selectProfile: (id: string) => void;
   reloadProfiles: () => Promise<void>;
@@ -145,10 +146,22 @@ export const CurrentProfileProvider: React.FC<{ children: React.ReactNode }> = (
   const themeKeyRef = useRef('');
   // Insert do primeiro perfil em andamento: duas cargas ao mesmo tempo fazem um insert só
   const firstProfileRef = useRef<{ userId: string; promise: Promise<void> } | null>(null);
-  // Número da carga mais recente: só ela mexe no estado (como o requestRef do Analytics)
+  // Número da carga mais recente: só ela mexe no estado (como o requestRef do Analytics).
+  // A troca de conta e a saída do layout também avançam o número, e a carga pendente é descartada.
   const loadSeqRef = useRef(0);
+  // Provider montado: depois de sair do layout, nada mais mexe no tema, no localStorage nem no estado
+  const mountedRef = useRef(false);
+  // Perfil recém-criado: a carga que primeiro o trouxer na lista o seleciona, mesmo que não seja a do createProfile
+  const pendingSelectRef = useRef<string | null>(null);
 
-  /** Torna `id` o perfil atual: grava a escolha, aplica o tema e avisa a prévia. */
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  /** Torna `id` o perfil atual: grava a escolha e aplica o tema. O aviso à prévia sai depois do commit. */
   const activate = useCallback((list: Profile[], id: string | null, accountId: string) => {
     const profile = list.find((p) => p.id === id) ?? null;
     const changed = id !== currentIdRef.current;
@@ -161,12 +174,13 @@ export const CurrentProfileProvider: React.FC<{ children: React.ReactNode }> = (
       themeKeyRef.current = key;
       applyProfileTheme(profile);
     }
-    if (changed) window.dispatchEvent(new CustomEvent('linksUpdated'));
   }, []);
 
   const ensureFirstProfile = useCallback((account: User): Promise<void> => {
     if (firstProfileRef.current?.userId === account.id) return firstProfileRef.current.promise;
     const promise = (async () => {
+      // A conta saiu (logout) ou o layout fechou durante a carga: não cria perfil para ninguém
+      if (!mountedRef.current || userRef.current?.id !== account.id) return;
       const { error: insertError } = await supabase.from('profiles').insert({
         id: account.id,
         full_name: displayNameOf(account),
@@ -176,15 +190,17 @@ export const CurrentProfileProvider: React.FC<{ children: React.ReactNode }> = (
       if (insertError && insertError.code !== '23505') throw insertError;
     })();
     firstProfileRef.current = { userId: account.id, promise };
-    promise.catch(() => {
+    // Terminado (com sucesso ou não), sai do ref: a próxima carga com a lista vazia tenta de novo
+    const clear = () => {
       if (firstProfileRef.current?.promise === promise) firstProfileRef.current = null;
-    });
+    };
+    promise.then(clear, clear);
     return promise;
   }, []);
 
   const load = useCallback(async (): Promise<void> => {
     const account = userRef.current;
-    if (!account) return;
+    if (!account || !mountedRef.current) return;
     const seq = ++loadSeqRef.current;
 
     let list = await fetchOwnProfiles();
@@ -201,8 +217,8 @@ export const CurrentProfileProvider: React.FC<{ children: React.ReactNode }> = (
       }
     }
 
-    // A conta mudou durante a carga, ou uma carga mais nova começou: este resultado não vale mais
-    if (userRef.current?.id !== account.id || seq !== loadSeqRef.current) return;
+    // A conta mudou durante a carga, o layout fechou ou uma carga mais nova começou: este resultado não vale mais
+    if (!mountedRef.current || userRef.current?.id !== account.id || seq !== loadSeqRef.current) return;
     if (failure) {
       setError(failure);
       setLoading(false);
@@ -212,29 +228,51 @@ export const CurrentProfileProvider: React.FC<{ children: React.ReactNode }> = (
     profilesRef.current = list;
     setProfiles(list);
     setError(null);
-    activate(list, pickProfileId(list, currentIdRef.current ?? readStoredProfileId(account.id)), account.id);
+    const pending = pendingSelectRef.current;
+    if (pending && list.some((p) => p.id === pending)) {
+      pendingSelectRef.current = null;
+      activate(list, pending, account.id);
+    } else {
+      activate(list, pickProfileId(list, currentIdRef.current ?? readStoredProfileId(account.id)), account.id);
+    }
     setLoading(false);
   }, [activate, ensureFirstProfile]);
 
   // Reinicia quando a conta muda (o objeto user muda a cada renovação do token; o id, não)
   useEffect(() => {
+    // Invalida a carga pendente da conta anterior
+    loadSeqRef.current++;
     profilesRef.current = [];
     currentIdRef.current = null;
     themeKeyRef.current = '';
+    pendingSelectRef.current = null;
+    // O editor não fica com o tema da conta anterior enquanto a nova carrega
+    useDesignStore.getState().resetDesign();
     setProfiles([]);
     setCurrentId(null);
     setError(null);
     if (!userId) {
       setLoading(false);
-      return;
+    } else {
+      setLoading(true);
+      void load();
     }
-    setLoading(true);
-    void load();
+    // Troca de conta ou saída do layout: a carga em andamento não aplica mais nada
+    return () => {
+      loadSeqRef.current++;
+    };
   }, [userId, load]);
+
+  // Avisa a prévia depois do commit, quando o perfil atual muda de fato: quem ouve já vê o perfil novo
+  useEffect(() => {
+    if (currentId) window.dispatchEvent(new CustomEvent('linksUpdated'));
+  }, [currentId]);
 
   const selectProfile = useCallback((id: string) => {
     const account = userRef.current;
     if (!account || !profilesRef.current.some((p) => p.id === id)) return;
+    // Escolha explícita: um perfil recém-criado ainda pendente não toma o lugar dela depois
+    pendingSelectRef.current = null;
     activate(profilesRef.current, id, account.id);
   }, [activate]);
 
@@ -245,6 +283,10 @@ export const CurrentProfileProvider: React.FC<{ children: React.ReactNode }> = (
         p_full_name: input.full_name,
       });
       if (rpcError || !data) return { ok: false, error: createProfileErrorFrom(rpcError) };
+      // O perfil já existe no banco: a carga que o trouxer o seleciona, esta ou uma recarga
+      // que a supere. Se a recarga falhar, o id fica pendente para a próxima e a resposta
+      // continua ok (um erro faria o usuário tentar de novo e esbarrar no próprio @).
+      pendingSelectRef.current = data;
       await load();
       return { ok: true, id: data };
     } catch (rpcError) {

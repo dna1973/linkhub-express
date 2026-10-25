@@ -178,6 +178,117 @@ describe('CurrentProfileProvider: carga', () => {
     expect(ctx.loading).toBe(false);
   });
 
+  it('logout durante a carga não aplica nada', async () => {
+    const pendente = deferred<unknown>();
+    mocks.rpc.mockImplementation(async (fn: string) => {
+      if (fn !== 'list_own_profiles') throw new Error(`rpc inesperada: ${fn}`);
+      return pendente.promise;
+    });
+    const linksUpdated = vi.fn();
+    window.addEventListener('linksUpdated', linksUpdated);
+    try {
+      const view = renderProvider();
+      await waitFor(() => expect(mocks.rpc).toHaveBeenCalledTimes(1));
+
+      mocks.user = null as never;
+      view.rerender(
+        <CurrentProfileProvider>
+          <Probe />
+        </CurrentProfileProvider>,
+      );
+      await waitFor(() => expect(atual()).toBe('nenhum'));
+
+      await act(async () => {
+        pendente.resolve({ data: [profile('u1', { theme_options: { themeId: 'warm-peach', custom: PEACH.config } as never })], error: null });
+      });
+      expect(ctx.profiles).toEqual([]);
+      expect(atual()).toBe('nenhum');
+      expect(useDesignStore.getState().currentTheme).toBe('pebble-blue');
+      expect(window.localStorage.getItem(currentProfileStorageKey('u1'))).toBeNull();
+      expect(linksUpdated).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener('linksUpdated', linksUpdated);
+    }
+  });
+
+  it('logout antes do insert do primeiro perfil não cria nada', async () => {
+    const vazia = deferred<unknown>();
+    mocks.rpc.mockImplementation(async (fn: string) => {
+      if (fn !== 'list_own_profiles') throw new Error(`rpc inesperada: ${fn}`);
+      return vazia.promise;
+    });
+    const view = renderProvider();
+    await waitFor(() => expect(mocks.rpc).toHaveBeenCalledTimes(1));
+
+    mocks.user = null as never;
+    view.rerender(
+      <CurrentProfileProvider>
+        <Probe />
+      </CurrentProfileProvider>,
+    );
+    await act(async () => {
+      vazia.resolve({ data: [], error: null });
+    });
+    expect(mocks.insert).not.toHaveBeenCalled();
+  });
+
+  it('sair do layout durante a carga não aplica nada', async () => {
+    const pendente = deferred<unknown>();
+    mocks.rpc.mockImplementation(async (fn: string) => {
+      if (fn !== 'list_own_profiles') throw new Error(`rpc inesperada: ${fn}`);
+      return pendente.promise;
+    });
+    const linksUpdated = vi.fn();
+    window.addEventListener('linksUpdated', linksUpdated);
+    try {
+      const view = renderProvider();
+      await waitFor(() => expect(mocks.rpc).toHaveBeenCalledTimes(1));
+      view.unmount();
+
+      await act(async () => {
+        pendente.resolve({ data: [profile('u1', { theme_options: { themeId: 'warm-peach', custom: PEACH.config } as never })], error: null });
+      });
+      expect(useDesignStore.getState().currentTheme).toBe('pebble-blue');
+      expect(window.localStorage.getItem(currentProfileStorageKey('u1'))).toBeNull();
+      expect(linksUpdated).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener('linksUpdated', linksUpdated);
+    }
+  });
+
+  it('insert feito e lista ainda vazia: a próxima carga tenta o insert de novo', async () => {
+    rpcHandlers({ list_own_profiles: () => ({ data: [], error: null }) });
+    renderProvider();
+    await waitFor(() => expect(ctx.error).toBe('Não foi possível criar o seu primeiro perfil.'));
+
+    await act(async () => {
+      await ctx.reloadProfiles();
+    });
+    expect(mocks.insert).toHaveBeenCalledTimes(2);
+  });
+
+  it('logout volta o editor ao tema padrão', async () => {
+    rpcHandlers({
+      list_own_profiles: () => ({
+        data: [profile('u1', { theme_options: { themeId: 'warm-peach', custom: PEACH.config } as never })],
+        error: null,
+      }),
+    });
+    const view = renderProvider();
+    await waitFor(() => expect(atual()).toBe('u1'));
+    expect(useDesignStore.getState().currentTheme).toBe('warm-peach');
+
+    mocks.user = null as never;
+    view.rerender(
+      <CurrentProfileProvider>
+        <Probe />
+      </CurrentProfileProvider>,
+    );
+    await waitFor(() => expect(atual()).toBe('nenhum'));
+    expect(useDesignStore.getState().currentTheme).toBe('pebble-blue');
+    expect(useDesignStore.getState().customTheme).toEqual(createDefaultCustomTheme());
+  });
+
   it('23505 no insert (outra aba criou antes) recarrega a lista sem erro', async () => {
     mocks.insert.mockResolvedValue({ error: { code: '23505', message: 'duplicate key' } });
     const lists = [[], [profile('u1')]];
@@ -267,10 +378,14 @@ describe('CurrentProfileProvider: seleção', () => {
     rpcHandlers({ list_own_profiles: () => ({ data: [profile('u1'), comTema], error: null }) });
     const linksUpdated = vi.fn();
     window.addEventListener('linksUpdated', linksUpdated);
+    // O editor começa com o tema de outro perfil: a primeira carga volta ao padrão do u1
+    useDesignStore.getState().setCurrentTheme('warm-peach');
+    useDesignStore.getState().setCustomTheme(PEACH.config);
     try {
       renderProvider();
       await waitFor(() => expect(atual()).toBe('u1'));
       expect(useDesignStore.getState().currentTheme).toBe('pebble-blue');
+      expect(useDesignStore.getState().customTheme).toEqual(createDefaultCustomTheme());
 
       act(() => ctx.selectProfile('p2'));
       expect(useDesignStore.getState().currentTheme).toBe('warm-peach');
@@ -283,6 +398,21 @@ describe('CurrentProfileProvider: seleção', () => {
       expect(linksUpdated).toHaveBeenCalledTimes(3);
     } finally {
       window.removeEventListener('linksUpdated', linksUpdated);
+    }
+  });
+
+  it('linksUpdated sai depois do commit: quem ouve já vê o perfil novo', async () => {
+    rpcHandlers({ list_own_profiles: () => ({ data: [profile('u1'), profile('p2')], error: null }) });
+    const vistos: (string | null)[] = [];
+    const ouvir = () => vistos.push(screen.getByTestId('atual').textContent);
+    window.addEventListener('linksUpdated', ouvir);
+    try {
+      renderProvider();
+      await waitFor(() => expect(atual()).toBe('u1'));
+      act(() => ctx.selectProfile('p2'));
+      expect(vistos).toEqual(['u1', 'p2']);
+    } finally {
+      window.removeEventListener('linksUpdated', ouvir);
     }
   });
 
@@ -324,8 +454,107 @@ describe('CurrentProfileProvider: criar e excluir', () => {
     expect(result).toEqual({ ok: true, id: 'p9' });
     expect(mocks.rpc).toHaveBeenCalledWith('create_profile', { p_username: 'loja', p_full_name: 'Minha loja' });
     expect(ctx.profiles.map((p) => p.id)).toEqual(['u1', 'p9']);
-    // Criar não troca o perfil atual: quem troca é o diálogo, com selectProfile
+    // Criar já seleciona o perfil novo (o selectProfile do diálogo só confirma)
+    expect(atual()).toBe('p9');
+  });
+
+  it('carga do createProfile superada por outra recarga ainda seleciona o perfil novo', async () => {
+    let lista = [profile('u1')];
+    const pendurada = deferred<unknown>();
+    let segurar = false;
+    rpcHandlers({
+      list_own_profiles: () => {
+        if (segurar) {
+          segurar = false;
+          return pendurada.promise;
+        }
+        return { data: lista, error: null };
+      },
+      create_profile: () => {
+        lista = [profile('u1'), profile('p9')];
+        segurar = true;
+        return { data: 'p9', error: null };
+      },
+    });
+    renderProvider();
+    await waitFor(() => expect(atual()).toBe('u1'));
+
+    let criado!: Promise<unknown>;
+    act(() => {
+      criado = ctx.createProfile({ username: 'loja', full_name: 'Minha loja' });
+    });
+    // list (montagem), create, list (a do createProfile, pendurada)
+    await waitFor(() => expect(mocks.rpc).toHaveBeenCalledTimes(3));
+
+    // O salvamento automático recarrega antes: é ela que vale, e já seleciona o perfil novo
+    await act(async () => {
+      await ctx.reloadProfiles();
+    });
+    expect(atual()).toBe('p9');
+
+    await act(async () => {
+      pendurada.resolve({ data: [profile('u1')], error: null });
+      await criado;
+    });
+    expect(await criado).toEqual({ ok: true, id: 'p9' });
+    expect(atual()).toBe('p9');
+  });
+
+  it('recarga do createProfile que falha deixa o perfil novo pendente para a próxima carga', async () => {
+    let lista = [profile('u1')];
+    let falhar = false;
+    rpcHandlers({
+      list_own_profiles: () => {
+        if (falhar) {
+          falhar = false;
+          return { data: null, error: { message: 'Failed to fetch' } };
+        }
+        return { data: lista, error: null };
+      },
+      create_profile: () => {
+        lista = [profile('u1'), profile('p9')];
+        falhar = true;
+        return { data: 'p9', error: null };
+      },
+    });
+    renderProvider();
+    await waitFor(() => expect(atual()).toBe('u1'));
+
+    let result: unknown;
+    await act(async () => {
+      result = await ctx.createProfile({ username: 'loja', full_name: 'Minha loja' });
+    });
+    // O perfil existe no banco: devolver erro faria o usuário tentar de novo e esbarrar no próprio @
+    expect(result).toEqual({ ok: true, id: 'p9' });
     expect(atual()).toBe('u1');
+
+    await act(async () => {
+      await ctx.reloadProfiles();
+    });
+    expect(atual()).toBe('p9');
+  });
+
+  it('createProfile que termina depois de sair do layout não aplica nada', async () => {
+    const criar = deferred<unknown>();
+    rpcHandlers({
+      list_own_profiles: () => ({ data: [profile('u1'), profile('p9')], error: null }),
+      create_profile: () => criar.promise,
+    });
+    const view = renderProvider();
+    await waitFor(() => expect(atual()).toBe('u1'));
+
+    let criado!: Promise<unknown>;
+    act(() => {
+      criado = ctx.createProfile({ username: 'loja', full_name: 'Minha loja' });
+    });
+    view.unmount();
+    await act(async () => {
+      criar.resolve({ data: 'p9', error: null });
+      await criado;
+    });
+
+    expect(mocks.rpc.mock.calls.filter(([fn]) => fn === 'list_own_profiles')).toHaveLength(1);
+    expect(window.localStorage.getItem(currentProfileStorageKey('u1'))).toBe('u1');
   });
 
   it('createProfile decide o erro pelo hint e pelo 23505', async () => {
@@ -424,6 +653,46 @@ describe('CurrentProfileProvider: criar e excluir', () => {
       result = await ctx.deleteProfile('u1');
     });
     expect(result).toEqual({ ok: false, error: 'last' });
+    expect(mocks.storage.remove).not.toHaveBeenCalled();
+  });
+
+  it('deleteProfile de perfil que não é da conta devolve "not_owner"', async () => {
+    rpcHandlers({
+      list_own_profiles: () => ({ data: [profile('u1')], error: null }),
+      delete_own_profile: () => ({ data: null, error: { hint: 'linkhub_not_owner', code: 'P0001', message: 'x' } }),
+    });
+    renderProvider();
+    await waitFor(() => expect(atual()).toBe('u1'));
+
+    let result: unknown;
+    await act(async () => {
+      result = await ctx.deleteProfile('de-outra-conta');
+    });
+    expect(result).toEqual({ ok: false, error: 'not_owner' });
+    expect(mocks.storage.remove).not.toHaveBeenCalled();
+  });
+
+  it('exceção lançada nas RPCs de criar e excluir devolve "other"', async () => {
+    rpcHandlers({
+      list_own_profiles: () => ({ data: [profile('u1'), profile('p2')], error: null }),
+      create_profile: () => {
+        throw new Error('Failed to fetch');
+      },
+      delete_own_profile: () => {
+        throw new Error('Failed to fetch');
+      },
+    });
+    renderProvider();
+    await waitFor(() => expect(atual()).toBe('u1'));
+
+    let criado: unknown;
+    let excluido: unknown;
+    await act(async () => {
+      criado = await ctx.createProfile({ username: 'loja', full_name: '' });
+      excluido = await ctx.deleteProfile('p2');
+    });
+    expect(criado).toEqual({ ok: false, error: 'other' });
+    expect(excluido).toEqual({ ok: false, error: 'other' });
     expect(mocks.storage.remove).not.toHaveBeenCalled();
   });
 });
