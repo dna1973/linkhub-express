@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/contexts/AuthContext';
 
 interface UsernameValidationResult {
   isValid: boolean;
@@ -23,8 +22,16 @@ export const RESERVED_USERNAMES = [
   'exemplo', 'install'
 ];
 
-export const useUsernameValidation = (username: string, debounceMs: number = 500) => {
-  const { user } = useAuth();
+/**
+ * Valida o formato, os nomes reservados e a disponibilidade de um @username.
+ * `currentProfileId`: o @ que já é desse perfil conta como disponível. Sem ele (perfil novo),
+ * um @ gravado em qualquer perfil, inclusive outro da mesma conta, está em uso.
+ */
+export const useUsernameValidation = (
+  username: string,
+  debounceMs: number = 500,
+  currentProfileId?: string | null,
+) => {
   const [result, setResult] = useState<UsernameValidationResult>({
     isValid: false,
     isAvailable: false,
@@ -62,7 +69,6 @@ export const useUsernameValidation = (username: string, debounceMs: number = 500
       return;
     }
 
-    // Reserved usernames
     if (RESERVED_USERNAMES.includes(usernameToCheck.toLowerCase())) {
       const suggestions = generateSuggestions(usernameToCheck);
       setResult({
@@ -94,11 +100,9 @@ export const useUsernameValidation = (username: string, debounceMs: number = 500
         return;
       }
 
-      console.log('Username check result:', { usernameToCheck, data, currentUserId: user?.id });
-
-      // Username is available if no data found or if it belongs to current user
+      // Disponível se ninguém usa, ou se quem usa é o próprio perfil
       const existingProfile = data && data.length > 0 ? data[0] : null;
-      const isAvailable = !existingProfile || existingProfile.id === user?.id;
+      const isAvailable = !existingProfile || (!!currentProfileId && existingProfile.id === currentProfileId);
       const suggestions = isAvailable ? [] : generateSuggestions(usernameToCheck);
 
       setResult({
@@ -119,22 +123,22 @@ export const useUsernameValidation = (username: string, debounceMs: number = 500
         suggestions: []
       });
     }
-  }, [user?.id]);
+  }, [currentProfileId]);
 
   const generateSuggestions = (baseUsername: string): string[] => {
     const suggestions: string[] = [];
     const base = baseUsername.toLowerCase();
-    
+
     // Add numbers
     for (let i = 1; i <= 99; i++) {
       suggestions.push(`${base}${i}`);
       if (suggestions.length >= 3) break;
     }
-    
+
     // Add underscores
     suggestions.push(`${base}_`);
     suggestions.push(`_${base}`);
-    
+
     // Add common suffixes
     const suffixes = ['official', 'real', 'pro', 'dev', 'hub'];
     suffixes.forEach(suffix => {

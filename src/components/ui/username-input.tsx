@@ -13,6 +13,8 @@ interface UsernameInputProps {
   placeholder?: string;
   className?: string;
   disabled?: boolean;
+  /** Perfil que está sendo editado: o @ dele conta como disponível. Sem ele, é um perfil novo. */
+  currentProfileId?: string | null;
 }
 
 export const UsernameInput: React.FC<UsernameInputProps> = ({
@@ -21,9 +23,10 @@ export const UsernameInput: React.FC<UsernameInputProps> = ({
   label = "Username",
   placeholder = "seuusername",
   className,
-  disabled = false
+  disabled = false,
+  currentProfileId,
 }) => {
-  const validation = useUsernameValidation(value);
+  const validation = useUsernameValidation(value, 500, currentProfileId);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '');
