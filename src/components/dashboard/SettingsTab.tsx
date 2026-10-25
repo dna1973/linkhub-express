@@ -63,7 +63,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
     user_type: profile?.user_type || '',
   });
 
-  // O @ que já é deste perfil conta como disponível
+  // O @ que já é deste perfil conta como disponível. Vai também para o UsernameInput: uma consulta por @
   const usernameValidation = useUsernameValidation(formData.username, 500, profile?.id);
 
   // Troca a imagem da janela de recorte, revogando o objectURL anterior
@@ -423,6 +423,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             label="Username (slug único)"
             placeholder="seuusername"
             currentProfileId={profile?.id}
+            validation={usernameValidation}
           />
 
           {/* Full Name */}

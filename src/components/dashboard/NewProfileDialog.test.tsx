@@ -13,6 +13,8 @@ const mocks = vi.hoisted(() => ({
     isChecking: boolean;
     error: string | null;
     suggestions: string[];
+    // Sem ele, o resultado vale para o @ passado ao hook
+    checkedUsername?: string;
   },
   validationArgs: [] as unknown[][],
 }));
@@ -24,7 +26,7 @@ vi.mock('@/contexts/CurrentProfileContext', () => ({
 vi.mock('@/hooks/useUsernameValidation', () => ({
   useUsernameValidation: (...args: unknown[]) => {
     mocks.validationArgs.push(args);
-    return mocks.validation;
+    return { checkedUsername: args[0], ...mocks.validation };
   },
 }));
 vi.mock('@/hooks/use-toast', () => ({ useToast: () => ({ toast: mocks.toast }) }));
@@ -41,8 +43,8 @@ afterEach(() => cleanup());
 function renderDialog() {
   const onOpenChange = vi.fn();
   const onCreated = vi.fn();
-  render(<NewProfileDialog open onOpenChange={onOpenChange} onCreated={onCreated} />);
-  return { onOpenChange, onCreated };
+  const view = render(<NewProfileDialog open onOpenChange={onOpenChange} onCreated={onCreated} />);
+  return { ...view, onOpenChange, onCreated };
 }
 
 function fill(username = 'loja', name = 'Minha loja') {
@@ -51,6 +53,7 @@ function fill(username = 'loja', name = 'Minha loja') {
 }
 
 const continuar = () => screen.getByRole('button', { name: /Continuar/ }) as HTMLButtonElement;
+const usernameField = () => screen.getByLabelText('@username') as HTMLInputElement;
 
 describe('NewProfileDialog', () => {
   it('"Continuar" só fica habilitado com o @ válido e disponível', () => {
@@ -118,5 +121,73 @@ describe('NewProfileDialog', () => {
       expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({ variant: 'destructive' })),
     );
     expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('"Continuar" desabilitado enquanto o resultado é de outro @ (o digitado ainda não foi conferido)', () => {
+    mocks.validation = { ...mocks.validation, checkedUsername: 'loja' };
+    renderDialog();
+    fill('admin');
+    expect(continuar().disabled).toBe(true);
+  });
+
+  it('"Continuar" desabilitado com o @ em validação', () => {
+    mocks.validation = { ...mocks.validation, isChecking: true };
+    renderDialog();
+    fill();
+    expect(continuar().disabled).toBe(true);
+  });
+
+  it('"Continuar" desabilitado com o @ inválido, mesmo marcado como disponível', () => {
+    mocks.validation = { ...mocks.validation, isValid: false, isAvailable: true };
+    renderDialog();
+    fill();
+    expect(continuar().disabled).toBe(true);
+  });
+
+  it('"Continuar" desabilitado com o @ vazio', () => {
+    renderDialog();
+    fireEvent.change(screen.getByLabelText('Nome'), { target: { value: 'Minha loja' } });
+    expect(continuar().disabled).toBe(true);
+  });
+
+  it('com a criação em andamento, Escape e Cancelar não fecham', async () => {
+    mocks.createProfile.mockReturnValue(new Promise(() => {}));
+    const { onOpenChange } = renderDialog();
+    fill();
+    fireEvent.click(continuar());
+    await waitFor(() => expect(mocks.createProfile).toHaveBeenCalled());
+
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    expect(screen.getByRole('dialog')).toBeTruthy();
+  });
+
+  it('@ em uso pelo banco: some o "disponível" e o campo fica inválido, ligado à mensagem', async () => {
+    mocks.createProfile.mockResolvedValue({ ok: false, error: 'taken' });
+    renderDialog();
+    fill();
+    expect(screen.getByText('Username disponível!')).toBeTruthy();
+    fireEvent.click(continuar());
+
+    await screen.findByRole('alert');
+    expect(screen.queryByText('Username disponível!')).toBeNull();
+    expect(usernameField().getAttribute('aria-invalid')).toBe('true');
+    const describedBy = usernameField().getAttribute('aria-describedby') ?? '';
+    const messages = describedBy.split(' ').map((id) => document.getElementById(id)?.textContent);
+    expect(messages).toContain('Este username já está em uso');
+
+    // Digitar de novo tira o erro do banco
+    fireEvent.change(usernameField(), { target: { value: 'loja2' } });
+    expect(usernameField().getAttribute('aria-invalid')).toBeNull();
+  });
+
+  it('fechado pelo pai (open=false), limpa os campos para a próxima abertura', () => {
+    const { rerender, onOpenChange, onCreated } = renderDialog();
+    fill('loja', 'Minha loja');
+    rerender(<NewProfileDialog open={false} onOpenChange={onOpenChange} onCreated={onCreated} />);
+    rerender(<NewProfileDialog open onOpenChange={onOpenChange} onCreated={onCreated} />);
+    expect(usernameField().value).toBe('');
+    expect((screen.getByLabelText('Nome') as HTMLInputElement).value).toBe('');
   });
 });

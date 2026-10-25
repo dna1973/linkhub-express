@@ -1,8 +1,15 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, renderHook, waitFor } from '@testing-library/react';
+import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 
-const mocks = vi.hoisted(() => ({ rows: [] as { id: string }[], eq: vi.fn() }));
+type Response = { data: { id: string }[]; error: null };
+
+const mocks = vi.hoisted(() => ({
+  rows: [] as { id: string }[],
+  eq: vi.fn(),
+  // Quando definido, a consulta fica pendente até o teste resolver a resposta daquele @
+  pending: null as null | Map<string, (response: Response) => void>,
+}));
 
 vi.mock('@/lib/supabase', () => ({
   supabase: {
@@ -10,6 +17,7 @@ vi.mock('@/lib/supabase', () => ({
       select: () => ({
         eq: async (column: string, value: string) => {
           mocks.eq(column, value);
+          if (mocks.pending) return new Promise<Response>((resolve) => mocks.pending!.set(value, resolve));
           return { data: mocks.rows, error: null };
         },
       }),
@@ -24,6 +32,7 @@ import { useUsernameValidation } from './useUsernameValidation';
 beforeEach(() => {
   mocks.rows = [{ id: 'p1' }];
   mocks.eq.mockClear();
+  mocks.pending = null;
   vi.spyOn(console, 'log').mockImplementation(() => {});
 });
 afterEach(() => {
@@ -77,5 +86,41 @@ describe('useUsernameValidation', () => {
     await waitFor(() => expect(result.current.error).toBe('Este username é reservado pelo sistema'));
     expect(result.current.isAvailable).toBe(false);
     expect(mocks.eq).not.toHaveBeenCalled();
+  });
+
+  it('informa qual @ o resultado conferiu', async () => {
+    mocks.rows = [];
+    const { result } = renderHook(() => useUsernameValidation('loja', 0));
+    await waitFor(() => expect(result.current.isAvailable).toBe(true));
+    expect(result.current.checkedUsername).toBe('loja');
+  });
+
+  it('trocar o @ põe "verificando" na hora, antes do debounce, sem dizer que conferiu o novo', async () => {
+    mocks.rows = [];
+    const { result, rerender } = renderHook(({ u }) => useUsernameValidation(u, 500), { initialProps: { u: 'loja' } });
+    await waitFor(() => expect(result.current.isAvailable).toBe(true), { timeout: 2000 });
+
+    rerender({ u: 'admin' });
+    expect(result.current.isChecking).toBe(true);
+    expect(result.current.checkedUsername).not.toBe('admin');
+  });
+
+  it('resposta antiga que chega depois não grava por cima da nova', async () => {
+    mocks.pending = new Map();
+    const { result, rerender } = renderHook(({ u }) => useUsernameValidation(u, 0), { initialProps: { u: 'loja' } });
+    await waitFor(() => expect(mocks.pending!.has('loja')).toBe(true));
+
+    rerender({ u: 'loja_nova' });
+    await waitFor(() => expect(mocks.pending!.has('loja_nova')).toBe(true));
+
+    await act(async () => mocks.pending!.get('loja_nova')!({ data: [], error: null }));
+    await waitFor(() => expect(result.current.checkedUsername).toBe('loja_nova'));
+    expect(result.current.isAvailable).toBe(true);
+
+    // A consulta de "loja" (em uso) volta por último
+    await act(async () => mocks.pending!.get('loja')!({ data: [{ id: 'outro' }], error: null }));
+    expect(result.current.checkedUsername).toBe('loja_nova');
+    expect(result.current.isAvailable).toBe(true);
+    expect(result.current.error).toBeNull();
   });
 });

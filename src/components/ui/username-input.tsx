@@ -1,9 +1,9 @@
-import React from 'react';
+import React, { useId } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Check, X, Loader2, AlertCircle } from 'lucide-react';
-import { useUsernameValidation } from '@/hooks/useUsernameValidation';
+import { useUsernameValidation, type UsernameValidationResult } from '@/hooks/useUsernameValidation';
 import { cn } from '@/lib/utils';
 
 interface UsernameInputProps {
@@ -15,18 +15,38 @@ interface UsernameInputProps {
   disabled?: boolean;
   /** Perfil que está sendo editado: o @ dele conta como disponível. Sem ele, é um perfil novo. */
   currentProfileId?: string | null;
+  /** Id do campo. Sem ele, um gerado (dois UsernameInput na mesma página não se confundem). */
+  id?: string;
+  /**
+   * Resultado do useUsernameValidation de quem já roda o hook para o mesmo @ (uma consulta por @).
+   * Sem ele, o componente roda o hook com `value` e `currentProfileId`.
+   */
+  validation?: UsernameValidationResult;
+  /** Erro de fora da validação (ex.: o banco recusou o @ ao gravar). Esconde o "disponível". */
+  error?: string | null;
 }
 
-export const UsernameInput: React.FC<UsernameInputProps> = ({
+type UsernameInputViewProps = Omit<UsernameInputProps, 'validation' | 'currentProfileId'> & {
+  validation: UsernameValidationResult;
+};
+
+const UsernameInputView: React.FC<UsernameInputViewProps> = ({
   value,
   onChange,
   label = "Username",
   placeholder = "seuusername",
   className,
   disabled = false,
-  currentProfileId,
+  id,
+  validation,
+  error,
 }) => {
-  const validation = useUsernameValidation(value, 500, currentProfileId);
+  const generatedId = useId();
+  const inputId = id ?? generatedId;
+  const errorId = `${inputId}-error`;
+  // O erro de fora tem prioridade sobre o da validação; com qualquer um, nada de "disponível"
+  const shownError = error || validation.error;
+  const isAvailableShown = !shownError && !validation.isChecking && validation.isValid && validation.isAvailable;
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '');
@@ -39,6 +59,7 @@ export const UsernameInput: React.FC<UsernameInputProps> = ({
 
   const getInputStatus = () => {
     if (!value) return 'default';
+    if (error) return 'error';
     if (validation.isChecking) return 'checking';
     if (validation.error) return 'error';
     if (validation.isValid && validation.isAvailable) return 'success';
@@ -62,7 +83,7 @@ export const UsernameInput: React.FC<UsernameInputProps> = ({
   const getInputClassName = () => {
     const status = getInputStatus();
     const baseClasses = "pl-8 pr-10";
-    
+
     switch (status) {
       case 'success':
         return cn(baseClasses, "border-green-500 focus:border-green-500 focus:ring-green-500");
@@ -77,17 +98,17 @@ export const UsernameInput: React.FC<UsernameInputProps> = ({
 
   return (
     <div className={cn("space-y-2", className)}>
-      <Label htmlFor="username">{label}</Label>
-      
+      <Label htmlFor={inputId}>{label}</Label>
+
       <div className="relative">
         {/* @ Symbol */}
         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
           @
         </span>
-        
+
         {/* Input */}
         <Input
-          id="username"
+          id={inputId}
           type="text"
           placeholder={placeholder}
           value={value}
@@ -95,8 +116,10 @@ export const UsernameInput: React.FC<UsernameInputProps> = ({
           disabled={disabled}
           className={getInputClassName()}
           maxLength={20}
+          aria-invalid={shownError ? true : undefined}
+          aria-describedby={shownError ? errorId : undefined}
         />
-        
+
         {/* Status Icon */}
         <div className="absolute right-3 top-1/2 -translate-y-1/2">
           {getStatusIcon()}
@@ -105,21 +128,21 @@ export const UsernameInput: React.FC<UsernameInputProps> = ({
 
       {/* Status Messages */}
       <div className="min-h-[20px]">
-        {validation.isChecking && (
+        {validation.isChecking && !error && (
           <p className="text-xs text-blue-600 flex items-center gap-1">
             <Loader2 className="h-3 w-3 animate-spin" />
             Verificando disponibilidade...
           </p>
         )}
-        
-        {validation.error && (
-          <p className="text-xs text-red-600 flex items-center gap-1">
-            <AlertCircle className="h-3 w-3" />
-            {validation.error}
+
+        {shownError && (
+          <p id={errorId} role={error ? 'alert' : undefined} className="text-xs text-red-600 flex items-center gap-1">
+            <AlertCircle className="h-3 w-3" aria-hidden />
+            {shownError}
           </p>
         )}
-        
-        {validation.isValid && validation.isAvailable && (
+
+        {isAvailableShown && (
           <p className="text-xs text-green-600 flex items-center gap-1">
             <Check className="h-3 w-3" />
             Username disponível!
@@ -154,3 +177,16 @@ export const UsernameInput: React.FC<UsernameInputProps> = ({
     </div>
   );
 };
+
+/** Roda a validação aqui: para quem não tem o resultado do hook em mãos. */
+const UsernameInputWithValidation: React.FC<Omit<UsernameInputProps, 'validation'>> = ({ currentProfileId, ...props }) => {
+  const validation = useUsernameValidation(props.value, 500, currentProfileId);
+  return <UsernameInputView {...props} validation={validation} />;
+};
+
+export const UsernameInput: React.FC<UsernameInputProps> = ({ validation, currentProfileId, ...props }) =>
+  validation ? (
+    <UsernameInputView {...props} validation={validation} />
+  ) : (
+    <UsernameInputWithValidation {...props} currentProfileId={currentProfileId} />
+  );

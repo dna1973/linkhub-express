@@ -1,13 +1,29 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 
-interface UsernameValidationResult {
+export interface UsernameValidationResult {
   isValid: boolean;
   isAvailable: boolean;
   isChecking: boolean;
   error: string | null;
   suggestions: string[];
+  /**
+   * O @ a que isValid/isAvailable se referem. Enquanto o @ digitado ainda não foi conferido
+   * (debounce ou consulta em andamento), é o anterior: quem libera uma ação compara com o atual.
+   */
+  checkedUsername: string;
 }
+
+type CheckResult = Omit<UsernameValidationResult, 'checkedUsername'>;
+
+const EMPTY_RESULT: UsernameValidationResult = {
+  isValid: false,
+  isAvailable: false,
+  isChecking: false,
+  error: null,
+  suggestions: [],
+  checkedUsername: '',
+};
 
 // A mesma lista fica no create_profile de deploy/vpsavila/migrations/2026-10-26-varios-perfis.sql
 // (conferida em src/lib/variosPerfisMigration.test.ts). Mudou aqui, mude lá e no linkhub_schema.sql.
@@ -32,34 +48,20 @@ export const useUsernameValidation = (
   debounceMs: number = 500,
   currentProfileId?: string | null,
 ) => {
-  const [result, setResult] = useState<UsernameValidationResult>({
-    isValid: false,
-    isAvailable: false,
-    isChecking: false,
-    error: null,
-    suggestions: []
-  });
+  const [result, setResultState] = useState<UsernameValidationResult>(EMPTY_RESULT);
+  // Cada @ (ou troca de perfil atual) ganha um número; só a resposta do último é gravada
+  const requestRef = useRef(0);
 
-  const validateUsername = useCallback(async (usernameToCheck: string) => {
-    // Reset state
-    setResult(prev => ({ ...prev, isChecking: true, error: null, suggestions: [] }));
-
-    // Basic validation
-    if (!usernameToCheck) {
-      setResult({
-        isValid: false,
-        isAvailable: false,
-        isChecking: false,
-        error: null,
-        suggestions: []
-      });
-      return;
-    }
+  const validateUsername = useCallback(async (usernameToCheck: string, requestId: number) => {
+    const finish = (checked: CheckResult) => {
+      if (requestRef.current !== requestId) return;
+      setResultState({ ...checked, checkedUsername: usernameToCheck });
+    };
 
     // Username format validation
     const usernameRegex = /^[a-z0-9_]{3,20}$/;
     if (!usernameRegex.test(usernameToCheck)) {
-      setResult({
+      finish({
         isValid: false,
         isAvailable: false,
         isChecking: false,
@@ -71,7 +73,7 @@ export const useUsernameValidation = (
 
     if (RESERVED_USERNAMES.includes(usernameToCheck.toLowerCase())) {
       const suggestions = generateSuggestions(usernameToCheck);
-      setResult({
+      finish({
         isValid: false,
         isAvailable: false,
         isChecking: false,
@@ -90,7 +92,7 @@ export const useUsernameValidation = (
 
       if (error) {
         console.error('Error checking username:', error);
-        setResult({
+        finish({
           isValid: false,
           isAvailable: false,
           isChecking: false,
@@ -105,7 +107,7 @@ export const useUsernameValidation = (
       const isAvailable = !existingProfile || (!!currentProfileId && existingProfile.id === currentProfileId);
       const suggestions = isAvailable ? [] : generateSuggestions(usernameToCheck);
 
-      setResult({
+      finish({
         isValid: true,
         isAvailable,
         isChecking: false,
@@ -115,7 +117,7 @@ export const useUsernameValidation = (
 
     } catch (error) {
       console.error('Username validation error:', error);
-      setResult({
+      finish({
         isValid: false,
         isAvailable: false,
         isChecking: false,
@@ -152,19 +154,16 @@ export const useUsernameValidation = (
 
   // Debounced validation
   useEffect(() => {
+    const requestId = ++requestRef.current;
     if (!username) {
-      setResult({
-        isValid: false,
-        isAvailable: false,
-        isChecking: false,
-        error: null,
-        suggestions: []
-      });
+      setResultState(EMPTY_RESULT);
       return;
     }
 
+    // "Verificando" já durante o debounce; isValid/isAvailable seguem os do checkedUsername anterior
+    setResultState(prev => ({ ...prev, isChecking: true, error: null, suggestions: [] }));
     const timeoutId = setTimeout(() => {
-      validateUsername(username);
+      validateUsername(username, requestId);
     }, debounceMs);
 
     return () => clearTimeout(timeoutId);

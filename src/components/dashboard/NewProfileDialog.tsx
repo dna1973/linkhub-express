@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -36,12 +36,17 @@ export const NewProfileDialog: React.FC<NewProfileDialogProps> = ({ open, onOpen
   // Sem perfil atual: um @ que já é de outro perfil da conta também conta como em uso
   const validation = useUsernameValidation(username);
 
-  const reset = () => {
+  const reset = useCallback(() => {
     setUsername('');
     setFullName('');
     setFieldError(null);
     setLimitReached(false);
-  };
+  }, []);
+
+  // Fechado por qualquer caminho (inclusive pelo pai): a próxima abertura começa vazia
+  useEffect(() => {
+    if (!open) reset();
+  }, [open, reset]);
 
   const handleOpenChange = (next: boolean) => {
     if (saving) return;
@@ -49,7 +54,15 @@ export const NewProfileDialog: React.FC<NewProfileDialogProps> = ({ open, onOpen
     onOpenChange(next);
   };
 
-  const canSubmit = !!username && validation.isValid && validation.isAvailable && !validation.isChecking && !saving;
+  // O resultado tem de ser do @ digitado: durante o debounce, o hook ainda devolve o do anterior.
+  // O UsernameInput já entrega o @ normalizado (minúsculas, sem outros caracteres), como o hook confere.
+  const canSubmit =
+    !!username &&
+    validation.checkedUsername === username &&
+    validation.isValid &&
+    validation.isAvailable &&
+    !validation.isChecking &&
+    !saving;
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
@@ -83,23 +96,19 @@ export const NewProfileDialog: React.FC<NewProfileDialogProps> = ({ open, onOpen
         </DialogHeader>
 
         <div className="space-y-4">
-          <div>
-            <UsernameInput
-              value={username}
-              onChange={(value) => {
-                setUsername(value);
-                setFieldError(null);
-              }}
-              label="@username"
-              placeholder="novoperfil"
-              disabled={saving}
-            />
-            {fieldError && (
-              <p role="alert" className="text-xs text-red-600">
-                {fieldError}
-              </p>
-            )}
-          </div>
+          {/* O hook roda aqui e o resultado vai por prop: uma consulta por @ */}
+          <UsernameInput
+            value={username}
+            onChange={(value) => {
+              setUsername(value);
+              setFieldError(null);
+            }}
+            label="@username"
+            placeholder="novoperfil"
+            disabled={saving}
+            validation={validation}
+            error={fieldError}
+          />
 
           <div className="space-y-2">
             <Label htmlFor="new-profile-name">Nome</Label>
