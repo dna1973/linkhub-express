@@ -36,20 +36,27 @@ Hoje `profiles.id` é o id da conta, e todos os dados apontam para ele: `links.u
 
 **O que é novo:**
 - **Dono:** fica numa tabela separada, `linkhub.profile_owners`, que **só o próprio dono lê**. A tabela `profiles`, de leitura pública, não ganha nenhuma coluna de dono, e por isso o vínculo fica escondido.
+- **Storage por perfil.** Dois caminhos ligariam os perfis à conta:
+  - a **pasta** dos arquivos: hoje é `<id da conta>/...`, e aparece no `avatar_url` e no `icon_value`, que são públicos;
+  - a **tabela `storage.objects`**: o PostgREST expõe o schema `storage`, e as políticas `*_public_read` deixam qualquer anônimo listar os objetos com a coluna `owner_id`, que é o id de quem enviou.
+
+  Por isso os uploads passam a usar a pasta do **perfil** (`<profile.id>/...`), e as políticas dos dois buckets do LinkHub são refeitas sem leitura pública da tabela (passo 6 da migração). Os arquivos atuais do `dna` já estão em `<uid>/`, que é o id do perfil dele, e continuam válidos. As URLs públicas continuam abrindo, porque o bucket público serve `/object/public/` sem RLS, e o app só usa `getPublicUrl`.
 
 ### Migração `deploy/vpsavila/migrations/2026-10-26-varios-perfis.sql`
 
-O arquivo roda numa transação (`BEGIN … COMMIT`), com `SET LOCAL lock_timeout = '5s'`, e é idempotente. Todas as funções `SECURITY DEFINER` usam `SET search_path = ''` e nomes qualificados, como as que já existem no repositório. Ordem:
+O arquivo roda numa transação (`BEGIN … COMMIT`), com `SET LOCAL lock_timeout = '5s'`, e é idempotente. Logo depois do `lock_timeout` vem `LOCK TABLE linkhub.profiles, linkhub.links, linkhub.profile_views, linkhub.link_clicks IN SHARE ROW EXCLUSIVE MODE`. A trava fecha duas janelas: entre o preenchimento dos donos e a criação do gatilho, e entre a limpeza de órfãos e a criação das FKs. Todas as funções `SECURITY DEFINER` usam `SET search_path = ''` e nomes qualificados, como as que já existem no repositório.
+
+A migração roda como `postgres` (`-U postgres`), que é dono das tabelas e tem `BYPASSRLS`. As funções ficam com esse dono, e é isso que permite ao `create_profile` inserir um id gerado sem passar pela política `auth.uid() = id`. O ensaio confere o `proowner`. Ordem:
 
 1. **Tabela `linkhub.profile_owners`** (`CREATE TABLE IF NOT EXISTS`):
    - colunas:
      - `profile_id uuid PRIMARY KEY REFERENCES linkhub.profiles(id) ON DELETE CASCADE`;
      - `owner_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE`;
      - `created_at timestamptz NOT NULL DEFAULT now()`;
-   - índice `profile_owners_owner_idx (owner_id)`;
-   - RLS ligada; política `"Owners can view their own profile links"` com `FOR SELECT TO authenticated USING (owner_id = auth.uid())`;
+   - `CREATE INDEX IF NOT EXISTS profile_owners_owner_idx ON linkhub.profile_owners (owner_id)`;
+   - RLS ligada; política `"Owners can view their own profile links"` (`DROP POLICY IF EXISTS` + `CREATE POLICY`) com `FOR SELECT TO authenticated USING (owner_id = auth.uid())`;
    - **nenhuma** política de insert, update ou delete: a tabela só é escrita por gatilho e funções;
-   - permissões: `REVOKE ALL … FROM PUBLIC, anon` e `GRANT SELECT … TO authenticated`.
+   - permissões: `REVOKE ALL … FROM PUBLIC, anon, authenticated` e `GRANT SELECT … TO authenticated`. O ACL padrão do schema dá `ALL` aos dois papéis, inclusive `TRUNCATE`, que não passa por RLS.
 2. **Preenchimento:** `INSERT INTO linkhub.profile_owners (profile_id, owner_id) SELECT id, id FROM linkhub.profiles WHERE id IN (SELECT id FROM auth.users) ON CONFLICT DO NOTHING`. Os perfis atuais têm `id` igual ao da conta.
 3. **`profiles`:**
    - `ALTER TABLE linkhub.profiles DROP CONSTRAINT IF EXISTS profiles_id_fkey`;
@@ -73,7 +80,7 @@ O arquivo roda numa transação (`BEGIN … COMMIT`), com `SET LOCAL lock_timeou
      1. com `auth.uid()` nulo, recusa com `HINT 'linkhub_not_authenticated'`;
      2. pega a trava `pg_advisory_xact_lock(hashtext('linkhub.profiles'), hashtext(auth.uid()::text))`;
      3. com 10 ou mais perfis do dono, recusa com `HINT 'linkhub_profile_limit'`;
-     4. se `p_username` não casar com `^[a-z0-9_]{3,20}$`, recusa com `HINT 'linkhub_invalid_username'`;
+     4. se `p_username` não casar com `^[a-z0-9_]{3,20}$` ou estiver na lista de nomes reservados, recusa com `HINT 'linkhub_invalid_username'`. A lista é a mesma de `src/hooks/useUsernameValidation.ts` (`admin`, `dashboard`, `analytics`, `auth`, …), copiada para um array na função; um teste do Vitest lê a migração e compara as duas listas. A troca de @ pela aba Perfil continua validando os reservados só no cliente, como hoje;
      5. insere o perfil com `id` gerado, `username` e `full_name` (aparado, até 100 caracteres); o gatilho registra o dono;
      6. devolve o `id`. O @ duplicado cai no `unique` do banco (`23505`), e o frontend mostra "Este username já está em uso".
    - **`linkhub.list_own_profiles() RETURNS SETOF linkhub.profiles`**, `STABLE SECURITY DEFINER`: devolve os perfis de `auth.uid()`, `ORDER BY created_at, id`.
@@ -86,11 +93,16 @@ O arquivo roda numa transação (`BEGIN … COMMIT`), com `SET LOCAL lock_timeou
      6. devolve `{ "avatar_url": …, "icon_urls": [ … ] }`.
 
      Os arquivos não são apagados pelo SQL, porque o gatilho `protect_objects_delete` do Storage bloqueia. O cliente remove depois.
+   - **`linkhub.owns_profile_folder(p_name text) RETURNS boolean`**, `STABLE SECURITY DEFINER`, usada pelas políticas do Storage:
+     1. pega o primeiro segmento de `p_name`;
+     2. testa a regex de uuid **dentro da função**. Na política, um `AND` com conversão não garante a ordem de avaliação e poderia dar erro de conversão;
+     3. só então devolve `linkhub.owns_profile(<segmento>::uuid)`; fora do formato, devolve falso;
+     4. permissões: `GRANT EXECUTE … TO authenticated`.
    - Todas as recusas usam `RAISE EXCEPTION '<mensagem em português>' USING ERRCODE = 'P0001', HINT = '<código>'`. O PostgREST devolve o `hint`, e o frontend decide pelo `hint`, nunca pela mensagem.
    - Permissões das três funções chamáveis (`create_profile`, `list_own_profiles` e `delete_own_profile`): `REVOKE ALL … FROM PUBLIC, anon` e `GRANT EXECUTE … TO authenticated`. O ACL padrão do schema dá `EXECUTE` a `PUBLIC` e `anon`, e por isso o `REVOKE` explícito é necessário.
 6. **Políticas.** Mesmos nomes de hoje, com `DROP POLICY IF EXISTS` + `CREATE POLICY`, para nenhuma política antiga sobrar somada por OR:
    - **`profiles`**:
-     - `"Users can insert their own profile"` fica igual, `WITH CHECK (auth.uid() = id)`: só o **primeiro** perfil entra por insert direto, e com `id` igual ao da conta, o que impede apropriar o id de outra conta. Os outros perfis entram pelo `create_profile`;
+     - `"Users can insert their own profile"`: `WITH CHECK (auth.uid() = id AND NOT EXISTS (SELECT 1 FROM linkhub.profile_owners WHERE owner_id = auth.uid()))`. Só o **primeiro** perfil entra por insert direto, e com `id` igual ao da conta. Isso impede apropriar o id de outra conta e impede recriar o perfil de id da conta depois de excluí-lo, o que furaria o limite. Os outros perfis entram pelo `create_profile`;
      - `"Users can update their own profile"`: `USING (linkhub.owns_profile(id)) WITH CHECK (linkhub.owns_profile(id))`;
      - leitura pública como hoje;
      - sem política de delete.
@@ -98,11 +110,15 @@ O arquivo roda numa transação (`BEGIN … COMMIT`), com `SET LOCAL lock_timeou
    - **`profile_views` e `link_clicks`**:
      - `"Users can view their own profile views"` e `"Users can view their own link clicks"`: `USING (linkhub.owns_profile(profile_id))`;
      - os inserts validados (`"Validated profile view inserts only"` e `"Validated link click inserts only"`) **ficam iguais**, porque `links.user_id` continua sendo o id do perfil.
+   - **`storage.objects`**, buckets `linkhub-avatars` e `linkhub-link-icons`, com os nomes de hoje:
+     - INSERT e UPDATE `TO authenticated`: `bucket_id = '<bucket>' AND linkhub.owns_profile_folder(name)`;
+     - SELECT e DELETE `TO authenticated`: `bucket_id = '<bucket>' AND owner_id = auth.uid()::text`. O `remove()` precisa das duas. Pelo `owner_id`, que é quem enviou, a limpeza continua funcionando **depois** que a RPC apagou o perfil. Em produção, nenhum objeto desses buckets tem `owner_id` nulo;
+     - **`linkhub_avatars_public_read` e `linkhub_link_icons_public_read` são removidas** (`DROP POLICY IF EXISTS`), para o anônimo não listar `storage.objects` nem ver o `owner_id`.
 7. `NOTIFY pgrst, 'reload schema'` e `COMMIT`.
 
-O `deploy/vpsavila/linkhub_schema.sql` recebe o estado final. Os `REVOKE`/`GRANT` das funções vêm **depois** da seção 6 do arquivo, porque o `GRANT ALL ON ALL FUNCTIONS … TO anon` dela devolveria o acesso. O `src/integrations/supabase/types.ts` recebe:
+O `deploy/vpsavila/linkhub_schema.sql` recebe o estado final. Os `REVOKE`/`GRANT` das funções e da tabela `profile_owners` vêm **depois** da seção 6 do arquivo, porque os `GRANT ALL ON ALL FUNCTIONS/TABLES … TO anon` dela devolveriam o acesso. O `src/integrations/supabase/types.ts` recebe:
 - a tabela `profile_owners`;
-- as funções `create_profile`, `list_own_profiles`, `delete_own_profile` e `owns_profile`;
+- as funções `create_profile`, `list_own_profiles`, `delete_own_profile`, `owns_profile` e `owns_profile_folder`;
 - o comentário sobre `links.user_id`.
 
 ### Compatibilidade com o frontend atual (entre a migração e o deploy)
@@ -110,6 +126,8 @@ O `deploy/vpsavila/linkhub_schema.sql` recebe o estado final. Os `REVOKE`/`GRANT
 - **Primeiro perfil:** ainda entra por insert direto com `id = user.id`. O gatilho registra o dono, e a política continua aceitando.
 - **Links:** continuam com `user_id` igual ao id do perfil e passam pela política nova.
 - **Leituras:** iguais.
+- **Uploads:** o frontend antigo grava em `<user.id>/`, que é a pasta do primeiro perfil, e passa na política nova.
+- **Perfil criado por `service_role`** (só por manutenção manual) fica sem dono, porque `auth.uid()` é nulo no gatilho. É o comportamento esperado: não aparece no painel nem no Admin.
 
 O deploy do frontend e da edge function `linkhub-admin-users` acontece na **mesma janela**, logo depois da migração. Com perfis novos, a versão antiga do Admin agrupa errado.
 
@@ -117,7 +135,7 @@ O deploy do frontend e da edge function `linkhub-admin-users` acontece na **mesm
 
 ### Perfil atual: `src/contexts/CurrentProfileContext.tsx` (novo)
 
-O Provider fica no `App`, em volta das rotas `/dashboard` e `/analytics`, e reinicia quando o `user` muda. Ele expõe:
+O Provider fica no `App` como **rota de layout**: `<Route element={<CurrentProfileProvider><Outlet /></CurrentProfileProvider>}>`, com `/dashboard` e `/analytics` dentro (hoje as rotas são planas). Ele reinicia quando o `user` muda e expõe:
 - `profiles`, `currentProfile`, `loading` e `error`;
 - `selectProfile(id)` e `reloadProfiles()`;
 - `createProfile({ username, full_name })`, que devolve o `id` ou um erro tipado (`limit`, `taken`, `invalid`, `other`) a partir do `hint` ou do `23505`;
@@ -142,7 +160,7 @@ Regras:
   2. remove do Storage, em **melhor esforço**, o avatar e os ícones devolvidos. A falha só vai para o console, sem toast, porque o perfil já saiu;
   3. recarrega a lista.
 
-  O avatar usa o helper novo `avatarPathFromUrl(url, userId)`, no molde do `linkIconPathFromUrl`. Ele ignora URLs do provedor ou de outra pasta, e passa a ser usado também pela aba Perfil no lugar da regra `includes('supabase')`.
+  O avatar usa o helper novo `avatarPathFromUrl(url, profileId)`, no molde do `linkIconPathFromUrl(url, profileId)`, os dois com a pasta do perfil apagado. Ele ignora URLs do provedor ou de outra pasta, e passa a ser usado também pela aba Perfil no lugar da regra `includes('supabase')`. A remoção funciona depois de o perfil sair porque as políticas de SELECT e DELETE do Storage olham o `owner_id`, não a pasta.
 
 ### Nada vaza entre perfis
 
@@ -168,9 +186,12 @@ Regras:
 | `src/pages/PublicProfile.tsx` | **sem mudança**: já busca links por `user_id = profile.id` |
 | `src/components/dashboard/AppSidebar.tsx` | seletor (abaixo); "Ver Perfil" e "Copiar link" pelo perfil atual |
 
-**Continuam com `user.id`, e está certo:**
-- `user_roles.user_id`, usado no `AppSidebar` e no `Admin`, porque o papel é da conta;
-- a **pasta do Storage** nos uploads, que fica em `SettingsTab`, `OnboardingDialog`, `EditLinkDialog` e na remoção de ícone do `LinksTab`.
+**A pasta do Storage passa a ser a do perfil** (`<profile.id>/...`), por causa da privacidade:
+- uploads e remoções em `SettingsTab`, `OnboardingDialog`, `EditLinkDialog` e na remoção de ícone do `LinksTab`;
+- no `EditLinkDialog`, o caminho fica `<profile.id>/<link_id>-<ts>.<ext>`. O `LINK_ICON_UPLOAD_PATH_RE` não muda, só o significado do primeiro segmento;
+- `linkIconPathFromUrl` e `avatarPathFromUrl` recebem o id do perfil.
+
+**Continua com `user.id`, e está certo:** `user_roles.user_id`, usado no `AppSidebar` e no `Admin`, porque o papel é da conta.
 
 ### Seletor na sidebar (`AppSidebar.tsx`)
 
@@ -210,7 +231,7 @@ Regras:
 
 - **Lista:**
   - a resposta passa a ser `users[]` com `profiles[]` (`id`, `username`, `full_name`, `avatar_url`, `user_type`, `links_count`), mais papel e e-mail;
-  - a edge function lê `auth.users`, `profile_owners`, `profiles` e `links` com `service_role` e agrupa por conta;
+  - a edge function, com `service_role`, tira as contas dos `owner_id` distintos de `profile_owners`, busca o e-mail com `auth.admin.getUserById`, lê `profiles` e `links` e agrupa por conta. Perfis sem dono não aparecem;
   - a busca procura no e-mail e nos @ de todos os perfis da conta;
   - a paginação é por **conta**, 50 por página.
 - **Estatísticas:**
@@ -230,8 +251,11 @@ Não mudam. Continuam funcionando por @username e por `links.user_id = profile.i
 ## Testes
 
 - **Banco, em produção, sem efeito:**
-  - rodar a migração **duas vezes** dentro de `BEGIN; … ROLLBACK;`, o que prova a idempotência;
-  - no mesmo bloco, simular contas com `SET LOCAL role authenticated` e `SET LOCAL request.jwt.claims = '{"sub":"<uuid>"}'`. Casos:
+  - o arquivo da migração tem `BEGIN … COMMIT` próprio. Rodado dentro de outro `BEGIN`, o `COMMIT` interno gravaria de verdade. Por isso o ensaio usa um **arquivo gerado** por `scripts/ensaio-migracao-perfis.ps1`:
+    1. tira do corpo da migração as linhas `BEGIN;` e `COMMIT;`, e o script falha se não achar exatamente uma de cada;
+    2. monta `BEGIN; <corpo>; <corpo>; <testes>; ROLLBACK;`. O corpo duas vezes prova a idempotência;
+    3. roda com `-v ON_ERROR_STOP=1`, pelo mesmo envio por `scp` do `DEPLOY.md`;
+  - nos testes, contas mínimas são inseridas em `auth.users` como `postgres` dentro do bloco, e simuladas com `SET LOCAL role authenticated` e `SET LOCAL request.jwt.claims = '{"sub":"<uuid>"}'`, com `RESET role` entre os casos. Casos:
     - criar o 11º perfil é recusado (`linkhub_profile_limit`);
     - inserir link no perfil de outra conta é recusado;
     - mover um link para perfil alheio por update é recusado;
@@ -240,9 +264,14 @@ Não mudam. Continuam funcionando por @username e por `links.user_id = profile.i
     - chamar as RPCs como `anon` é recusado;
     - ler `profile_owners` de outra conta devolve vazio;
     - `anon` lendo `profile_owners` recebe permissão negada;
-    - excluir uma conta de teste apaga perfis, links e estatísticas dela.
+    - os três caminhos de exclusão funcionam sem laço e apagam perfis, links e estatísticas: perfil pela RPC, conta em `auth.users` e `profile_owners` apagado como no Admin;
+    - recriar por insert direto o perfil de id da conta, depois de excluí-lo, é recusado;
+    - criar perfil com @ reservado (`admin`) é recusado;
+    - `anon` lendo `storage.objects` dos buckets do LinkHub recebe 0 linhas;
+    - upload na pasta de um perfil alheio é recusado;
+    - `SELECT proowner::regrole FROM pg_proc` das funções novas devolve `postgres`.
   - Os casos de concorrência são conferidos na revisão do SQL.
-  - Depois do `ROLLBACK`, aplicar de verdade e repetir as conferências de leitura.
+  - Depois do ensaio, aplicar de verdade e repetir as conferências de leitura. Conferir também que a URL pública do avatar do `dna` continua abrindo.
 - **Vitest:**
   - `CurrentProfileContext.test.tsx`:
     - carga pela RPC;
@@ -261,7 +290,7 @@ Não mudam. Continuam funcionando por @username e por `links.user_id = profile.i
     - `DesignTab.test.tsx`: não herda o tema na troca;
     - `useUsernameValidation.test.ts`: o @ do próprio perfil fica disponível;
     - `Analytics` por perfil.
-  - **Ajustes:** `SettingsTab`, `LinksTab`, `ProfilePreview`, `EditLinkDialog` (se mudar) e o helper `avatarPathFromUrl`.
+  - **Ajustes:** `SettingsTab`, `LinksTab`, `ProfilePreview` e `EditLinkDialog` (pasta do perfil), os helpers `avatarPathFromUrl` e `linkIconPathFromUrl`, e o teste que compara a lista de @ reservados com a da migração.
 - **Em produção:**
   - criar um perfil de teste;
   - conferir o seletor, o onboarding com o nome certo, um link e a página pública;
