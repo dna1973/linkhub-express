@@ -1,7 +1,7 @@
 # QR code no perfil público — especificação
 
 **Data:** 25/10/2026
-**Situação:** desenho aprovado pelo Daniel em 25/10/2026.
+**Situação:** desenho aprovado pelo Daniel em 25/10/2026; revisado contra o código.
 
 ## Objetivo
 
@@ -15,7 +15,9 @@ Cada página pública do LinkHub (`linkhub.avila.ia.br/<username>`) mostra, no r
 | Como aparece | Sempre visível no rodapé, sem precisar tocar em nada |
 | Controle do dono | Interruptor na aba Perfil, **ligado de início** em todos os perfis, inclusive os já existentes |
 | Estilo | Cartão branco de cantos arredondados, com os módulos na cor escura do tema; preto se nenhuma cor do tema tiver contraste suficiente |
-| Biblioteca | `qrcode.react` 4.2.0 (ISC, sem dependências), carregada sob demanda |
+| Biblioteca | `qrcode.react` 4.2.0 (ISC, sem dependências), com import estático |
+
+Sobre a biblioteca: a primeira ideia era carregá-la sob demanda. A revisão mostrou que, em `src/main.tsx`, o `reloadOnChunkError()` recarrega a página em qualquer falha de `import()` dinâmico, inclusive no perfil público, que não tem service worker. Com a rede caída, o visitante cairia na página de erro do navegador. O import estático custa cerca de **6,3 KB gzip** (16,5 KB minificado, medido com esbuild) a mais no chunk do perfil público, que é lazy no `App.tsx`: de cerca de 152 KB para 158 KB. Em troca, o QR code aparece junto com o resto da página, sem espaço vazio e sem risco de recarga.
 
 ## Fora do escopo
 
@@ -23,109 +25,155 @@ Cada página pública do LinkHub (`linkhub.avila.ia.br/<username>`) mostra, no r
 - Foto do perfil ou logotipo no centro do QR code.
 - QR code no painel, fora da prévia do aparelho.
 - Peça pronta para imprimir (cartão, folha A4).
+- A edge function `linkhub-profile-og`, que monta a mesma URL com regra própria para as prévias de redes sociais. Ela continua como está.
 
 ## Comportamento
 
 ### Página pública e prévia
 
-- Com `show_qr_code` ligado e `username` preenchido, o rodapé do `ProfileView` mostra, **acima** do botão "Clique aqui para criar seu LinkHub":
-  1. um cartão branco (`#ffffff`), cantos arredondados, sombra leve, com o QR code de 120 × 120 px dentro;
-  2. a legenda "Aponte a câmera para abrir este perfil", na cor do texto do tema, com a mesma opacidade discreta do "Powered by LinkHub".
-- O QR code aparece nas duas variantes do `ProfileView`: `page` (página pública) e `device` (prévia do aparelho no painel). Assim, o dono vê na prévia o que o visitante verá.
-- Com `show_qr_code` desligado, ou sem `username`, nada do QR code é desenhado, e o rodapé fica como hoje.
-- Valor ausente (`undefined`, perfil antigo em cache) conta como **ligado**, como já acontece com `show_username !== false`.
+- O `ProfileView` ganha a prop `qrCodeUrl?: string | null`. Quando ela tem valor **e** `profile.show_qr_code !== false`, o rodapé (`text-center`) mostra, **acima** do botão "Clique aqui para criar seu LinkHub":
+  1. um cartão branco (`#ffffff`), centralizado com `inline-block`, cantos `rounded-xl`, sombra leve (`shadow-md`) e respiro `p-2`, com o QR code de 120 × 120 px dentro;
+  2. logo abaixo, a legenda "Aponte a câmera para abrir este perfil", `text-xs`, na cor do texto do tema com `opacity-60`.
+- O `ProfileView` não calcula a URL: ela vem pronta de quem o usa. Assim ele continua sem depender do cliente Supabase.
+  - `PublicProfile` passa `getPublicProfileUrl(profile)`;
+  - `ProfilePreview` passa `getPublicProfileUrl(profile)` com o perfil gravado que recebe do Dashboard.
+- O QR code aparece nas duas variantes do `ProfileView`, `page` (página pública) e `device` (prévia do painel). Assim, o dono vê na prévia o que o visitante verá.
+- Com `show_qr_code === false`, ou sem `qrCodeUrl` (sem username), nada do QR code é desenhado e o rodapé fica como hoje.
+- `show_qr_code` ausente (`undefined`, perfil antigo) conta como **ligado**, como já acontece com `show_username !== false`.
 
 ### Endereço codificado
 
-Uma função única monta a URL pública e passa a ser usada por **três** lugares: o QR code, o campo "Seu link para compartilhar" da aba Perfil e os botões "Ver Perfil" e "Copiar" da sidebar. Hoje a aba Perfil e a sidebar montam o endereço cada uma de um jeito. A sidebar, por exemplo, não aceita domínio personalizado gravado com `https://`.
+Uma função única monta a URL pública e passa a ser usada por **três** lugares do frontend:
+- o QR code, via `PublicProfile` e `ProfilePreview`;
+- o campo "Seu link para compartilhar" da aba Perfil;
+- os botões "Ver Perfil" e "Copiar" da sidebar.
 
-Regras de `getPublicProfileUrl({ username, preferred_domain, custom_domain })`:
+Hoje a aba Perfil e a sidebar montam o endereço cada uma de um jeito. A sidebar, por exemplo, sempre prefixa `https://`, mesmo quando o domínio personalizado já foi gravado com ele.
 
-1. Sem `username` (vazio ou só espaços): devolve `null`.
-2. Se `preferred_domain === 'custom'` e `custom_domain` tiver texto (depois do `trim`):
+Assinatura: `getPublicProfileUrl(profile, siteUrl = PUBLIC_SITE_URL): string | null`, com `profile: { username?: string | null; preferred_domain?: string | null; custom_domain?: string | null } | null | undefined`.
+
+Regras:
+1. `username` passa por `trim`. Se ficar vazio (ou não houver perfil), devolve `null`.
+2. Se `preferred_domain === 'custom'` e `custom_domain` tiver texto depois do `trim`:
    - se começar com `http://` ou `https://` (sem diferenciar maiúsculas), usa como está;
    - senão, prefixa `https://`.
-3. Nos outros casos, usa `PUBLIC_SITE_URL`.
+3. Nos outros casos, usa `siteUrl`.
 4. Remove as barras do fim do domínio e devolve `${domínio}/${username}`.
 
-A aba Perfil chama a função com os valores do formulário, ainda não salvos, como faz hoje. A sidebar e o `ProfileView` chamam com o perfil gravado.
+Para a função não puxar o cliente Supabase, o `PUBLIC_SITE_URL` sai de `src/lib/supabase.ts` para um módulo novo, `src/lib/siteUrl.ts`, com o mesmo cálculo de hoje. O `supabase.ts` reexporta (`export { PUBLIC_SITE_URL } from './siteUrl'`), e os imports atuais continuam valendo. O `publicProfileUrl.ts` importa de `./siteUrl`.
+
+Na aba Perfil, a semântica de hoje se mantém: **username gravado** (`profile?.username`), porque o digitado pode estar inválido ou já em uso, e **domínio do formulário** (`formData.preferred_domain` e `formData.custom_domain`), ainda não salvo. Quando a função devolve `null`, o campo mostra "Configure seu @username primeiro", como hoje, e os `disabled={!profile?.username}` não mudam. O `getSelectedDomain` sai. O `shareableUrl` (edge function) não muda.
 
 ### Cor dos módulos
 
-`getQrModuleColor(theme)` devolve a primeira cor desta lista que tenha contraste de pelo menos **4,5:1** contra o branco (WCAG 2.x, a mesma conta do `getContrastText`):
+`getQrModuleColor(theme: ThemeConfig | null | undefined): string` devolve a primeira cor desta lista que tenha contraste de pelo menos **4,5:1** contra `#ffffff`:
 
-1. cor do texto do tema (`theme.colors.text`, com reserva `#ffffff`, igual ao `ProfileView`);
-2. cor de fundo de referência (`getBaseBackgroundColor(theme)`);
-3. cor do botão resolvida (`resolveButtonColors(theme).bg`).
+1. `theme?.colors?.text || '#ffffff'` (a mesma reserva do `ProfileView`);
+2. `getBaseBackgroundColor(theme)` (reserva interna `DEFAULT_BACKGROUND` = `#111827`);
+3. `resolveButtonColors(theme ?? {}).bg` (`resolveButtonColors` não aceita `null`).
 
-Se nenhuma servir, ou se o tema for `null` e as reservas também não servirem, devolve `#000000`. A cor devolvida sai normalizada em hex minúsculo. Exemplos esperados:
+Cores que não forem hex válido (`normalizeHex` devolve `null`) são puladas. Se nenhuma servir, devolve `#000000`. A cor sai normalizada, em hex minúsculo de 6 dígitos.
 
-- tema claro com texto `#1f2937`: `#1f2937`;
-- perfil `dna` (texto branco, fundo `#0B1F3A`): `#0b1f3a`;
-- tema com texto, fundo e botão todos claros: `#000000`.
+Para a conta, `src/utils/linkButtonStyle.ts` passa a exportar `getContrastRatio(a: string, b: string): number | null`. Ela reaproveita `normalizeHex`, `relativeLuminance` e `contrastRatio`, que hoje são privados, e devolve `null` se alguma das duas cores não for hex válido. `getContrastText` não muda.
 
-O fundo do QR code é sempre branco. A legenda e o cartão não mudam de cor com o tema; só os módulos mudam.
+Exemplos (valores para os testes):
+
+| Tema | Resultado | Por quê |
+|---|---|---|
+| texto `#1f2937`, fundo sólido `#ffffff` | `#1f2937` | texto passa (≈ 14,7:1) |
+| perfil `dna`: texto `#F1F5F9`, fundo gradiente `['#0B1F3A', …]` | `#0b1f3a` | texto falha; fundo passa (≈ 16,8:1) |
+| texto `#f1f5f9`, fundo sólido `#f8fafc`, botão sólido `#ffffff` | `#000000` | nada passa |
+| `null` | `#111827` | texto `#ffffff` falha; reserva do fundo passa (≈ 17,7:1) |
+| texto `'azul'` (inválido), fundo sólido `#0f172a` | `#0f172a` | texto pulado; fundo passa |
+
+O cartão é sempre branco e o fundo do QR code também. Só os módulos mudam de cor com o tema; a legenda segue a cor do texto do tema, como o resto do rodapé.
 
 ### Aba Perfil
 
 - Interruptor "Exibir QR code no perfil público", logo abaixo de "Exibir @username no perfil público", com a descrição "Quando desativado, o QR code não aparecerá no rodapé da sua página pública."
-- Entra no `formData` como `show_qr_code` (inicial: `profile?.show_qr_code ?? true`), no `useEffect` que sincroniza com o `profile` e no `update` do salvamento automático, exatamente como o `show_username`.
-- A prévia do aparelho acompanha depois do salvamento automático (cerca de 1,5 s), porque o `onProfileUpdate` recarrega o perfil.
+- O `Switch` ganha `id="show_qr_code"` e o `Label` ganha `htmlFor="show_qr_code"`, para ter nome acessível. Pelo mesmo motivo, o de @username ganha `id="show_username"` e `htmlFor`.
+- Entra no `formData` como `show_qr_code` (inicial: `profile?.show_qr_code ?? true`), no `useEffect` que sincroniza com o `profile` e no `update` do `handleAutosave`, exatamente como o `show_username`.
+- A prévia do aparelho acompanha depois do salvamento automático (cerca de 1,5 s), porque o `onProfileUpdate` recarrega o perfil no Dashboard.
 
 ## Arquitetura
 
 | Arquivo | Ação | Responsabilidade |
 |---|---|---|
-| `src/lib/publicProfileUrl.ts` | Criar | `getPublicProfileUrl` (regras acima) |
-| `src/lib/publicProfileUrl.test.ts` | Criar | Domínio padrão, personalizado com e sem `https://`, barras no fim, sem username, personalizado vazio |
-| `src/utils/linkButtonStyle.ts` | Modificar | Exportar `getContrastRatio(a, b)` sobre hex, reaproveitando `relativeLuminance` e `contrastRatio`, sem mudar `getContrastText` |
-| `src/utils/qrCodeColor.ts` | Criar | `getQrModuleColor(theme)` |
-| `src/utils/qrCodeColor.test.ts` | Criar | Os três exemplos acima, tema `null`, cor inválida pulada |
-| `src/components/profile/ProfileQrCode.tsx` | Criar | Cartão, QR code carregado sob demanda e legenda |
-| `src/components/profile/ProfileQrCode.test.tsx` | Criar | Codifica a URL recebida, cor dos módulos, nome acessível |
-| `src/components/profile/ProfileView.tsx` | Modificar | Campos novos em `ProfileViewProfile` e o QR code no rodapé quando ligado |
-| `src/components/profile/ProfileView.test.tsx` | Modificar | Ligado, desligado, ausente (= ligado), sem username |
+| `package.json`, `package-lock.json` | Modificar | `qrcode.react` `4.2.0` fixo, sem `^` |
+| `src/lib/siteUrl.ts` | Criar | `PUBLIC_SITE_URL`, com o cálculo que hoje está em `supabase.ts` |
+| `src/lib/supabase.ts` | Modificar | Reexporta `PUBLIC_SITE_URL` de `./siteUrl` |
+| `src/lib/publicProfileUrl.ts` | Criar | `getPublicProfileUrl` |
+| `src/lib/publicProfileUrl.test.ts` | Criar | Domínio padrão; personalizado com e sem `https://`, e com `HTTPS://`; barras no fim; username com espaços em volta; sem username; `preferred_domain` personalizado com `custom_domain` vazio; perfil `null` |
+| `src/utils/linkButtonStyle.ts` | Modificar | Exportar `getContrastRatio` |
+| `src/utils/linkButtonStyle.test.ts` | Modificar | `getContrastRatio`: preto e branco = 21, mesma cor = 1, hex inválido = `null`, ordem dos argumentos indiferente |
+| `src/utils/qrCodeColor.ts` | Criar | `getQrModuleColor` |
+| `src/utils/qrCodeColor.test.ts` | Criar | As cinco linhas da tabela de exemplos |
+| `src/components/profile/ProfileQrCode.tsx` | Criar | Cartão, QR code e legenda, dentro do limite de erro próprio |
+| `src/components/profile/ProfileQrCode.test.tsx` | Criar | SVG gerado, cor dos módulos, nome acessível, falha escondida |
+| `src/components/profile/ProfileView.tsx` | Modificar | `show_qr_code?: boolean` em `ProfileViewProfile`, a prop `qrCodeUrl` e o QR code no rodapé |
+| `src/components/profile/ProfileView.test.tsx` | Modificar | Ligado, desligado, ausente (= ligado), sem `qrCodeUrl`, nas duas variantes |
+| `src/pages/PublicProfile.tsx` | Modificar | Passa `qrCodeUrl={getPublicProfileUrl(profile)}` |
+| `src/components/dashboard/ProfilePreview.tsx` | Modificar | Passa `qrCodeUrl={getPublicProfileUrl(profile)}` |
 | `src/components/dashboard/SettingsTab.tsx` | Modificar | Interruptor, `formData`, salvamento e `publicUrl` pela função única |
-| `src/components/dashboard/SettingsTab.test.tsx` | Modificar | O interruptor grava `show_qr_code: false` |
-| `src/components/dashboard/AppSidebar.tsx` | Modificar | `getPublicUrl` passa a usar a função única |
-| `src/integrations/supabase/types.ts` | Modificar | `show_qr_code` em `profiles` (Row, Insert, Update) |
-| `deploy/vpsavila/linkhub_schema.sql` | Modificar | Coluna nova na criação da tabela |
-| `deploy/vpsavila/migrations/2026-10-25-show-qr-code.sql` | Criar | Migração do banco que já existe |
-| `package.json`, `package-lock.json` | Modificar | `qrcode.react` 4.2.0 fixo, sem `^` |
+| `src/components/dashboard/SettingsTab.test.tsx` | Modificar | O mock de `useAutosave` guarda o callback; teste do interruptor |
+| `src/components/dashboard/AppSidebar.tsx` | Modificar | `getPublicUrl` passa a ser `getPublicProfileUrl(profile)` |
+| `src/integrations/supabase/types.ts` | Modificar | `show_qr_code` em `profiles`: `boolean` em `Row`, `boolean` opcional em `Insert` e `Update` |
+| `deploy/vpsavila/linkhub_schema.sql` | Modificar | `show_qr_code BOOLEAN NOT NULL DEFAULT true` logo após `show_username` |
+| `deploy/vpsavila/migrations/2026-10-25-show-qr-code.sql` | Criar | Migração do banco que já existe (pasta nova) |
+| `deploy/vpsavila/DEPLOY.md` | Modificar | Seção curta "Migrações": como aplicar um arquivo de `migrations/`, sempre antes de publicar o frontend que depende dele |
 
 ### `ProfileQrCode`
 
-- Props: `url: string` e `color: string`, mais `captionColor`, com a cor do texto do tema para a legenda.
-- O `QRCodeSVG` vem de `React.lazy(() => import('qrcode.react').then((m) => ({ default: m.QRCodeSVG })))`. O pacote fica num chunk próprio, e o JS inicial da página pública não cresce. Enquanto carrega, o `Suspense` mostra um quadrado branco do mesmo tamanho, para a página não pular.
-- `QRCodeSVG` com `value={url}`, `size={120}`, `level="M"`, `fgColor={color}`, `bgColor="#ffffff"` e `marginSize={2}`. Os 2 módulos de margem branca somam com o respiro do cartão (`p-2`), formando a zona de silêncio que os leitores precisam.
-- Acessibilidade: o cartão tem `role="img"` e `aria-label="QR code para abrir {url}"`, e o SVG interno fica `aria-hidden`. A legenda é texto comum.
+- Props: `url: string`, `color: string` (módulos) e `captionColor: string` (legenda).
+- Import estático: `import { QRCodeSVG } from 'qrcode.react'`.
+- `QRCodeSVG` com `value={url}`, `size={120}`, `level="M"`, `fgColor={color}`, `bgColor="#ffffff"`, `marginSize={2}` e `aria-hidden`. Os 2 módulos de margem branca somam com o `p-2` do cartão, formando a zona de silêncio que os leitores precisam.
+- O cartão tem `role="img"` e `aria-label="QR code para abrir {url}"`. A legenda é texto comum.
+- Limite de erro: um componente de classe pequeno no mesmo arquivo (`getDerivedStateFromError` com `return null` no `render`) envolve **o cartão e a legenda juntos**. Se o `qrcode.react` lançar erro (por exemplo, dado grande demais para o nível escolhido), o rodapé fica sem o QR code e o perfil segue normal. O erro vai para `console.error` no `componentDidCatch`.
 
 ### Banco
 
-Migração, aplicada **antes** de publicar o frontend. Sem a coluna, o salvamento automático do frontend novo falharia ao gravar `show_qr_code`:
+Arquivo `deploy/vpsavila/migrations/2026-10-25-show-qr-code.sql`:
 
 ```sql
 ALTER TABLE linkhub.profiles ADD COLUMN IF NOT EXISTS show_qr_code BOOLEAN NOT NULL DEFAULT true;
 NOTIFY pgrst, 'reload schema';
 ```
 
-O `DEFAULT true` preenche todos os perfis existentes, e o `NOTIFY` faz o PostgREST enxergar a coluna sem reiniciar. As políticas de RLS não mudam: a leitura pública e a atualização pelo dono já cobrem a tabela inteira. As consultas usam `select('*')`, então a coluna chega à página pública, à prévia e à aba Perfil sem mudar as consultas.
+Aplicação, a partir do PowerShell na raiz do repositório e **antes** de publicar o frontend. Sem a coluna, o `update` do salvamento automático da aba Perfil falharia:
+
+```powershell
+Get-Content deploy/vpsavila/migrations/2026-10-25-show-qr-code.sql -Raw | ssh avila@192.168.1.24 'docker exec -i supabase-db psql -U postgres -d postgres -v ON_ERROR_STOP=1'
+```
+
+O `DEFAULT true` preenche todos os perfis existentes. O `NOTIFY` faz o PostgREST enxergar a coluna sem reiniciar. As políticas de RLS e os GRANTs são da tabela inteira e não mudam. `Dashboard.tsx` e `PublicProfile.tsx` buscam o perfil com `select('*')`, então a coluna chega à página pública, à prévia e à aba Perfil sem mexer nas consultas. A ordem inversa também é segura: o frontend antigo ignora a coluna nova.
 
 ## Erros e casos de borda
 
-- **Chunk do `qrcode.react` falha ao carregar** (rede caiu, ou deploy no meio da visita): o QR code é um detalhe do rodapé e não pode derrubar nem recarregar o perfil. O `ProfileQrCode` envolve o `Suspense` num limite de erro próprio que, na falha, não desenha nada (nem cartão, nem legenda). O `ChunkErrorBoundary` geral não chega a ver esse erro.
-- **Username trocado:** o QR code muda junto, porque é calculado a cada renderização.
+- **Erro ao gerar o QR code:** o limite de erro próprio esconde só o QR code. Não há `import()` dinâmico novo, então o `reloadOnChunkError` não entra em jogo.
+- **Username trocado:** o QR code muda junto, porque é calculado a cada renderização a partir do perfil gravado.
 - **Domínio personalizado que não serve o LinkHub:** o QR code aponta para ele, igual ao "Ver Perfil" de hoje. É escolha do dono.
-- **URL longa** (domínio personalizado grande): o `qrcode.react` aumenta a versão do código sozinho, e em 120 px continua legível até umas 80 letras. Não há limite extra.
+- **URL longa** (domínio personalizado grande): o `qrcode.react` aumenta a versão do código sozinho. Com `level="M"`, cabe muito mais que qualquer URL realista, e em 120 px continua legível até umas 80 letras.
 
 ## Testes
 
-- Unitários: `publicProfileUrl`, `qrCodeColor` e `getContrastRatio`, com os casos listados na tabela.
-- Componente: `ProfileQrCode` (com `qrcode.react` de verdade no jsdom: espera o SVG aparecer e confere o `aria-label` e o `fill` dos módulos) e `ProfileView` (ligado, desligado, ausente, sem username, nas duas variantes).
-- Aba Perfil: clicar no interruptor e conferir o `update` com `show_qr_code: false`.
-- Build: o `qrcode.react` sai num chunk separado, e o `index-*.js` não o contém.
-- Em produção:
+- **Unitários:** `publicProfileUrl`, `getContrastRatio` e `qrCodeColor`, com os casos das tabelas acima.
+- **`ProfileQrCode`:** com o `qrcode.react` de verdade no jsdom. O teste confere:
+  - o SVG renderizado;
+  - o `aria-label` com a URL;
+  - o atributo `fill` do `<path>` dos módulos com a cor passada;
+  - a legenda;
+  - que, com o `QRCodeSVG` simulado para lançar erro (`vi.mock('qrcode.react')`), nada é desenhado e o resto da árvore continua.
+- **`ProfileView`:** passando `qrCodeUrl` explícito, sem nenhum mock do Supabase. Os casos são: ligado, desligado, ausente (= ligado) e sem `qrCodeUrl`, nas variantes `page` e `device`.
+- **`ProfilePreview.test.tsx`:** continua passando sem mudar o mock de `@/lib/supabase`, porque o `publicProfileUrl` importa de `@/lib/siteUrl`. Se algum teste existente precisar de URL previsível, ele moca `@/lib/siteUrl`.
+- **Aba Perfil:** o mock vira `useAutosave: vi.fn((data, save) => { mocks.autosave = { data, save }; return 'idle'; })`. O teste:
+  1. clica em `getByRole('switch', { name: 'Exibir QR code no perfil público' })`;
+  2. chama `mocks.autosave.save(mocks.autosave.data)`;
+  3. confere o `update` com `expect.objectContaining({ show_qr_code: false })`.
+- **Build:** confere pelo conteúdo, não pelo nome do arquivo (o chunk do pacote também se chamaria `index-*.js`).
+  - Procura nos `.js` de `dist/assets` uma string própria do `qrcode.react`, por exemplo `qrcodegen`. Ela aparece **só** no chunk do `PublicProfile`/`ProfileView`.
+  - O chunk de entrada, o `assets/index-*.js` referenciado no `dist/index.html`, não deve contê-la.
+- **Em produção:**
   - a migração aplicada e a coluna conferida com `SELECT`;
-  - o QR code no rodapé do perfil `dna`, nos temas claro e escuro, e na prévia do painel;
+  - o QR code no rodapé do perfil `dna` e na prévia do painel;
   - o interruptor desligando e religando, com a prévia acompanhando;
   - **o Daniel escaneia com o celular** para confirmar que abre o perfil.
