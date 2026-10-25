@@ -10,8 +10,9 @@ Convenções: "PowerShell" = notebook, na pasta do repositório clonado. "Servid
 - Login Google nativo (`supabase.auth.signInWithOAuth`). Wrapper `@lovable.dev/cloud-auth-js`, `lovable-tagger` e broker de preview removidos.
 - Domínio público vem de `VITE_PUBLIC_SITE_URL`.
 - Bucket renomeado para `linkhub-avatars` e edge functions renomeadas para `linkhub-admin-users` e `linkhub-profile-og`, pra não colidir com outros apps.
-- Nenhum trigger em `auth.users` (que é compartilhado com os outros apps). O Dashboard cria o perfil no primeiro acesso.
-- Admin lista só quem tem perfil no LinkHub, e "excluir" apaga só os dados do LinkHub, mantendo a conta de login.
+- O LinkHub não cria trigger em `auth.users`, que é compartilhado com os outros apps (o expert_ink tem o `on_auth_user_created` → `expert_ink.handle_new_user`). O painel cria o primeiro perfil da conta no primeiro acesso.
+- Uma conta tem até 10 perfis. O dono de cada perfil fica em `linkhub.profile_owners`, que só o próprio dono lê.
+- Admin lista as contas que têm perfil no LinkHub, com os perfis de cada uma. "Excluir" apaga todos os perfis da conta (links e estatísticas juntos) e mantém a conta de login. Os arquivos do Storage ficam.
 - `supabase/migrations/` ficou só como histórico. O schema que vale é `deploy/vpsavila/linkhub_schema.sql`.
 
 ## 1. Banco
@@ -157,9 +158,32 @@ scp deploy/vpsavila/migrations/2026-10-25-show-qr-code.sql avila@192.168.1.24:/t
 ssh avila@192.168.1.24 'docker exec -i supabase-db psql -U postgres -d postgres -v ON_ERROR_STOP=1 < /tmp/2026-10-25-show-qr-code.sql && rm /tmp/2026-10-25-show-qr-code.sql'
 ```
 
-Esperado: as linhas de cada comando da migração e nenhum `ERROR`. A do QR code imprime `SET`, `ALTER TABLE` e `NOTIFY`; a dos ícones (`2026-10-25-link-icons.sql`) imprime `BEGIN`, `SET`, três `ALTER TABLE`, três `DO`, `INSERT 0 1` (ou `INSERT 0 0` se o bucket já existir), pares `DROP POLICY`/`CREATE POLICY`, `NOTIFY` e `COMMIT`. Com erro, o `ON_ERROR_STOP` para tudo e **o frontend novo não deve ser publicado** até a migração passar.
+Esperado: as linhas de cada comando da migração e nenhum `ERROR`. A do QR code imprime `SET`, `ALTER TABLE` e `NOTIFY`; a dos ícones (`2026-10-25-link-icons.sql`) imprime `BEGIN`, `SET`, três `ALTER TABLE`, três `DO`, `INSERT 0 1` (ou `INSERT 0 0` se o bucket já existir), pares `DROP POLICY`/`CREATE POLICY`, `NOTIFY` e `COMMIT`. Com erro, o `ON_ERROR_STOP` para tudo e **o frontend novo não deve ser publicado** até a migração passar. A dos vários perfis (`2026-10-26-varios-perfis.sql`) imprime `BEGIN`, `SET`, `LOCK TABLE`, `CREATE TABLE`, `CREATE INDEX`, `ALTER TABLE`, pares `DROP POLICY`/`CREATE POLICY`, `REVOKE`/`GRANT`, `INSERT 0 n`, três `DELETE 0`, quatro `DO`, `COMMENT`, `CREATE FUNCTION`, pares `DROP TRIGGER`/`CREATE TRIGGER`, `NOTIFY` e `COMMIT`. Na primeira vez, também aparecem avisos `NOTICE: … does not exist, skipping` dos `DROP … IF EXISTS` de políticas e gatilhos novos; são esperados.
 
 Escreva as migrações de forma idempotente (`IF NOT EXISTS` e afins), para poderem rodar de novo sem quebrar nada.
+
+### Ensaio de uma migração (vários perfis)
+
+A `2026-10-26-varios-perfis.sql` mexe em chaves e políticas. Antes de aplicá-la, rode o ensaio: o script junta o corpo da migração duas vezes e os testes num arquivo que termina em `ROLLBACK`, então nada fica gravado. Os testes ficam em `scripts/ensaio-perfis-testes.sql` (banco) e `scripts/ensaio-perfis-testes-storage.sql` (Storage).
+
+**Travas em `auth.users`.** A migração tira a FK `profiles_id_fkey` (AccessExclusiveLock em `auth.users`) e cria `profile_owners` com FK para `auth.users` (ShareRowExclusiveLock). As duas travas ficam até o fim da transação: na migração, alguns segundos; no ensaio, durante os dois corpos e todos os testes. Nesse tempo, login e renovação de sessão de **todos** os apps da VPS (expert_ink e outros) esperam. Rode o ensaio e a migração em horário calmo.
+
+**Gatilho do expert_ink.** `auth.users` tem o `on_auth_user_created` → `expert_ink.handle_new_user`. As contas de teste do ensaio passam por ele (gravam em `expert_ink.profiles`), e excluir conta cascateia em `expert_ink.*`. O `ROLLBACK` desfaz tudo. Se o ensaio parar com erro em `expert_ink.*`, não mexa no outro app: pare e veja com o Daniel.
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\ensaio-migracao-perfis.ps1
+scp "$env:TEMP\linkhub-ensaio-varios-perfis.sql" avila@192.168.1.24:/tmp/
+ssh avila@192.168.1.24 'docker exec -i supabase-db psql -U postgres -d postgres -v ON_ERROR_STOP=1 < /tmp/linkhub-ensaio-varios-perfis.sql; s=$?; rm -f /tmp/linkhub-ensaio-varios-perfis.sql; exit $s'
+```
+
+Esperado: as linhas dos comandos (`BEGIN`, `LOCK TABLE`, `CREATE TABLE`, vários `DO`, `CREATE POLICY`…), nenhum `ERROR` e `ROLLBACK` no fim. Um `ERROR: ENSAIO FALHOU (n): …` diz qual caso falhou; nada foi gravado. O caso `S7` olha as políticas de leitura de `storage.objects` de todos os apps da VPS: se parar nele, alguma política vale para `anon`/`public` sem filtrar `bucket_id` (ou cita um bucket do LinkHub) e devolveria os objetos do LinkHub ao anônimo. Não mexa na política de outro app: veja com o Daniel. O `s=$?` devolve o código do `psql`, mesmo com o `rm` depois.
+
+Para conferir o banco antes e depois de aplicar (só leitura):
+
+```powershell
+scp scripts/conferencia-perfis.sql avila@192.168.1.24:/tmp/
+ssh avila@192.168.1.24 'docker exec -i supabase-db psql -U postgres -d postgres -v ON_ERROR_STOP=1 < /tmp/conferencia-perfis.sql; s=$?; rm -f /tmp/conferencia-perfis.sql; exit $s'
+```
 
 ### Publicar
 

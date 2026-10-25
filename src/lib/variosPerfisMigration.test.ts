@@ -140,3 +140,46 @@ describe('migração dos vários perfis', () => {
     }
   });
 });
+
+describe('arquivos do ensaio', () => {
+  const TESTS = read('scripts', 'ensaio-perfis-testes.sql');
+  const STORAGE_TESTS = read('scripts', 'ensaio-perfis-testes-storage.sql');
+  const SCRIPT = read('scripts', 'ensaio-migracao-perfis.ps1');
+
+  it('os testes não abrem nem fecham transação (o script monta BEGIN … ROLLBACK)', () => {
+    for (const sql of [TESTS, STORAGE_TESTS]) {
+      for (const line of ['BEGIN;', 'COMMIT;', 'ROLLBACK;']) expect(countLines(sql, line)).toBe(0);
+    }
+  });
+
+  it('toda falha do ensaio é um RAISE EXCEPTION marcado', () => {
+    for (const sql of [TESTS, STORAGE_TESTS]) {
+      const raises = sql.match(/RAISE EXCEPTION '([^']*)/g) ?? [];
+      expect(raises.length).toBeGreaterThan(10);
+      for (const raise of raises) expect(raise).toContain('ENSAIO FALHOU');
+    }
+  });
+
+  it('cobre os casos da especificação', () => {
+    for (const marker of [
+      'linkhub_profile_limit',
+      'linkhub_immutable_id',
+      'linkhub_last_profile',
+      'linkhub_invalid_username',
+      'linkhub_not_owner',
+      'DELETE FROM auth.users',
+      'DELETE FROM linkhub.profile_owners',
+      'proowner',
+    ]) {
+      expect(TESTS).toContain(marker);
+    }
+    expect(STORAGE_TESTS).toContain('SET LOCAL role anon');
+    expect(STORAGE_TESTS).toContain('linkhub-link-icons');
+  });
+
+  it('o script é só ASCII e grava sem BOM', () => {
+    expect(/^[\x00-\x7F]*$/.test(SCRIPT)).toBe(true);
+    expect(SCRIPT).toContain('New-Object System.Text.UTF8Encoding $false');
+    expect(SCRIPT).not.toContain('Set-Content');
+  });
+});
