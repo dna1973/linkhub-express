@@ -15,6 +15,8 @@ const mocks = vi.hoisted(() => {
     links: [] as unknown[],
     deleteEq: vi.fn(),
     insert: vi.fn(),
+    update: vi.fn(),
+    select: vi.fn(),
   };
 });
 
@@ -28,10 +30,17 @@ vi.mock('@/lib/supabase', () => ({
   supabase: {
     storage: { from: mocks.storageFrom },
     from: vi.fn(() => ({
-      select: () => ({ eq: () => ({ order: async () => ({ data: mocks.links, error: null }) }) }),
+      select: () => ({
+        eq: () => ({
+          order: async () => {
+            mocks.select();
+            return { data: mocks.links, error: null };
+          },
+        }),
+      }),
       delete: () => ({ eq: async (column: string, value: unknown) => mocks.deleteEq(column, value) }),
       insert: async (rows: unknown) => mocks.insert(rows),
-      update: () => ({ eq: async () => ({ error: null }) }),
+      update: (values: unknown) => ({ eq: async (column: string, value: unknown) => mocks.update(values, column, value) }),
     })),
   },
 }));
@@ -45,6 +54,10 @@ beforeEach(() => {
   mocks.storage.remove.mockReset().mockResolvedValue({ error: null });
   mocks.deleteEq.mockReset().mockReturnValue({ error: null });
   mocks.insert.mockReset().mockReturnValue({ error: null });
+  mocks.update.mockReset().mockReturnValue({ error: null });
+  mocks.select.mockReset();
+  // O seletor de ícone baixa o catálogo de marcas ao abrir
+  vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, status: 200, json: async () => [] })));
   mocks.links = [
     { ...baseLink, id: 5, position: 0, title: 'Canal', url: 'https://youtube.com/@canal', clicks: 0 },
     { ...baseLink, id: 6, position: 1, title: 'Site', url: 'https://exemplo.com.br', clicks: 1 },
@@ -63,6 +76,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
 
@@ -192,5 +206,31 @@ describe('LinksTab', () => {
     ]);
     await waitFor(() => expect(screen.queryByLabelText('Título (opcional)')).toBeNull());
     expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Link adicionado!' }));
+  });
+
+  it('"Editar link" abre o modal novo e gravar o ícone recarrega a lista e avisa a prévia', async () => {
+    const linksUpdated = vi.fn();
+    window.addEventListener('linksUpdated', linksUpdated);
+    try {
+      await renderTab();
+      fireEvent.click(screen.getAllByRole('button', { name: 'Editar link' })[1]);
+
+      expect(((await screen.findByLabelText('Título')) as HTMLInputElement).value).toBe('Site');
+      expect((screen.getByLabelText('URL') as HTMLInputElement).value).toBe('https://exemplo.com.br');
+      const loadsBefore = mocks.select.mock.calls.length;
+
+      fireEvent.mouseDown(screen.getByRole('tab', { name: 'Favicon' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Usar o ícone do site' }));
+
+      await waitFor(() => expect(linksUpdated).toHaveBeenCalledTimes(1));
+      expect(mocks.update).toHaveBeenCalledWith(
+        { icon_type: 'favicon', icon_value: null, accent_color: null },
+        'id',
+        6,
+      );
+      expect(mocks.select.mock.calls.length).toBeGreaterThan(loadsBefore);
+    } finally {
+      window.removeEventListener('linksUpdated', linksUpdated);
+    }
   });
 });

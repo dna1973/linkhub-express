@@ -1,21 +1,19 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Plus, GripVertical, Trash2, ExternalLink, Pencil, Loader2, CheckCircle2 } from 'lucide-react';
+import { Plus, GripVertical, Trash2, ExternalLink, Pencil } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { LinkClicksDialog } from './LinkClicksDialog';
 import { AddLinkDialog } from './links/AddLinkDialog';
+import { EditLinkDialog } from './links/EditLinkDialog';
 import { LinkIcon } from '@/components/links/LinkIcon';
 import { LINK_ICONS_BUCKET, LINK_ICONS_PUBLIC_PREFIX } from '@/lib/linkIcons/storagePrefix';
 import { linkIconPathFromUrl } from '@/lib/linkIcons/storage';
 import { formatClicks } from '@/lib/formatClicks';
 import { useToast } from '@/hooks/use-toast';
-import { useAutosave } from '@/hooks/useAutosave';
 import { isValidUrl, safeOpenUrl, sanitizeText } from '@/utils/sanitize';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
   DndContext,
   closestCenter,
@@ -170,7 +168,6 @@ export const LinksTab: React.FC<LinksTabProps> = ({ profile, onProfileUpdate }) 
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editingLink, setEditingLink] = useState<Link | null>(null);
-  const [editLinkData, setEditLinkData] = useState({ title: '', url: '' });
 
   useEffect(() => {
     if (user) {
@@ -274,27 +271,17 @@ export const LinksTab: React.FC<LinksTabProps> = ({ profile, onProfileUpdate }) 
 
   const handleEditLink = (link: Link) => {
     setEditingLink(link);
-    setEditLinkData({ title: link.title, url: link.url });
     setShowEditDialog(true);
   };
 
-  const handleAutoSaveEdit = useCallback(async (data: { title: string; url: string }) => {
-    if (!editingLink) return;
-    if (!data.title || !data.url) return;
-    if (!isValidUrl(data.url)) return;
-
-    const { error } = await supabase
-      .from('links')
-      .update({ title: sanitizeText(data.title, 100), url: data.url.trim() })
-      .eq('id', editingLink.id);
-
-    if (error) throw error;
-    
+  // Cada gravação do modal de edição recarrega a lista e avisa a prévia
+  const handleEditSaved = () => {
     loadLinks();
     window.dispatchEvent(new CustomEvent('linksUpdated'));
-  }, [editingLink]);
+  };
 
-  const editAutosaveStatus = useAutosave(editLinkData, handleAutoSaveEdit, 1500, showEditDialog && !!editingLink, editingLink?.id);
+  // O modal recebe a versão recarregada do link (o estado dele só reinicia quando o id muda)
+  const editingLinkCurrent = editingLink ? links.find((l) => l.id === editingLink.id) ?? editingLink : null;
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -353,53 +340,13 @@ export const LinksTab: React.FC<LinksTabProps> = ({ profile, onProfileUpdate }) 
 
       <AddLinkDialog open={showAddDialog} onOpenChange={setShowAddDialog} onAdd={handleAddLink} />
 
-      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent className="bg-card/95 backdrop-blur-sm border-border/50">
-          <DialogHeader>
-            <DialogTitle>Editar Link</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <label className="text-sm font-medium">Título</label>
-              <Input
-                value={editLinkData.title}
-                onChange={(e) => setEditLinkData(prev => ({ ...prev, title: e.target.value }))}
-                className="mt-1"
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium">URL</label>
-              <Input
-                value={editLinkData.url}
-                onChange={(e) => setEditLinkData(prev => ({ ...prev, url: e.target.value }))}
-                className="mt-1"
-              />
-            </div>
-            <div className="flex items-center justify-between pt-2">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                {editAutosaveStatus === 'saving' && (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    <span>Salvando...</span>
-                  </>
-                )}
-                {editAutosaveStatus === 'saved' && (
-                  <>
-                    <CheckCircle2 className="h-4 w-4 text-green-500" />
-                    <span className="text-green-500">Salvo</span>
-                  </>
-                )}
-                {editAutosaveStatus === 'idle' && (
-                  <span className="text-muted-foreground/50">Autosave ativo</span>
-                )}
-              </div>
-              <Button variant="outline" size="sm" onClick={() => setShowEditDialog(false)}>
-                Fechar
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <EditLinkDialog
+        open={showEditDialog}
+        onOpenChange={setShowEditDialog}
+        link={editingLinkCurrent}
+        userId={user?.id ?? ''}
+        onSaved={handleEditSaved}
+      />
 
       {links.length === 0 ? (
         <Card className="bg-muted/20 border-dashed">
