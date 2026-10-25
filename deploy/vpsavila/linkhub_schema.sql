@@ -8,7 +8,7 @@
 -- * Schema dedicado "linkhub" (não usa public).
 -- * SEM trigger em auth.users: auth.users é compartilhado com os outros apps da VPS.
 --   O próprio Dashboard cria o perfil no primeiro acesso.
--- * Bucket "linkhub-avatars" e policies com prefixo linkhub_ pra não colidir com outros apps.
+-- * Buckets "linkhub-avatars" e "linkhub-link-icons" e policies com prefixo linkhub_ pra não colidir com outros apps.
 -- ============================================================================
 
 BEGIN;
@@ -53,10 +53,16 @@ CREATE TABLE linkhub.links (
   position INTEGER NOT NULL DEFAULT 0,
   is_visible BOOLEAN NOT NULL DEFAULT true,
   clicks INTEGER NOT NULL DEFAULT 0,
+  icon_type TEXT NOT NULL DEFAULT 'auto',
+  icon_value TEXT,
+  accent_color TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT link_title_max_length CHECK (length(title) <= 200),
-  CONSTRAINT link_url_max_length CHECK (length(url) <= 2000)
+  CONSTRAINT link_url_max_length CHECK (length(url) <= 2000),
+  CONSTRAINT links_icon_type_check CHECK (icon_type IN ('auto', 'lucide', 'brand', 'emoji', 'favicon', 'upload')),
+  CONSTRAINT links_icon_value_length CHECK (icon_value IS NULL OR length(icon_value) <= 2048),
+  CONSTRAINT links_accent_color_check CHECK (accent_color IS NULL OR accent_color ~ '^#[0-9a-fA-F]{6}$')
 );
 CREATE INDEX links_user_id_idx ON linkhub.links (user_id, position);
 
@@ -225,6 +231,27 @@ CREATE POLICY "linkhub_avatars_update_own" ON storage.objects
 CREATE POLICY "linkhub_avatars_delete_own" ON storage.objects
   FOR DELETE TO authenticated USING (
     bucket_id = 'linkhub-avatars' AND (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+-- Storage: bucket de ícones dos links (público, 512 KB, PNG e WebP) ----------
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES ('linkhub-link-icons', 'linkhub-link-icons', true, 524288,
+        ARRAY['image/png', 'image/webp'])
+ON CONFLICT (id) DO NOTHING;
+
+CREATE POLICY "linkhub_link_icons_public_read" ON storage.objects
+  FOR SELECT USING (bucket_id = 'linkhub-link-icons');
+CREATE POLICY "linkhub_link_icons_insert_own" ON storage.objects
+  FOR INSERT TO authenticated WITH CHECK (
+    bucket_id = 'linkhub-link-icons' AND (storage.foldername(name))[1] = auth.uid()::text
+  );
+CREATE POLICY "linkhub_link_icons_update_own" ON storage.objects
+  FOR UPDATE TO authenticated USING (
+    bucket_id = 'linkhub-link-icons' AND (storage.foldername(name))[1] = auth.uid()::text
+  );
+CREATE POLICY "linkhub_link_icons_delete_own" ON storage.objects
+  FOR DELETE TO authenticated USING (
+    bucket_id = 'linkhub-link-icons' AND (storage.foldername(name))[1] = auth.uid()::text
   );
 
 COMMIT;

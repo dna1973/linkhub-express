@@ -69,8 +69,11 @@ export type Database = {
       }
       links: {
         Row: {
+          accent_color: string | null
           clicks: number
           created_at: string
+          icon_type: string
+          icon_value: string | null
           id: number
           is_visible: boolean
           position: number
@@ -80,8 +83,11 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          accent_color?: string | null
           clicks?: number
           created_at?: string
+          icon_type?: string
+          icon_value?: string | null
           id?: number
           is_visible?: boolean
           position?: number
@@ -91,8 +97,11 @@ export type Database = {
           user_id: string
         }
         Update: {
+          accent_color?: string | null
           clicks?: number
           created_at?: string
+          icon_type?: string
+          icon_value?: string | null
           id?: number
           is_visible?: boolean
           position?: number
