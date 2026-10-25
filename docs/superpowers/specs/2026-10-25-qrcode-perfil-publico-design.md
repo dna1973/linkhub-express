@@ -110,13 +110,13 @@ O cartão é sempre branco e o fundo do QR code também. Só os módulos mudam d
 | `src/utils/qrCodeColor.test.ts` | Criar | As cinco linhas da tabela de exemplos |
 | `src/components/profile/ProfileQrCode.tsx` | Criar | Cartão, QR code e legenda, dentro do limite de erro próprio |
 | `src/components/profile/ProfileQrCode.test.tsx` | Criar | SVG gerado, cor dos módulos, nome acessível, falha escondida |
-| `src/components/profile/ProfileView.tsx` | Modificar | `show_qr_code?: boolean` em `ProfileViewProfile`, a prop `qrCodeUrl` e o QR code no rodapé |
+| `src/components/profile/ProfileView.tsx` | Modificar | `show_qr_code?: boolean` em `ProfileViewProfile`, a prop `qrCodeUrl` e, no rodapé, `<ProfileQrCode url={qrCodeUrl} color={getQrModuleColor(theme)} captionColor={textColor} />` |
 | `src/components/profile/ProfileView.test.tsx` | Modificar | Ligado, desligado, ausente (= ligado), sem `qrCodeUrl`, nas duas variantes |
 | `src/pages/PublicProfile.tsx` | Modificar | Passa `qrCodeUrl={getPublicProfileUrl(profile)}` |
 | `src/components/dashboard/ProfilePreview.tsx` | Modificar | Passa `qrCodeUrl={getPublicProfileUrl(profile)}` |
-| `src/components/dashboard/SettingsTab.tsx` | Modificar | Interruptor, `formData`, salvamento e `publicUrl` pela função única |
+| `src/components/dashboard/SettingsTab.tsx` | Modificar | Interruptor, `formData`, salvamento e `publicUrl` pela função única; o rótulo "Padrão (…)" passa a importar `PUBLIC_SITE_URL` de `@/lib/siteUrl`, para ter uma fonte só |
 | `src/components/dashboard/SettingsTab.test.tsx` | Modificar | O mock de `useAutosave` guarda o callback; teste do interruptor |
-| `src/components/dashboard/AppSidebar.tsx` | Modificar | `getPublicUrl` passa a ser `getPublicProfileUrl(profile)` |
+| `src/components/dashboard/AppSidebar.tsx` | Modificar | `getPublicUrl` passa a ser `getPublicProfileUrl(profile)`; sai o import de `PUBLIC_SITE_URL`, que fica sem uso |
 | `src/integrations/supabase/types.ts` | Modificar | `show_qr_code` em `profiles`: `boolean` em `Row`, `boolean` opcional em `Insert` e `Update` |
 | `deploy/vpsavila/linkhub_schema.sql` | Modificar | `show_qr_code BOOLEAN NOT NULL DEFAULT true` logo após `show_username` |
 | `deploy/vpsavila/migrations/2026-10-25-show-qr-code.sql` | Criar | Migração do banco que já existe (pasta nova) |
@@ -157,12 +157,17 @@ O `DEFAULT true` preenche todos os perfis existentes. O `NOTIFY` faz o PostgREST
 ## Testes
 
 - **Unitários:** `publicProfileUrl`, `getContrastRatio` e `qrCodeColor`, com os casos das tabelas acima.
+  - Os testes de `publicProfileUrl` sempre passam o `siteUrl` explícito, com o 2º parâmetro em `'https://linkhub.avila.ia.br'`, e não dependem do `.env`. O `siteUrl.ts` protege o `window` (`typeof window !== 'undefined' ? window.location.origin : ''`), para o import não quebrar no ambiente node do Vitest, que é o padrão do projeto.
+  - Em `getContrastRatio`, "preto e branco" usa `toBeCloseTo(21)` (ponto flutuante); "mesma cor" usa `toBeCloseTo(1)`.
+  - Nos testes de cor, os temas parciais usam `as ThemeConfig`.
 - **`ProfileQrCode`:** com o `qrcode.react` de verdade no jsdom. O teste confere:
   - o SVG renderizado;
   - o `aria-label` com a URL;
   - o atributo `fill` do `<path>` dos módulos com a cor passada;
   - a legenda;
-  - que, com o `QRCodeSVG` simulado para lançar erro (`vi.mock('qrcode.react')`), nada é desenhado e o resto da árvore continua.
+  - que, se o `QRCodeSVG` lançar erro, nada é desenhado e o resto da árvore continua.
+
+  Para os dois conviverem no mesmo arquivo, o mock embrulha o pacote real: `vi.mock('qrcode.react', async (importOriginal) => { const m = await importOriginal<typeof import('qrcode.react')>(); return { ...m, QRCodeSVG: vi.fn(m.QRCodeSVG) }; })`. Só o teste de falha usa `mockImplementationOnce(() => { throw new Error('falha simulada'); })`. Esse teste também silencia e confere o `console.error` com `vi.spyOn`, porque o React registra o erro mesmo quando o limite o captura.
 - **`ProfileView`:** passando `qrCodeUrl` explícito, sem nenhum mock do Supabase. Os casos são: ligado, desligado, ausente (= ligado) e sem `qrCodeUrl`, nas variantes `page` e `device`.
 - **`ProfilePreview.test.tsx`:** continua passando sem mudar o mock de `@/lib/supabase`, porque o `publicProfileUrl` importa de `@/lib/siteUrl`. Se algum teste existente precisar de URL previsível, ele moca `@/lib/siteUrl`.
 - **Aba Perfil:** o mock vira `useAutosave: vi.fn((data, save) => { mocks.autosave = { data, save }; return 'idle'; })`. O teste:
@@ -170,7 +175,7 @@ O `DEFAULT true` preenche todos os perfis existentes. O `NOTIFY` faz o PostgREST
   2. chama `mocks.autosave.save(mocks.autosave.data)`;
   3. confere o `update` com `expect.objectContaining({ show_qr_code: false })`.
 - **Build:** confere pelo conteúdo, não pelo nome do arquivo (o chunk do pacote também se chamaria `index-*.js`).
-  - Procura nos `.js` de `dist/assets` uma string própria do `qrcode.react`, por exemplo `qrcodegen`. Ela aparece **só** no chunk do `PublicProfile`/`ProfileView`.
+  - Procura nos `.js` de `dist/assets` uma mensagem de erro própria do `qrcode.react`, que é string literal e sobrevive à minificação: `ECI assignment value out of range`. (`qrcodegen` não serve: é nome de variável e some.) Ela aparece **só** no chunk do `PublicProfile`/`ProfileView`.
   - O chunk de entrada, o `assets/index-*.js` referenciado no `dist/index.html`, não deve contê-la.
 - **Em produção:**
   - a migração aplicada e a coluna conferida com `SELECT`;
