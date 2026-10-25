@@ -3,14 +3,19 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Plus, GripVertical, Trash2, ExternalLink, Instagram, Youtube, Github, Globe, Mail, Facebook, Linkedin, Pencil, Loader2, CheckCircle2 } from 'lucide-react';
+import { Plus, GripVertical, Trash2, ExternalLink, Pencil, Loader2, CheckCircle2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { LinkClicksDialog } from './LinkClicksDialog';
+import { AddLinkDialog } from './links/AddLinkDialog';
+import { LinkIcon } from '@/components/links/LinkIcon';
+import { LINK_ICONS_BUCKET, LINK_ICONS_PUBLIC_PREFIX } from '@/lib/linkIcons/storagePrefix';
+import { linkIconPathFromUrl } from '@/lib/linkIcons/storage';
+import { formatClicks } from '@/lib/formatClicks';
 import { useToast } from '@/hooks/use-toast';
 import { useAutosave } from '@/hooks/useAutosave';
 import { isValidUrl, sanitizeText } from '@/utils/sanitize';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
   DndContext,
   closestCenter,
@@ -31,8 +36,6 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import googleDriveIcon from '@/assets/google-drive.png';
-import notebookLmIcon from '@/assets/notebook-lm.svg';
 
 interface Link {
   id: number;
@@ -41,6 +44,9 @@ interface Link {
   position: number;
   is_visible: boolean;
   clicks: number;
+  icon_type: string;
+  icon_value: string | null;
+  accent_color: string | null;
 }
 
 interface LinksTabProps {
@@ -48,23 +54,9 @@ interface LinksTabProps {
   onProfileUpdate: () => void;
 }
 
-const LINK_TYPES = [
-  { id: 'instagram', label: 'Instagram', icon: Instagram, placeholder: 'https://instagram.com/seuusuario' },
-  { id: 'x', label: 'X', icon: ExternalLink, placeholder: 'https://x.com/seuusuario' },
-  { id: 'tiktok', label: 'TikTok', icon: ExternalLink, placeholder: 'https://tiktok.com/@seuusuario' },
-  { id: 'facebook', label: 'Facebook', icon: Facebook, placeholder: 'https://facebook.com/seuusuario' },
-  { id: 'linkedin', label: 'LinkedIn', icon: Linkedin, placeholder: 'https://linkedin.com/in/seuusuario' },
-  { id: 'youtube', label: 'YouTube', icon: Youtube, placeholder: 'https://youtube.com/@seucanal' },
-  { id: 'github', label: 'GitHub', icon: Github, placeholder: 'https://github.com/seuusuario' },
-  { id: 'googledrive', label: 'Google Drive', icon: ({ className }: { className?: string }) => <img src={googleDriveIcon} alt="Google Drive" className={className} />, placeholder: 'https://drive.google.com/...' },
-  { id: 'notebooklm', label: 'NotebookLM', icon: ({ className }: { className?: string }) => <img src={notebookLmIcon} alt="NotebookLM" className={className} />, placeholder: 'https://notebooklm.google.com/...' },
-  { id: 'website', label: 'Website', icon: Globe, placeholder: 'https://seusite.com' },
-  { id: 'email', label: 'Email', icon: Mail, placeholder: 'mailto:seu@email.com' },
-];
-
 interface SortableLinkProps {
   link: Link;
-  onDelete: (id: number) => void;
+  onDelete: (link: Link) => void;
   onEdit: (link: Link) => void;
   profileId: string;
 }
@@ -98,6 +90,13 @@ const SortableLink: React.FC<SortableLinkProps> = ({ link, onDelete, onEdit, pro
               >
                 <GripVertical className="h-4 w-4 text-muted-foreground" />
               </div>
+              {/* Quadrado branco: os ícones pretos de marca aparecem também no tema escuro */}
+              <div
+                data-testid="link-icon-box"
+                className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md border bg-white"
+              >
+                <LinkIcon link={link} size={18} defaultColor="#1f2937" backgrounds={['#ffffff']} />
+              </div>
               <div className="min-w-0 flex-1">
                 <h4 className="font-medium text-sm truncate leading-tight">{link.title}</h4>
                 <p className="text-xs text-muted-foreground truncate leading-tight">
@@ -112,7 +111,7 @@ const SortableLink: React.FC<SortableLinkProps> = ({ link, onDelete, onEdit, pro
                 className="text-xs cursor-pointer hover:bg-primary/20 transition-colors hidden sm:inline-flex"
                 onClick={() => setShowClicksDialog(true)}
               >
-                {link.clicks} cliques
+                {formatClicks(link.clicks)}
               </Badge>
               <Badge
                 variant="secondary"
@@ -126,6 +125,7 @@ const SortableLink: React.FC<SortableLinkProps> = ({ link, onDelete, onEdit, pro
                 size="sm"
                 onClick={() => onEdit(link)}
                 className="h-7 w-7 p-0"
+                aria-label="Editar link"
               >
                 <Pencil className="h-3.5 w-3.5" />
               </Button>
@@ -134,14 +134,16 @@ const SortableLink: React.FC<SortableLinkProps> = ({ link, onDelete, onEdit, pro
                 size="sm"
                 onClick={() => window.open(link.url, '_blank')}
                 className="h-7 w-7 p-0"
+                aria-label="Abrir link"
               >
                 <ExternalLink className="h-3.5 w-3.5" />
               </Button>
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => onDelete(link.id)}
+                onClick={() => onDelete(link)}
                 className="text-destructive hover:text-destructive h-7 w-7 p-0"
+                aria-label="Excluir link"
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </Button>
@@ -165,13 +167,10 @@ export const LinksTab: React.FC<LinksTabProps> = ({ profile, onProfileUpdate }) 
   const { user } = useAuth();
   const { toast } = useToast();
   const [links, setLinks] = useState<Link[]>([]);
-  const [loading, setLoading] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editingLink, setEditingLink] = useState<Link | null>(null);
   const [editLinkData, setEditLinkData] = useState({ title: '', url: '' });
-  const [selectedLinkType, setSelectedLinkType] = useState<any>(null);
-  const [newLinkData, setNewLinkData] = useState({ title: '', url: '' });
 
   useEffect(() => {
     if (user) {
@@ -193,41 +192,34 @@ export const LinksTab: React.FC<LinksTabProps> = ({ profile, onProfileUpdate }) 
     }
   };
 
-  const handleAddLink = async () => {
-    if (!user || !selectedLinkType || !newLinkData.title || !newLinkData.url) {
+  // O AddLinkDialog já validou a URL e decidiu o título (digitado ou automático)
+  const handleAddLink = async (data: { title: string; url: string }): Promise<boolean> => {
+    if (!user) return false;
+
+    const sanitizedTitle = sanitizeText(data.title, 100);
+    if (!sanitizedTitle) {
       toast({
         title: "Erro",
-        description: "Preencha todos os campos obrigatórios.",
+        description: "Informe um título.",
         variant: "destructive",
       });
-      return;
+      return false;
     }
-
-    // Validate URL security
-    if (!isValidUrl(newLinkData.url)) {
-      toast({
-        title: "URL inválida",
-        description: "A URL fornecida não é válida. Use URLs com http:// ou https://.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const sanitizedTitle = sanitizeText(newLinkData.title, 100);
-
-    setLoading(true);
 
     const maxPosition = Math.max(...links.map(l => l.position), -1);
-    
+
     const { error } = await supabase
       .from('links')
       .insert([{
-      user_id: user.id,
+        user_id: user.id,
         title: sanitizedTitle,
-        url: newLinkData.url.trim(),
+        url: data.url.trim(),
         position: maxPosition + 1,
         is_visible: true,
         clicks: 0,
+        icon_type: 'auto',
+        icon_value: null,
+        accent_color: null,
       }]);
 
     if (error) {
@@ -236,29 +228,38 @@ export const LinksTab: React.FC<LinksTabProps> = ({ profile, onProfileUpdate }) 
         description: "Erro ao adicionar link.",
         variant: "destructive",
       });
-    } else {
-      toast({
-        title: "Link adicionado!",
-        description: "Seu novo link foi criado com sucesso.",
-      });
-      setShowAddDialog(false);
-      setSelectedLinkType(null);
-      setNewLinkData({ title: '', url: '' });
-      loadLinks();
-      // Notificar outros componentes da mudança
-      window.dispatchEvent(new CustomEvent('linksUpdated'));
+      return false;
     }
 
-    setLoading(false);
+    toast({
+      title: "Link adicionado!",
+      description: "Seu novo link foi criado com sucesso.",
+    });
+    loadLinks();
+    // Notificar outros componentes da mudança
+    window.dispatchEvent(new CustomEvent('linksUpdated'));
+    return true;
   };
 
-  const handleDeleteLink = async (linkId: number) => {
+  const handleDeleteLink = async (link: Link) => {
     const { error } = await supabase
       .from('links')
       .delete()
-      .eq('id', linkId);
+      .eq('id', link.id);
 
     if (!error) {
+      // Ícone enviado: apaga o arquivo depois do delete; a falha só vai para o console
+      if (link.icon_type === 'upload' && user) {
+        const path = linkIconPathFromUrl(link.icon_value, user.id, LINK_ICONS_PUBLIC_PREFIX);
+        if (path) {
+          try {
+            const { error: removeError } = await supabase.storage.from(LINK_ICONS_BUCKET).remove([path]);
+            if (removeError) console.error('Error removing link icon:', removeError);
+          } catch (removeError) {
+            console.error('Error removing link icon:', removeError);
+          }
+        }
+      }
       toast({
         title: "Link removido",
         description: "O link foi excluído com sucesso.",
@@ -292,14 +293,6 @@ export const LinksTab: React.FC<LinksTabProps> = ({ profile, onProfileUpdate }) 
   }, [editingLink]);
 
   const editAutosaveStatus = useAutosave(editLinkData, handleAutoSaveEdit, 1500, showEditDialog && !!editingLink, editingLink?.id);
-
-  const selectLinkType = (linkType: any) => {
-    setSelectedLinkType(linkType);
-    setNewLinkData({
-      title: linkType.label,
-      url: '',
-    });
-  };
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -350,87 +343,13 @@ export const LinksTab: React.FC<LinksTabProps> = ({ profile, onProfileUpdate }) 
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-medium">Seus Links</h3>
-        <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-          <DialogTrigger asChild>
-            <Button className="btn-gradient-primary hover-bounce">
-              <Plus className="h-4 w-4 mr-2" />
-              Adicionar Link
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="bg-card/95 backdrop-blur-sm border-border/50">
-            <DialogHeader>
-              <DialogTitle>Adicionar Novo Link</DialogTitle>
-            </DialogHeader>
-            
-            {!selectedLinkType ? (
-              <div className="space-y-4">
-                <p className="text-sm text-muted-foreground">
-                  Escolha o tipo de link que deseja adicionar:
-                </p>
-                <div className="grid grid-cols-3 sm:grid-cols-3 gap-2 sm:gap-3">
-                  {LINK_TYPES.map((linkType) => (
-                    <Button
-                      key={linkType.id}
-                      variant="outline"
-                      className="h-auto p-4 flex flex-col items-center space-y-2 hover-bounce"
-                      onClick={() => selectLinkType(linkType)}
-                    >
-                      <linkType.icon className="h-6 w-6" />
-                      <span className="text-sm">{linkType.label}</span>
-                    </Button>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <div className="flex items-center space-x-2 p-3 rounded-lg bg-accent/20">
-                  <selectedLinkType.icon className="h-5 w-5" />
-                  <span className="font-medium">{selectedLinkType.label}</span>
-                </div>
-                
-                <div className="space-y-3">
-                  <div>
-                    <label className="text-sm font-medium">Título</label>
-                    <Input
-                      value={newLinkData.title}
-                      onChange={(e) => setNewLinkData(prev => ({ ...prev, title: e.target.value }))}
-                      placeholder={`Meu ${selectedLinkType.label}`}
-                      className="mt-1"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="text-sm font-medium">URL</label>
-                    <Input
-                      value={newLinkData.url}
-                      onChange={(e) => setNewLinkData(prev => ({ ...prev, url: e.target.value }))}
-                      placeholder={selectedLinkType.placeholder}
-                      className="mt-1"
-                    />
-                  </div>
-                </div>
-                
-                <div className="flex space-x-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => setSelectedLinkType(null)}
-                    className="flex-1"
-                  >
-                    Voltar
-                  </Button>
-                  <Button
-                    onClick={handleAddLink}
-                    disabled={loading}
-                    className="flex-1 btn-gradient-primary"
-                  >
-                    {loading ? 'Adicionando...' : 'Adicionar'}
-                  </Button>
-                </div>
-              </div>
-            )}
-          </DialogContent>
-        </Dialog>
+        <Button className="btn-gradient-primary hover-bounce" onClick={() => setShowAddDialog(true)}>
+          <Plus className="h-4 w-4 mr-2" />
+          Adicionar Link
+        </Button>
       </div>
+
+      <AddLinkDialog open={showAddDialog} onOpenChange={setShowAddDialog} onAdd={handleAddLink} />
 
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
         <DialogContent className="bg-card/95 backdrop-blur-sm border-border/50">
