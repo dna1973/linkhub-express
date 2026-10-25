@@ -2889,6 +2889,8 @@ describe('useCurrentProfile', () => {
 });
 ```
 
+> **Nota (desde `dac1954`):** o `createProfile` já seleciona o perfil novo. O id fica pendente até uma carga trazê-lo na lista, mesmo que não seja a do próprio `createProfile`. Por isso, no teste "createProfile chama a RPC, recarrega e devolve o id", o comentário "Criar não troca o perfil atual…" e o `expect(atual()).toBe('u1')` acima valem `'p9'` no código. O `selectProfile(result.id)` do `NewProfileDialog` (Tarefa 12) fica redundante e inofensivo.
+
 - [ ] **Passo 2: teste da rota de layout (falha)**
 
 `src/pages/ProfileLayout.test.tsx`:

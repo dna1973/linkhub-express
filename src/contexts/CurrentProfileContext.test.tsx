@@ -300,6 +300,29 @@ describe('CurrentProfileProvider: carga', () => {
     expect(mocks.rpc).toHaveBeenCalledTimes(2);
   });
 
+  it('42501 no insert (outra aba confirmou antes) recarrega a lista e seleciona o perfil sem erro', async () => {
+    // No banco real, o WITH CHECK (NOT EXISTS em profile_owners) recusa antes do índice: 42501, não 23505
+    mocks.insert.mockResolvedValue({ error: { code: '42501', message: 'new row violates row-level security policy' } });
+    const lists = [[], [profile('u1')]];
+    rpcHandlers({ list_own_profiles: () => ({ data: lists.shift() ?? [profile('u1')], error: null }) });
+    renderProvider();
+
+    await waitFor(() => expect(atual()).toBe('u1'));
+    expect(ctx.error).toBeNull();
+    expect(mocks.rpc).toHaveBeenCalledTimes(2);
+  });
+
+  it('erro no insert e lista ainda vazia mostra o erro do primeiro perfil', async () => {
+    mocks.insert.mockResolvedValue({ error: { code: '42501', message: 'new row violates row-level security policy' } });
+    rpcHandlers({ list_own_profiles: () => ({ data: [], error: null }) });
+    renderProvider();
+
+    await waitFor(() => expect(ctx.loading).toBe(false));
+    expect(ctx.error).toBe('Não foi possível criar o seu primeiro perfil.');
+    expect(atual()).toBe('nenhum');
+    expect(mocks.rpc).toHaveBeenCalledTimes(2);
+  });
+
   it('erro de rede não cria nada e mostra o erro', async () => {
     rpcHandlers({ list_own_profiles: () => ({ data: null, error: { message: 'Failed to fetch' } }) });
     renderProvider();
@@ -532,6 +555,70 @@ describe('CurrentProfileProvider: criar e excluir', () => {
       await ctx.reloadProfiles();
     });
     expect(atual()).toBe('p9');
+  });
+
+  it('perfil novo pendente não toma o lugar de uma escolha feita depois', async () => {
+    let lista = [profile('u1'), profile('p2')];
+    let falhar = false;
+    rpcHandlers({
+      list_own_profiles: () => {
+        if (falhar) {
+          falhar = false;
+          return { data: null, error: { message: 'Failed to fetch' } };
+        }
+        return { data: lista, error: null };
+      },
+      create_profile: () => {
+        lista = [profile('u1'), profile('p2'), profile('p9')];
+        falhar = true;
+        return { data: 'p9', error: null };
+      },
+    });
+    renderProvider();
+    await waitFor(() => expect(atual()).toBe('u1'));
+
+    // A recarga do createProfile falha: p9 fica pendente
+    await act(async () => {
+      await ctx.createProfile({ username: 'loja', full_name: 'Minha loja' });
+    });
+    act(() => ctx.selectProfile('p2'));
+    expect(atual()).toBe('p2');
+
+    await act(async () => {
+      await ctx.reloadProfiles();
+    });
+    expect(ctx.profiles.map((p) => p.id)).toEqual(['u1', 'p2', 'p9']);
+    expect(atual()).toBe('p2');
+  });
+
+  it('createProfile que termina depois da troca de conta não recarrega nem deixa pendente', async () => {
+    const criar = deferred<unknown>();
+    rpcHandlers({
+      list_own_profiles: () => ({ data: mocks.user.id === 'u1' ? [profile('u1')] : [profile('u2')], error: null }),
+      create_profile: () => criar.promise,
+    });
+    const view = renderProvider();
+    await waitFor(() => expect(atual()).toBe('u1'));
+
+    let criado!: Promise<unknown>;
+    act(() => {
+      criado = ctx.createProfile({ username: 'loja', full_name: 'Minha loja' });
+    });
+    mocks.user = { id: 'u2', email: 'outra@example.com', user_metadata: {} };
+    view.rerender(
+      <CurrentProfileProvider>
+        <Probe />
+      </CurrentProfileProvider>,
+    );
+    await waitFor(() => expect(atual()).toBe('u2'));
+
+    await act(async () => {
+      criar.resolve({ data: 'p9', error: null });
+      await criado;
+    });
+    // Só a carga da montagem (u1) e a da troca (u2)
+    expect(mocks.rpc.mock.calls.filter(([fn]) => fn === 'list_own_profiles')).toHaveLength(2);
+    expect(atual()).toBe('u2');
   });
 
   it('createProfile que termina depois de sair do layout não aplica nada', async () => {

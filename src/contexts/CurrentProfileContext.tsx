@@ -212,8 +212,11 @@ export const CurrentProfileProvider: React.FC<{ children: React.ReactNode }> = (
         list = await fetchOwnProfiles();
         failure = !list ? LOAD_ERROR : list.length === 0 ? FIRST_PROFILE_ERROR : null;
       } catch (insertError) {
+        // Outra aba pode ter confirmado o insert antes: no banco real a RLS recusa com 42501
+        // (o WITH CHECK roda antes do índice), não com 23505. Só é erro se a lista continuar vazia.
         console.error('Error creating first profile:', insertError);
-        failure = FIRST_PROFILE_ERROR;
+        list = await fetchOwnProfiles();
+        failure = list && list.length > 0 ? null : FIRST_PROFILE_ERROR;
       }
     }
 
@@ -277,6 +280,7 @@ export const CurrentProfileProvider: React.FC<{ children: React.ReactNode }> = (
   }, [activate]);
 
   const createProfile = useCallback(async (input: { username: string; full_name: string }): Promise<CreateProfileResult> => {
+    const account = userRef.current;
     try {
       const { data, error: rpcError } = await supabase.rpc('create_profile', {
         p_username: input.username,
@@ -286,8 +290,11 @@ export const CurrentProfileProvider: React.FC<{ children: React.ReactNode }> = (
       // O perfil já existe no banco: a carga que o trouxer o seleciona, esta ou uma recarga
       // que a supere. Se a recarga falhar, o id fica pendente para a próxima e a resposta
       // continua ok (um erro faria o usuário tentar de novo e esbarrar no próprio @).
-      pendingSelectRef.current = data;
-      await load();
+      // Se a conta mudou enquanto a RPC rodava, o perfil novo não é da conta atual: nada a fazer.
+      if (userRef.current?.id === account?.id) {
+        pendingSelectRef.current = data;
+        await load();
+      }
       return { ok: true, id: data };
     } catch (rpcError) {
       console.error('Error creating profile:', rpcError);
