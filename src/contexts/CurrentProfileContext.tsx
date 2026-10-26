@@ -8,6 +8,7 @@ import { AVATARS_BUCKET, avatarPathFromUrl } from '@/lib/avatarStorage';
 import { LINK_ICONS_BUCKET } from '@/lib/linkIcons/storagePrefix';
 import { linkIconPathFromUrl } from '@/lib/linkIcons/storage';
 import { currentProfileStorageKey, readStoredProfileId, writeStoredProfileId } from '@/lib/currentProfileStorage';
+import { getRecoveryUserId } from '@/lib/passwordRecovery';
 import type { Database } from '@/integrations/supabase/types';
 
 export type Profile = Database['public']['Tables']['profiles']['Row'];
@@ -165,6 +166,9 @@ export const CurrentProfileProvider: React.FC<{ children: React.ReactNode }> = (
     const promise = (async () => {
       // A conta saiu (logout) ou o layout fechou durante a carga: não cria perfil para ninguém
       if (!mountedRef.current || userRef.current?.id !== account.id) return;
+      // Sessão do link de recuperação de senha: não vira conta do LinkHub por acidente
+      // (o ProfileLayout já manda para a senha nova; isto cobre quem chegar aqui por outro caminho)
+      if (getRecoveryUserId() === account.id) return;
       const { error: insertError } = await supabase.from('profiles').insert({
         id: account.id,
         full_name: displayNameOf(account),

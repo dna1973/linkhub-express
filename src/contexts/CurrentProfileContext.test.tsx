@@ -4,6 +4,7 @@ import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import { AVATARS_PUBLIC_PREFIX } from '@/lib/avatarStorage';
 import { LINK_ICONS_PUBLIC_PREFIX } from '@/lib/linkIcons/storagePrefix';
 import { ONBOARDING_TEMPLATES } from '@/components/dashboard/onboardingTemplates';
+import { markRecoveryUser } from '@/lib/passwordRecovery';
 import { createDefaultCustomTheme, useDesignStore } from '@/stores/useDesignStore';
 import {
   CurrentProfileProvider,
@@ -132,6 +133,26 @@ describe('CurrentProfileProvider: carga', () => {
       full_name: 'Daniel Ávila',
       avatar_url: 'https://lh3.googleusercontent.com/a/foto',
     });
+  });
+
+  it('conta no meio da recuperação de senha: não cria o primeiro perfil', async () => {
+    markRecoveryUser('u1');
+    rpcHandlers({ list_own_profiles: () => ({ data: [], error: null }) });
+    renderProvider();
+
+    await waitFor(() => expect(ctx.loading).toBe(false));
+    expect(mocks.insert).not.toHaveBeenCalled();
+    expect(ctx.currentProfile).toBeNull();
+  });
+
+  it('marca de recuperação de outra conta não impede o primeiro perfil', async () => {
+    markRecoveryUser('u2');
+    const lists = [[], [profile('u1')]];
+    rpcHandlers({ list_own_profiles: () => ({ data: lists.shift() ?? [profile('u1')], error: null }) });
+    renderProvider();
+
+    await waitFor(() => expect(atual()).toBe('u1'));
+    expect(mocks.insert).toHaveBeenCalledTimes(1);
   });
 
   it('conta sem nome nem e-mail: o primeiro perfil se chama "Usuário"', async () => {
