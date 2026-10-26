@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { APP_ROUTE_SEGMENTS, isPublicProfilePath } from './serviceWorkerRoutes';
+import { APP_ROUTE_SEGMENTS, SW_NAVIGATE_FALLBACK_DENYLIST, isPublicProfilePath } from './serviceWorkerRoutes';
 
 describe('isPublicProfilePath', () => {
   it('reconhece /:username como perfil público', () => {
@@ -23,5 +23,28 @@ describe('isPublicProfilePath', () => {
     expect(segments.length).toBeGreaterThan(0);
     for (const seg of segments) expect(APP_ROUTE_SEGMENTS as readonly string[]).toContain(seg);
     for (const seg of APP_ROUTE_SEGMENTS) expect(segments).toContain(seg);
+  });
+});
+
+describe('SW_NAVIGATE_FALLBACK_DENYLIST', () => {
+  // O Workbox compara a lista com pathname + search da navegação
+  const denied = (path: string) => SW_NAVIGATE_FALLBACK_DENYLIST.some((pattern) => pattern.test(path));
+
+  it('as páginas de login sempre vêm da rede, nunca do index.html pré-cacheado', () => {
+    for (const path of ['/auth', '/auth/', '/auth?x=1', '/auth/callback', '/auth/nova-senha', '/~oauth', '/~oauth/x']) {
+      expect(denied(path), path).toBe(true);
+    }
+  });
+
+  it('o resto do app continua com o index.html do pré-cache (funciona offline)', () => {
+    for (const path of ['/', '/dashboard', '/analytics', '/admin', '/install', '/dna', '/authors', '/auth_x']) {
+      expect(denied(path), path).toBe(false);
+    }
+  });
+
+  it('o vite.config.ts entrega essa lista ao Workbox', () => {
+    const config = readFileSync(fileURLToPath(new URL('../../vite.config.ts', import.meta.url)), 'utf8');
+    expect(config).toMatch(/navigateFallbackDenylist:\s*\[\s*\.\.\.SW_NAVIGATE_FALLBACK_DENYLIST\s*\]/);
+    expect(config).toMatch(/import\s*\{\s*SW_NAVIGATE_FALLBACK_DENYLIST\s*\}\s*from\s*["']\.\/src\/lib\/serviceWorkerRoutes["']/);
   });
 });

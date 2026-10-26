@@ -2,6 +2,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { VitePWA } from "vite-plugin-pwa";
+import { SW_NAVIGATE_FALLBACK_DENYLIST } from "./src/lib/serviceWorkerRoutes";
 
 export default defineConfig(({ mode }) => ({
   server: {
@@ -54,7 +55,8 @@ export default defineConfig(({ mode }) => ({
         // Motor e modelo da remoção de fundo (~43 MB) e os ~5.000 SVGs de ícones dos links:
         // carregados sob demanda, nunca no pré-cache
         globIgnores: ['**/mediapipe/**', '**/vendor-icons/**'],
-        navigateFallbackDenylist: [/^\/~oauth/],
+        // Login e callbacks sempre da rede, com o index.html atual (ver serviceWorkerRoutes.ts)
+        navigateFallbackDenylist: [...SW_NAVIGATE_FALLBACK_DENYLIST],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
