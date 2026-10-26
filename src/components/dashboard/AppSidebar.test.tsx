@@ -6,7 +6,7 @@ import { CurrentProfileProvider } from '@/contexts/CurrentProfileContext';
 import { AppSidebar } from './AppSidebar';
 
 const mocks = vi.hoisted(() => ({
-  profiles: [{ id: 'u1', username: 'dna', full_name: 'Daniel', avatar_url: null, theme_options: {} }] as unknown[],
+  profiles: [] as unknown[],
 }));
 
 vi.mock('@/contexts/AuthContext', () => {
@@ -66,7 +66,13 @@ afterAll(() => {
   vi.unstubAllGlobals();
 });
 
-beforeEach(() => window.localStorage.clear());
+const DNA = { id: 'u1', username: 'dna', full_name: 'Daniel', avatar_url: null, theme_options: {} };
+const PRO = { id: 'p2', username: 'pro', full_name: 'Daniel Profissional', avatar_url: null, theme_options: {} };
+
+beforeEach(() => {
+  window.localStorage.clear();
+  mocks.profiles = [DNA];
+});
 afterEach(() => cleanup());
 
 function renderSidebar(onTabChange = vi.fn()) {
@@ -112,6 +118,19 @@ describe('AppSidebar em janela estreita', () => {
   it('no painel, o seletor mostra o perfil atual', async () => {
     renderSidebar();
     fireEvent.click(screen.getByRole('button', { name: /toggle sidebar/i }));
-    expect(await screen.findByRole('button', { name: 'Trocar de perfil (atual: @dna)' })).toBeTruthy();
+    expect(await screen.findByRole('button', { name: 'LinkHub, @dna: trocar de perfil' })).toBeTruthy();
+  });
+
+  it('escolher outro perfil no seletor fecha o painel, como os outros itens', async () => {
+    mocks.profiles = [DNA, PRO];
+    renderSidebar();
+    fireEvent.click(screen.getByRole('button', { name: /toggle sidebar/i }));
+    fireEvent.keyDown(await screen.findByRole('button', { name: 'LinkHub, @dna: trocar de perfil' }), { key: 'Enter' });
+    fireEvent.click(await screen.findByRole('menuitemradio', { name: /@pro/ }));
+
+    await waitFor(() => {
+      expect(document.querySelector('[data-mobile="true"]')).toBeNull();
+    });
+    expect(window.localStorage.getItem('linkhub:currentProfile:u1')).toBe('p2');
   });
 });

@@ -16,7 +16,7 @@ import { OnboardingDialog } from '@/components/dashboard/OnboardingDialog';
 import { useCurrentProfile } from '@/contexts/CurrentProfileContext';
 import { Dialog, DialogClose, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Eye } from 'lucide-react';
+import { Eye, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 
@@ -32,13 +32,15 @@ const TAB_LABELS: Record<string, string> = {
 const TABS_WITHOUT_PREVIEW = ['analytics', 'profiles'];
 
 const Dashboard = () => {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const navigate = useNavigate();
   // O perfil atual vem do CurrentProfileProvider (rota de layout): ele carrega, cria o primeiro e troca
   const { currentProfile, loading, error, reloadProfiles } = useCurrentProfile();
   const [activeTab, setActiveTab] = useState('links');
   const [previewOpen, setPreviewOpen] = useState(false);
   const [newProfileOpen, setNewProfileOpen] = useState(false);
+  // "Tentar de novo" ocupado até a recarga voltar (a recarga não liga o loading do contexto)
+  const [retrying, setRetrying] = useState(false);
   // Perfil cujo onboarding acabou de terminar: o diálogo some na hora, antes de a lista voltar com o user_type
   const [onboardedId, setOnboardedId] = useState<string | null>(null);
   // Mesmo ponto de corte do lg: a prévia lateral só existe em tela larga, o Dialog só abaixo dela
@@ -57,15 +59,36 @@ const Dashboard = () => {
     return null;
   }
 
+  const handleRetry = async () => {
+    setRetrying(true);
+    try {
+      await reloadProfiles();
+    } finally {
+      setRetrying(false);
+    }
+  };
+
+  // A tela de erro não tem a sidebar: o "Sair" daqui é a única saída da conta
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/');
+  };
+
   if (!currentProfile) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-3 bg-background p-6 text-center">
         {error && !loading ? (
           <>
             <p className="text-sm text-muted-foreground">{error}</p>
-            <Button type="button" onClick={() => void reloadProfiles()}>
-              Tentar de novo
-            </Button>
+            <div className="flex gap-2">
+              <Button type="button" onClick={() => void handleRetry()} disabled={retrying} aria-busy={retrying || undefined}>
+                {retrying && <Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden />}
+                Tentar de novo
+              </Button>
+              <Button type="button" variant="outline" onClick={() => void handleSignOut()}>
+                Sair
+              </Button>
+            </div>
           </>
         ) : (
           <div

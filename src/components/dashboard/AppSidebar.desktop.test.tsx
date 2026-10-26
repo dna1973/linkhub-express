@@ -7,7 +7,7 @@ import { AppSidebar } from './AppSidebar';
 
 type P = Record<string, unknown> & { id: string };
 
-const mocks = vi.hoisted(() => ({ profiles: [] as P[] }));
+const mocks = vi.hoisted(() => ({ profiles: [] as P[], eqCalls: [] as unknown[][] }));
 
 vi.mock('@/contexts/AuthContext', () => {
   const user = { id: 'u1', email: 'x@y.z', user_metadata: {} };
@@ -25,7 +25,10 @@ vi.mock('@/hooks/use-toast', () => ({
 vi.mock('@/lib/supabase', () => {
   const chain: any = {};
   chain.select = () => chain;
-  chain.eq = () => chain;
+  chain.eq = (...args: unknown[]) => {
+    mocks.eqCalls.push(args);
+    return chain;
+  };
   chain.maybeSingle = () => Promise.resolve({ data: null });
   return {
     supabase: {
@@ -75,6 +78,7 @@ afterAll(() => {
 beforeEach(() => {
   window.localStorage.clear();
   mocks.profiles = [DNA, PRO];
+  mocks.eqCalls = [];
 });
 afterEach(() => cleanup());
 
@@ -91,8 +95,11 @@ function renderSidebar() {
   return { ...view, onTabChange, onCreateProfile };
 }
 
+/** Nome acessível do gatilho com a barra aberta: começa pelo texto visível (WCAG 2.5.3) */
+const expandedLabel = (atual: string) => `LinkHub, ${atual}: trocar de perfil`;
+
 async function openSelector(atual = '@dna') {
-  fireEvent.keyDown(await screen.findByRole('button', { name: `Trocar de perfil (atual: ${atual})` }), { key: 'Enter' });
+  fireEvent.keyDown(await screen.findByRole('button', { name: expandedLabel(atual) }), { key: 'Enter' });
   return screen.findByRole('menu');
 }
 
@@ -117,7 +124,7 @@ describe('AppSidebar em janela larga', () => {
 
   it('recolhida, o seletor é só o avatar, com o perfil atual no nome', async () => {
     renderSidebar();
-    await screen.findByRole('button', { name: 'Trocar de perfil (atual: @dna)' });
+    await screen.findByRole('button', { name: expandedLabel('@dna') });
     fireEvent.click(screen.getByRole('button', { name: 'Recolher menu' }));
 
     expect(screen.getByRole('button', { name: 'Trocar de perfil (atual: @dna)' })).toBeTruthy();
@@ -141,7 +148,7 @@ describe('AppSidebar, seletor de perfil', () => {
     await openSelector();
     fireEvent.click(screen.getByRole('menuitemradio', { name: /@pro/ }));
 
-    expect(await screen.findByRole('button', { name: 'Trocar de perfil (atual: @pro)' })).toBeTruthy();
+    expect(await screen.findByRole('button', { name: expandedLabel('@pro') })).toBeTruthy();
     expect(window.localStorage.getItem('linkhub:currentProfile:u1')).toBe('p2');
   });
 
@@ -152,6 +159,37 @@ describe('AppSidebar, seletor de perfil', () => {
 
     const item = screen.getByRole('menuitemradio', { name: /Perfil sem nome/ });
     expect(item.getAttribute('aria-checked')).toBe('true');
+  });
+
+  it('aberta, o nome acessível do gatilho contém o texto visível, e o gatilho só tem conteúdo de frase', async () => {
+    mocks.profiles = [{ ...DNA, username: null }];
+    renderSidebar();
+    const gatilho = await screen.findByRole('button', { name: expandedLabel('Daniel') });
+    const rotulo = gatilho.getAttribute('aria-label') ?? '';
+    for (const visivel of ['LinkHub', 'Daniel']) {
+      expect(gatilho.textContent).toContain(visivel);
+      expect(rotulo).toContain(visivel);
+    }
+    // <button> só aceita conteúdo de frase: nada de div, h1 ou p dentro
+    expect(gatilho.querySelector('div, h1, h2, p')).toBeNull();
+  });
+
+  it('o avatar dos itens não entra no nome acessível, e a inicial ignora espaços', async () => {
+    mocks.profiles = [DNA, { ...PRO, full_name: '  ana', username: 'ana' }];
+    renderSidebar();
+    await openSelector();
+
+    expect(screen.getByRole('menuitemradio', { name: /^Daniel/ })).toBeTruthy();
+    const ana = screen.getByRole('menuitemradio', { name: /^ana/ });
+    expect(ana.querySelector('[aria-hidden="true"]')?.textContent).toBe('A');
+  });
+
+  it('o papel de admin é consultado pela conta, não pelo perfil atual', async () => {
+    window.localStorage.setItem('linkhub:currentProfile:u1', 'p2');
+    renderSidebar();
+    await screen.findByRole('button', { name: expandedLabel('@pro') });
+    await waitFor(() => expect(mocks.eqCalls).toContainEqual(['user_id', 'u1']));
+    expect(mocks.eqCalls).not.toContainEqual(['user_id', 'p2']);
   });
 
   it('com 10 perfis, "Criar novo perfil" fica desabilitado com a dica', async () => {
@@ -218,7 +256,7 @@ describe('AppSidebar, link público', () => {
   it('sem username: Ver Perfil desabilitado e sem botão de copiar', async () => {
     mocks.profiles = [{ ...DNA, username: null }];
     renderSidebar();
-    await screen.findByRole('button', { name: 'Trocar de perfil (atual: Daniel)' });
+    await screen.findByRole('button', { name: expandedLabel('Daniel') });
     expect((screen.getByRole('button', { name: /Ver Perfil/ }) as HTMLButtonElement).disabled).toBe(true);
     expect(screen.queryByRole('button', { name: 'Copiar link do perfil' })).toBeNull();
   });
@@ -229,7 +267,7 @@ describe('AppSidebar, link público', () => {
       renderSidebar();
       await openSelector();
       fireEvent.click(screen.getByRole('menuitemradio', { name: /@pro/ }));
-      await screen.findByRole('button', { name: 'Trocar de perfil (atual: @pro)' });
+      await screen.findByRole('button', { name: expandedLabel('@pro') });
       fireEvent.click(screen.getByRole('button', { name: /Ver Perfil/ }));
       expect(open).toHaveBeenCalledWith('https://example.test/pro', '_blank');
     } finally {

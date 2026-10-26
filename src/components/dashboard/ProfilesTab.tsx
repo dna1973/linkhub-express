@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/lib/supabase';
 import { getPublicProfileUrl } from '@/lib/publicProfileUrl';
+import { profileLabel, profileName } from '@/lib/profileLabel';
 import { useToast } from '@/hooks/use-toast';
 import { MAX_PROFILES, useCurrentProfile, type DeleteProfileResult, type Profile } from '@/contexts/CurrentProfileContext';
 
@@ -22,13 +23,9 @@ interface ProfilesTabProps {
 
 type Stats = { views: number | null; clicks: number | null };
 
-/** Perfil sem nome, no card e no diálogo de exclusão. */
-export const UNNAMED_PROFILE = 'Perfil sem nome';
 /** O que se digita para excluir um perfil sem @ e sem nome. */
 const CONFIRM_WORD = 'excluir';
 
-/** "@dna" ou, para perfil sem @, o nome. */
-const labelOf = (profile: Profile) => (profile.username ? `@${profile.username}` : profile.full_name?.trim() || UNNAMED_PROFILE);
 
 /** O que confirma a exclusão: o @ (com ou sem a arroba), o nome (perfil sem @) ou "excluir" (sem @ e sem nome). */
 export function confirmationMatches(profile: Pick<Profile, 'username' | 'full_name'>, typed: string): boolean {
@@ -97,7 +94,7 @@ interface ProfileCardProps {
 function ProfileCard({ profile, isCurrent, isOnly, onOpen, onDelete }: ProfileCardProps) {
   const stats = useLast30Days(profile.id);
   const publicUrl = getPublicProfileUrl(profile);
-  const label = labelOf(profile);
+  const label = profileLabel(profile);
   const onlyHintId = useId();
   // Carregando: reticências; erro: travessão, explicado no aria-label e no title
   const show = (value: number | null | undefined) =>
@@ -115,7 +112,7 @@ function ProfileCard({ profile, isCurrent, isOnly, onOpen, onDelete }: ProfileCa
           </Avatar>
           <div className="min-w-0 flex-1">
             <p className="truncate font-medium">
-              {profile.full_name?.trim() || UNNAMED_PROFILE}
+              {profileName(profile)}
               {isCurrent && <span className="ml-2 text-xs font-normal text-primary">atual</span>}
             </p>
             <p className="truncate text-sm text-muted-foreground">
@@ -212,7 +209,7 @@ export const ProfilesTab: React.FC<ProfilesTabProps> = ({ onOpenLinks, onCreateP
   const confirmDelete = async () => {
     if (busyRef.current) return;
     if (!deleting || !confirmationMatches(deleting, typed)) return;
-    const label = labelOf(deleting);
+    const label = profileLabel(deleting);
     busyRef.current = true;
     setBusy(true);
     let result: DeleteProfileResult;
@@ -293,7 +290,7 @@ export const ProfilesTab: React.FC<ProfilesTabProps> = ({ onOpenLinks, onCreateP
           {deleting && (
             <>
               <DialogHeader>
-                <DialogTitle>Excluir {labelOf(deleting)}?</DialogTitle>
+                <DialogTitle>Excluir {profileLabel(deleting)}?</DialogTitle>
                 <DialogDescription>
                   Isso apaga o perfil, os links, a foto, os ícones enviados e as estatísticas dele. O endereço público
                   para de abrir e o @ fica livre. Não dá para desfazer.

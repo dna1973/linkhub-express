@@ -18,7 +18,7 @@ import { useTheme } from 'next-themes';
 import { useAuth } from '@/contexts/AuthContext';
 import { MAX_PROFILES, useCurrentProfile, type Profile } from '@/contexts/CurrentProfileContext';
 import { getPublicProfileUrl } from '@/lib/publicProfileUrl';
-import { UNNAMED_PROFILE } from '@/components/dashboard/ProfilesTab';
+import { profileLabel, profileName } from '@/lib/profileLabel';
 import { useNavigate } from 'react-router-dom';
 import {
   Sidebar,
@@ -53,17 +53,14 @@ const analyticsItems = [
   { id: 'analytics', title: 'Analytics', icon: BarChart3 },
 ];
 
-/** "@dna" ou, para perfil sem @, o nome. */
-function profileLabel(profile: Profile | null): string {
-  if (!profile) return 'carregando';
-  return profile.username ? `@${profile.username}` : profile.full_name?.trim() || UNNAMED_PROFILE;
-}
+/** "@dna" ou, para perfil sem @, o nome; antes da primeira carga, "carregando". */
+const currentLabelOf = (profile: Profile | null): string => (profile ? profileLabel(profile) : 'carregando');
 
-/** Avatar de 24 px do seletor. */
+/** Avatar de 24 px do seletor. Decorativo: o nome acessível vem do texto do item ou do aria-label. */
 function ProfileAvatar({ profile }: { profile: Profile | null }) {
-  const initial = (profile?.full_name || profile?.username || '?').charAt(0).toUpperCase();
+  const initial = (profile?.full_name?.trim() || profile?.username || '?').charAt(0).toUpperCase();
   return (
-    <Avatar className="h-6 w-6 shrink-0">
+    <Avatar className="h-6 w-6 shrink-0" aria-hidden>
       {profile?.avatar_url && <AvatarImage src={profile.avatar_url} alt="" />}
       <AvatarFallback className="text-[10px]">{initial}</AvatarFallback>
     </Avatar>
@@ -81,7 +78,7 @@ export function AppSidebar({ activeTab, onTabChange, onCreateProfile }: AppSideb
   const isCollapsed = state === 'collapsed' && !isMobile;
   const [isAdmin, setIsAdmin] = useState(false);
   const atLimit = profiles.length >= MAX_PROFILES;
-  const currentLabel = profileLabel(currentProfile);
+  const currentLabel = currentLabelOf(currentProfile);
 
   // O papel é da conta, não do perfil
   useEffect(() => {
@@ -104,6 +101,11 @@ export function AppSidebar({ activeTab, onTabChange, onCreateProfile }: AppSideb
 
   const handleTabChange = (tab: string) => {
     onTabChange(tab);
+    if (isMobile) setOpenMobile(false);
+  };
+
+  const handleSelectProfile = (id: string) => {
+    selectProfile(id);
     if (isMobile) setOpenMobile(false);
   };
 
@@ -138,7 +140,8 @@ export function AppSidebar({ activeTab, onTabChange, onCreateProfile }: AppSideb
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
-                aria-label={`Trocar de perfil (atual: ${currentLabel})`}
+                // Aberta, o nome acessível começa pelo texto visível (WCAG 2.5.3); recolhida, só há o avatar
+                aria-label={isCollapsed ? `Trocar de perfil (atual: ${currentLabel})` : `LinkHub, ${currentLabel}: trocar de perfil`}
                 title="Trocar de perfil"
                 className={
                   isCollapsed
@@ -150,12 +153,12 @@ export function AppSidebar({ activeTab, onTabChange, onCreateProfile }: AppSideb
                   <ProfileAvatar profile={currentProfile} />
                 ) : (
                   <>
-                    <div className="min-w-0 flex-1">
-                      <h1 className="text-lg font-bold">LinkHub</h1>
-                      {currentProfile?.username && (
-                        <p className="text-xs text-muted-foreground truncate">@{currentProfile.username}</p>
+                    <span className="block min-w-0 flex-1">
+                      <span className="block text-lg font-bold">LinkHub</span>
+                      {currentProfile && (
+                        <span className="block text-xs text-muted-foreground truncate">{currentLabel}</span>
                       )}
-                    </div>
+                    </span>
                     <ChevronsUpDown className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
                   </>
                 )}
@@ -163,12 +166,12 @@ export function AppSidebar({ activeTab, onTabChange, onCreateProfile }: AppSideb
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-64">
               <DropdownMenuLabel>Seus perfis</DropdownMenuLabel>
-              <DropdownMenuRadioGroup value={currentProfile?.id ?? ''} onValueChange={(id) => selectProfile(id)}>
+              <DropdownMenuRadioGroup value={currentProfile?.id ?? ''} onValueChange={handleSelectProfile}>
                 {profiles.map((profile) => (
                   <DropdownMenuRadioItem key={profile.id} value={profile.id} className="gap-2">
                     <ProfileAvatar profile={profile} />
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm">{profile.full_name?.trim() || UNNAMED_PROFILE}</span>
+                      <span className="block truncate text-sm">{profileName(profile)}</span>
                       {profile.username && (
                         <span className="block truncate text-xs text-muted-foreground">@{profile.username}</span>
                       )}

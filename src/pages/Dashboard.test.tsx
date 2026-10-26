@@ -1,21 +1,22 @@
 // @vitest-environment jsdom
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import Dashboard from './Dashboard';
 
 const mocks = vi.hoisted(() => ({
   ctx: null as any,
   navigate: vi.fn(),
+  signOut: vi.fn(),
   sidebar: null as any,
   onboarding: null as any,
   newProfile: null as any,
   // Quantas vezes cada componente montou (useEffect com []): a key nova remonta
-  mounts: { links: 0, design: 0, settings: 0, preview: 0, onboarding: 0 },
+  mounts: { links: 0, design: 0, analytics: 0, settings: 0, preview: 0, onboarding: 0 },
 }));
 
 vi.mock('@/contexts/AuthContext', () => {
   const user = { id: 'u1', email: 'dna@example.com' };
-  return { useAuth: () => ({ user }) };
+  return { useAuth: () => ({ user, signOut: mocks.signOut }) };
 });
 vi.mock('@/contexts/CurrentProfileContext', () => ({ useCurrentProfile: () => mocks.ctx }));
 vi.mock('react-router-dom', () => ({ useNavigate: () => mocks.navigate }));
@@ -60,7 +61,17 @@ vi.mock('@/components/dashboard/SettingsTab', async () => {
     },
   };
 });
-vi.mock('@/components/dashboard/AnalyticsTab', () => ({ AnalyticsTab: () => <div data-testid="analytics-tab" /> }));
+vi.mock('@/components/dashboard/AnalyticsTab', async () => {
+  const { useEffect } = await import('react');
+  return {
+    AnalyticsTab: (props: any) => {
+      useEffect(() => {
+        mocks.mounts.analytics += 1;
+      }, []);
+      return <div data-testid="analytics-tab">{props.profile.id}</div>;
+    },
+  };
+});
 vi.mock('@/components/dashboard/ProfilesTab', () => ({ ProfilesTab: () => <div data-testid="profiles-tab" /> }));
 vi.mock('@/components/dashboard/ProfilePreview', async () => {
   const { useEffect } = await import('react');
@@ -117,7 +128,9 @@ function context(profile: Record<string, unknown> | null, extra: Record<string, 
 
 beforeEach(() => {
   mocks.ctx = context({ id: 'p1', user_type: 'personal' });
-  mocks.mounts = { links: 0, design: 0, settings: 0, preview: 0, onboarding: 0 };
+  mocks.mounts = { links: 0, design: 0, analytics: 0, settings: 0, preview: 0, onboarding: 0 };
+  mocks.navigate.mockReset();
+  mocks.signOut.mockReset().mockResolvedValue(undefined);
   mocks.sidebar = null;
   mocks.onboarding = null;
   mocks.newProfile = null;
@@ -134,13 +147,13 @@ describe('Dashboard', () => {
 
   it('trocar de perfil remonta abas, prévia e onboarding (key), sem reaproveitar estado', () => {
     const { rerender } = render(<Dashboard />);
-    expect(mocks.mounts).toEqual({ links: 1, design: 0, settings: 0, preview: 1, onboarding: 1 });
+    expect(mocks.mounts).toEqual({ links: 1, design: 0, analytics: 0, settings: 0, preview: 1, onboarding: 1 });
 
     mocks.ctx = context({ id: 'p3', user_type: 'business' });
     rerender(<Dashboard />);
     expect(screen.getByTestId('links-tab').textContent).toBe('p3');
     expect(screen.getByTestId('preview').textContent).toBe('p3');
-    expect(mocks.mounts).toEqual({ links: 2, design: 0, settings: 0, preview: 2, onboarding: 2 });
+    expect(mocks.mounts).toEqual({ links: 2, design: 0, analytics: 0, settings: 0, preview: 2, onboarding: 2 });
 
     // Trocar de aba não remonta a prévia; trocar de perfil na aba Perfil remonta a aba
     act(() => mocks.sidebar.onTabChange('settings'));
@@ -149,7 +162,22 @@ describe('Dashboard', () => {
     mocks.ctx = context({ id: 'p4', user_type: 'business' });
     rerender(<Dashboard />);
     expect(screen.getByTestId('settings-tab').textContent).toBe('p4');
-    expect(mocks.mounts).toEqual({ links: 2, design: 0, settings: 2, preview: 3, onboarding: 3 });
+    expect(mocks.mounts).toEqual({ links: 2, design: 0, analytics: 0, settings: 2, preview: 3, onboarding: 3 });
+
+    // Design aberta: o editor de outro perfil salvaria o tema antigo no perfil novo
+    act(() => mocks.sidebar.onTabChange('design'));
+    expect(mocks.mounts.design).toBe(1);
+    mocks.ctx = context({ id: 'p5', user_type: 'business' });
+    rerender(<Dashboard />);
+    expect(screen.getByTestId('design-tab').textContent).toBe('p5');
+    expect(mocks.mounts.design).toBe(2);
+
+    act(() => mocks.sidebar.onTabChange('analytics'));
+    expect(mocks.mounts.analytics).toBe(1);
+    mocks.ctx = context({ id: 'p6', user_type: 'business' });
+    rerender(<Dashboard />);
+    expect(screen.getByTestId('analytics-tab').textContent).toBe('p6');
+    expect(mocks.mounts.analytics).toBe(2);
   });
 
   it('abre o onboarding para o perfil sem tipo e recarrega a lista ao terminar', () => {
@@ -173,6 +201,14 @@ describe('Dashboard', () => {
     expect(screen.getByText('Meus perfis')).toBeTruthy();
   });
 
+  it('na Analytics, sem coluna de prévia nem botão Prévia', () => {
+    render(<Dashboard />);
+    act(() => mocks.sidebar.onTabChange('analytics'));
+    expect(screen.getByTestId('analytics-tab')).toBeTruthy();
+    expect(screen.queryByTestId('preview')).toBeNull();
+    expect(screen.queryByRole('button', { name: /Prévia/ })).toBeNull();
+  });
+
   it('"Criar novo perfil" abre o diálogo, e o perfil criado leva para Links', () => {
     render(<Dashboard />);
     act(() => mocks.sidebar.onTabChange('profiles'));
@@ -188,7 +224,7 @@ describe('Dashboard', () => {
     mocks.ctx = context(null, { loading: true });
     render(<Dashboard />);
     expect(screen.getByRole('status', { name: 'Carregando seus perfis' })).toBeTruthy();
-    expect(mocks.mounts).toEqual({ links: 0, design: 0, settings: 0, preview: 0, onboarding: 0 });
+    expect(mocks.mounts).toEqual({ links: 0, design: 0, analytics: 0, settings: 0, preview: 0, onboarding: 0 });
     expect(mocks.onboarding).toBeNull();
     expect(mocks.sidebar).toBeNull();
   });
@@ -212,11 +248,48 @@ describe('Dashboard', () => {
     expect(mocks.mounts.design).toBe(2);
   });
 
-  it('sem perfil e com erro na carga, mostra o erro e tenta de novo', () => {
-    mocks.ctx = context(null, { error: 'Não foi possível carregar seus perfis.' });
+  it('sem perfil e com erro na carga, mostra o erro e tenta de novo, com o botão ocupado até a recarga voltar', async () => {
+    let terminar!: () => void;
+    const reloadProfiles = vi.fn(() => new Promise<void>((resolve) => (terminar = resolve)));
+    mocks.ctx = context(null, { error: 'Não foi possível carregar seus perfis.', reloadProfiles });
     render(<Dashboard />);
     expect(screen.getByText('Não foi possível carregar seus perfis.')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Tentar de novo' }));
-    expect(mocks.ctx.reloadProfiles).toHaveBeenCalled();
+    const botao = screen.getByRole('button', { name: 'Tentar de novo' }) as HTMLButtonElement;
+    expect(botao.disabled).toBe(false);
+
+    fireEvent.click(botao);
+    expect(reloadProfiles).toHaveBeenCalledTimes(1);
+    expect(botao.disabled).toBe(true);
+    expect(botao.getAttribute('aria-busy')).toBe('true');
+    // Ocupado, um segundo clique não dispara outra recarga
+    fireEvent.click(botao);
+    expect(reloadProfiles).toHaveBeenCalledTimes(1);
+
+    await act(async () => terminar());
+    expect(botao.disabled).toBe(false);
+    expect(botao.getAttribute('aria-busy')).toBeNull();
+  });
+
+  it('sem perfil, com erro e ainda carregando, mostra só o indicador de carga', () => {
+    mocks.ctx = context(null, { error: 'Não foi possível carregar seus perfis.', loading: true });
+    render(<Dashboard />);
+    expect(screen.getByRole('status', { name: 'Carregando seus perfis' })).toBeTruthy();
+    expect(screen.queryByText('Não foi possível carregar seus perfis.')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Tentar de novo' })).toBeNull();
+  });
+
+  it('erro de uma recarga com perfil na tela não esconde as abas', () => {
+    mocks.ctx = context({ id: 'p1', user_type: 'personal' }, { error: 'Não foi possível carregar seus perfis.' });
+    render(<Dashboard />);
+    expect(screen.getByTestId('links-tab').textContent).toBe('p1');
+    expect(screen.queryByText('Não foi possível carregar seus perfis.')).toBeNull();
+  });
+
+  it('na tela de erro, "Sair" encerra a sessão e volta ao início', async () => {
+    mocks.ctx = context(null, { error: 'Não foi possível carregar seus perfis.' });
+    render(<Dashboard />);
+    fireEvent.click(screen.getByRole('button', { name: 'Sair' }));
+    expect(mocks.signOut).toHaveBeenCalled();
+    await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith('/'));
   });
 });
