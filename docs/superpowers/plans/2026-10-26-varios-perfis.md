@@ -7421,7 +7421,7 @@ Esperado: `Ensaio gerado em …\linkhub-ensaio-varios-perfis.sql`.
 
 - [ ] **Passo 4: conferência visual local (opcional, sem gravar)**
 
-Com `npm run dev` e o `.env` apontando para produção, o painel antigo grava no banco de produção. **Não** faça login nem salve nada no dev local antes da Tarefa 17: o banco ainda não tem `list_own_profiles`, e a RPC falharia. A conferência no navegador fica para a Tarefa 17, passo 6.
+Com `npm run dev` e o `.env` apontando para produção, o painel antigo grava no banco de produção. **Não** faça login nem salve nada no dev local antes da Tarefa 17: o banco ainda não tem `list_own_profiles`, e a RPC falharia. A conferência no navegador fica para a Tarefa 17, passo 7.
 
 - [ ] **Passo 5: commit (só se algo mudou nesta tarefa)**
 
@@ -7433,32 +7433,42 @@ Se algum ajuste foi preciso, commite por caminho, como nas outras tarefas. Push 
 
 **Especificação:** "Compatibilidade com o frontend atual", "Testes > Banco" e "Testes > Em produção".
 
-Ordem obrigatória: ensaio → migração → edge function → frontend, **na mesma janela** (com perfis novos, o Admin antigo agrupa errado). Entre a migração e o deploy, o frontend antigo continua funcionando (ver a seção de compatibilidade da especificação).
+Ordem obrigatória: ensaio → migração → conferências de fora → edge function → frontend, **na mesma janela** (com perfis novos, o Admin antigo agrupa errado). Entre a migração e o deploy, o frontend antigo continua funcionando (ver a seção de compatibilidade da especificação; o passo 5 confere).
 
 **Todo passo abaixo é "só com aprovação do Daniel em card"**: antes de cada um, mostre o comando com `AskUserQuestion` (botões "Executar" / "Agora não") e só rode com o "Executar". Nenhum passo digita senha. Os dados reais do perfil `dna` (id, avatar, links e estatísticas) não podem mudar.
 
+Todo `psql` desta tarefa roda com `-X` (não lê o `~/.psqlrc` do contêiner, que poderia mudar a saída ou o `ON_ERROR_STOP`).
+
 - [ ] **Passo 1: ensaio no banco** — só com aprovação do Daniel em card
 
-No texto do card, avise: a transação trava `auth.users` (AccessExclusiveLock pelo `DROP CONSTRAINT profiles_id_fkey` e ShareRowExclusiveLock pela FK de `profile_owners`) até o fim; enquanto ela durar, login e renovação de sessão de todos os apps da VPS (expert_ink e outros) esperam. Sugira um horário calmo. No ensaio a trava dura os dois corpos da migração e todos os testes. As contas de teste também passam pelo gatilho `on_auth_user_created` do expert_ink (o `ROLLBACK` desfaz).
+No texto do card, avise:
+- a transação trava `auth.users` (AccessExclusiveLock pelo `DROP CONSTRAINT profiles_id_fkey` e ShareRowExclusiveLock pela FK de `profile_owners`) até o fim; enquanto ela durar, login e renovação de sessão de todos os apps da VPS (expert_ink e outros) esperam. Sugira um horário calmo. No ensaio a trava dura os dois corpos da migração e todos os testes;
+- **não exclua contas em nenhum app da VPS durante a janela**: a exclusão em `auth.users` cascateia em `linkhub.profiles`, que a migração trava, e o Postgres aborta um dos dois por deadlock. Se o abortado for o ensaio (ou a migração), nada é gravado e dá para repetir;
+- com o `lock_timeout` de 5 s, enquanto a transação espera uma trava os logins que chegam depois esperam junto, até 5 s; passado isso, ela desiste (`canceling statement due to lock timeout`) e os logins seguem;
+- o ensaio avança as sequências `links_id_seq`, `profile_views_id_seq` e `link_clicks_id_seq` (e talvez alguma do `expert_ink`, pelo gatilho `on_auth_user_created`), porque sequência não volta no `ROLLBACK`. É inofensivo: só pula alguns números de id;
+- as contas de teste também passam pelo gatilho `on_auth_user_created` do expert_ink (o `ROLLBACK` desfaz).
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\ensaio-migracao-perfis.ps1
 scp "$env:TEMP\linkhub-ensaio-varios-perfis.sql" avila@192.168.1.24:/tmp/
-ssh avila@192.168.1.24 'docker exec -i supabase-db psql -U postgres -d postgres -v ON_ERROR_STOP=1 < /tmp/linkhub-ensaio-varios-perfis.sql; s=$?; rm -f /tmp/linkhub-ensaio-varios-perfis.sql; exit $s'
+ssh avila@192.168.1.24 'docker exec -i supabase-db psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < /tmp/linkhub-ensaio-varios-perfis.sql; s=$?; rm -f /tmp/linkhub-ensaio-varios-perfis.sql; exit $s'
 $LASTEXITCODE
 ```
 
-Esperado: as linhas dos comandos, nenhum `ERROR`, `ROLLBACK` na última linha e `0`. Nada fica gravado.
+Esperado: as linhas dos comandos, nenhum `ERROR`, `ROLLBACK` na última linha e `0`. Nada fica gravado (só as sequências acima).
 
 Se falhar:
 - `ERROR: ENSAIO FALHOU (n): …`: um caso não deu o esperado. Pare, mostre ao Daniel o caso e a linha, e corrija a migração ou o teste (num commit, por caminho) antes de repetir o passo 1.
 - `must be owner of table objects`: vá ao passo 2.
 - `permission denied for table users` (no `INSERT INTO auth.users` dos testes) ou `permission denied to set role`: o `postgres` desta instalação não pode simular contas. Pare e pergunte ao Daniel se o ensaio pode rodar com `-U supabase_admin` (troque só o `-U` no comando). Não mexa em permissões do banco.
 - `canceling statement due to lock timeout`: alguma tabela estava ocupada; repita o passo 1.
+- `deadlock detected`: alguém excluiu uma conta durante o ensaio; nada foi gravado, repita o passo 1.
 - erro em `expert_ink.*` (o gatilho `on_auth_user_created` roda no `INSERT INTO auth.users` dos testes): pare e mostre ao Daniel; não mexa no outro app.
 - Erro vindo de um gatilho do Storage (por exemplo, `storage.prefixes`) no caso `S1`: pare e mostre ao Daniel. Não afrouxe as políticas.
 
 - [ ] **Passo 2 (só se o passo 1 deu "must be owner of table objects"): políticas do Storage em arquivo à parte** — só com aprovação do Daniel em card
+
+É improvável: o `supautils.policy_grants` desta instalação dá ao `postgres` as políticas de `storage.objects`, e a migração dos ícones (`2026-10-25-link-icons.sql`) já criou e apagou políticas ali rodando como `postgres`. Fica o roteiro, para o caso de a configuração ter mudado.
 
 1. Crie `deploy/vpsavila/migrations/2026-10-26-varios-perfis-storage.sql` com: um cabeçalho de comentário ("Políticas do Storage dos vários perfis. Roda como supabase_admin, depois de 2026-10-26-varios-perfis.sql, porque storage.objects pertence a supabase_storage_admin."), `BEGIN;`, `SET LOCAL lock_timeout = '5s';`, o bloco da migração que vai de `DROP POLICY IF EXISTS "linkhub_avatars_public_read" ON storage.objects;` até o último `CREATE POLICY "linkhub_link_icons_delete_own" …;`, e `COMMIT;`.
 2. Tire esse bloco (e o comentário "Storage. Gravar: …" acima dele) da `2026-10-26-varios-perfis.sql`.
@@ -7470,27 +7480,31 @@ Se falhar:
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\ensaio-migracao-perfis.ps1 -Testes scripts\ensaio-perfis-testes.sql
 ```
 
-e o envio do passo 1. Se passar, aplique a migração principal (passo 3).
-6. Depois do passo 3, ensaio do Storage como `supabase_admin`:
+e o envio do passo 1 (com o mesmo aviso no card). Se passar, aplique a migração principal (passo 3).
+6. Depois do passo 3, ensaio do Storage como `supabase_admin` (mesmo aviso de travas e de exclusão de contas no card):
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\ensaio-migracao-perfis.ps1 -Migracao deploy\vpsavila\migrations\2026-10-26-varios-perfis-storage.sql -Testes scripts\ensaio-perfis-testes-storage.sql -Saida "$env:TEMP\linkhub-ensaio-storage.sql"
 scp "$env:TEMP\linkhub-ensaio-storage.sql" avila@192.168.1.24:/tmp/
-ssh avila@192.168.1.24 'docker exec -i supabase-db psql -U supabase_admin -d postgres -v ON_ERROR_STOP=1 < /tmp/linkhub-ensaio-storage.sql; s=$?; rm -f /tmp/linkhub-ensaio-storage.sql; exit $s'
+ssh avila@192.168.1.24 'docker exec -i supabase-db psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1 < /tmp/linkhub-ensaio-storage.sql; s=$?; rm -f /tmp/linkhub-ensaio-storage.sql; exit $s'
+$LASTEXITCODE
 ```
 
-7. Com o ensaio verde, aplique o arquivo do Storage com o mesmo envio do passo 3, trocando o nome do arquivo e usando `-U supabase_admin`.
+7. Com o ensaio verde, aplique o arquivo do Storage com o mesmo envio do passo 3 (com `-X`), trocando o nome do arquivo e usando `-U supabase_admin`.
 8. As funções continuam com dono `postgres` (a migração principal rodou como `postgres`). A conferência do passo 4 mostra isso.
 
 - [ ] **Passo 3: conferência antes e aplicação da migração** — só com aprovação do Daniel em card
 
-No texto do card, avise: a transação trava `auth.users` (AccessExclusiveLock pelo `DROP CONSTRAINT profiles_id_fkey` e ShareRowExclusiveLock pela FK de `profile_owners`) até o fim; enquanto ela durar, login e renovação de sessão de todos os apps da VPS (expert_ink e outros) esperam. Sugira um horário calmo. Na migração, a trava dura alguns segundos.
+No texto do card, avise:
+- a transação trava `auth.users` (AccessExclusiveLock pelo `DROP CONSTRAINT profiles_id_fkey` e ShareRowExclusiveLock pela FK de `profile_owners`) até o fim; enquanto ela durar, login e renovação de sessão de todos os apps da VPS (expert_ink e outros) esperam. Sugira um horário calmo. Na migração, a trava dura alguns segundos;
+- **não exclua contas em nenhum app da VPS durante a janela**: a exclusão em `auth.users` cascateia em `linkhub.profiles`, que a migração trava, e o Postgres aborta um dos dois por deadlock. Se cair a migração, nada é gravado e dá para repetir;
+- com o `lock_timeout` de 5 s, enquanto a migração espera uma trava os logins que chegam depois esperam junto, até 5 s; passado isso, ela desiste (`canceling statement due to lock timeout`), nada é gravado e dá para repetir.
 
 Antes, guarde a conferência (só leitura):
 
 ```powershell
 scp scripts/conferencia-perfis.sql avila@192.168.1.24:/tmp/
-ssh avila@192.168.1.24 'docker exec -i supabase-db psql -U postgres -d postgres -v ON_ERROR_STOP=1 < /tmp/conferencia-perfis.sql; s=$?; rm -f /tmp/conferencia-perfis.sql; exit $s' | Tee-Object -FilePath "$env:TEMP\conferencia-antes.txt"
+ssh avila@192.168.1.24 'docker exec -i supabase-db psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < /tmp/conferencia-perfis.sql; s=$?; rm -f /tmp/conferencia-perfis.sql; exit $s' | Tee-Object -FilePath "$env:TEMP\conferencia-antes.txt"
 ```
 
 Esperado: o perfil `dna` com id, avatar e tipo; os totais; as 4 políticas antigas por bucket (incluindo `*_public_read`); os arquivos na pasta do id do `dna`. Sem a seção "Donos" (a tabela ainda não existe).
@@ -7499,17 +7513,17 @@ Depois, aplique:
 
 ```powershell
 scp deploy/vpsavila/migrations/2026-10-26-varios-perfis.sql avila@192.168.1.24:/tmp/
-ssh avila@192.168.1.24 'docker exec -i supabase-db psql -U postgres -d postgres -v ON_ERROR_STOP=1 < /tmp/2026-10-26-varios-perfis.sql; s=$?; rm -f /tmp/2026-10-26-varios-perfis.sql; exit $s'
+ssh avila@192.168.1.24 'docker exec -i supabase-db psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < /tmp/2026-10-26-varios-perfis.sql; s=$?; rm -f /tmp/2026-10-26-varios-perfis.sql; exit $s'
 $LASTEXITCODE
 ```
 
-Esperado: as linhas listadas no `DEPLOY.md` para esta migração (com os avisos `NOTICE … skipping` da primeira vez), `COMMIT` no fim e `0`. Com erro, nada foi aplicado: pare e mostre ao Daniel; o frontend novo **não** pode ser publicado.
+Esperado: as linhas listadas no `DEPLOY.md` para esta migração (com os avisos `NOTICE … skipping` da primeira vez), `COMMIT` no fim e `0`. Com erro, nada foi aplicado: pare e mostre ao Daniel; o frontend novo **não** pode ser publicado. `lock timeout` ou `deadlock detected`: nada foi gravado; com o "Executar" do Daniel, repita só a aplicação.
 
 - [ ] **Passo 4: conferência depois** — só com aprovação do Daniel em card
 
 ```powershell
 scp scripts/conferencia-perfis.sql avila@192.168.1.24:/tmp/
-ssh avila@192.168.1.24 'docker exec -i supabase-db psql -U postgres -d postgres -v ON_ERROR_STOP=1 < /tmp/conferencia-perfis.sql; s=$?; rm -f /tmp/conferencia-perfis.sql; exit $s' | Tee-Object -FilePath "$env:TEMP\conferencia-depois.txt"
+ssh avila@192.168.1.24 'docker exec -i supabase-db psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < /tmp/conferencia-perfis.sql; s=$?; rm -f /tmp/conferencia-perfis.sql; exit $s' | Tee-Object -FilePath "$env:TEMP\conferencia-depois.txt"
 ```
 
 Compare com o "antes":
@@ -7527,7 +7541,63 @@ curl.exe -s -o NUL -w '%{http_code} %{content_type}\n' '<avatar_url do dna>'
 
 Esperado: `200 image/…`. A página pública também: `curl.exe -s -o NUL -w '%{http_code}\n' https://linkhub.avila.ia.br/dna` dá `200`.
 
-- [ ] **Passo 5: publicar a edge function e o frontend** — só com aprovação do Daniel em card
+- [ ] **Passo 5: conferências de fora e frontend antigo** — só com aprovação do Daniel em card
+
+Só leitura, antes da edge function. A chave anon é pública (vai no bundle do site), mas não é colada aqui: o bloco lê do `.env` local (`VITE_SUPABASE_ANON_KEY`). Rode na raiz do projeto:
+
+```powershell
+& {
+  $anon = ((Select-String -Path .env -Pattern '^VITE_SUPABASE_ANON_KEY=').Line -replace '^VITE_SUPABASE_ANON_KEY=', '').Trim()
+  if (-not $anon) { throw 'Falhou: VITE_SUPABASE_ANON_KEY não está no .env' }
+  $api = 'https://supabase-api.avila.ia.br'
+  $h = @('-H', "apikey: $anon", '-H', "Authorization: Bearer $anon")
+  $body = "$env:TEMP\linkhub-list.json"
+  [IO.File]::WriteAllText($body, '{"prefix":""}')
+  'a) embed com a FK nova'
+  curl.exe -s -w '\n%{http_code}\n' @h -H 'Accept-Profile: linkhub' "$api/rest/v1/profiles?select=id,username,links(count)&username=eq.dna"
+  'b1) objetos do Storage pelo PostgREST'
+  curl.exe -s -w '\n%{http_code}\n' @h -H 'Accept-Profile: storage' "$api/rest/v1/objects?select=name,owner_id&bucket_id=in.(linkhub-avatars,linkhub-link-icons)"
+  'b2) listar os buckets pela API do Storage'
+  curl.exe -s -w '\n%{http_code}\n' @h -H 'Content-Type: application/json' --data-binary "@$body" "$api/storage/v1/object/list/linkhub-avatars"
+  curl.exe -s -w '\n%{http_code}\n' @h -H 'Content-Type: application/json' --data-binary "@$body" "$api/storage/v1/object/list/linkhub-link-icons"
+  'b3) profile_owners'
+  curl.exe -s -w '\n%{http_code}\n' @h -H 'Accept-Profile: linkhub' "$api/rest/v1/profile_owners?select=*"
+  'b4) list_own_profiles'
+  curl.exe -s -w '\n%{http_code}\n' @h -H 'Content-Profile: linkhub' -H 'Content-Type: application/json' -d '{}' "$api/rest/v1/rpc/list_own_profiles"
+  Remove-Item $body
+}
+```
+
+Esperado:
+- a) `[{"id":"…","username":"dna","links":[{"count":8}]}]` e `200` (o número é o de links visíveis do `dna`; o anônimo não conta os ocultos). `PGRST200` (relação não encontrada) = o PostgREST não recarregou o schema: o `NOTIFY pgrst` da migração não chegou. Pare e mostre ao Daniel antes de publicar;
+- b1) `[]` e `200` (ou `PGRST106`, schema `storage` não exposto: também não vaza);
+- b2) `[]` e `200` nos dois buckets;
+- b3) `401` com `"code":"42501"`;
+- b4) `401` com `"code":"42501"`.
+
+Qualquer linha de arquivo, dono ou perfil nas respostas b1–b4: pare e mostre ao Daniel (a privacidade da migração não está valendo). Não publique.
+
+Frontend antigo depois da migração: o Daniel abre `https://linkhub.avila.ia.br/dashboard` no navegador dele, já logado. Confira que carrega o `dna`, os links e a prévia. **Não salve nada**: não digite em nenhum campo (a aba Perfil salva sozinha) nem mexa em links ou no Design.
+
+- [ ] **Passo 6: publicar a edge function e o frontend** — só com aprovação do Daniel em card
+
+No texto do card, avise: o `--force-recreate functions` reinicia o contêiner das edge functions de **todos** os apps (as do expert_ink e a `linkhub-profile-og`); por alguns segundos elas não respondem. O frontend sai logo depois, no mesmo passo: o Admin antigo lê o formato antigo da resposta.
+
+Confira os nomes dos contêineres (só leitura):
+
+```powershell
+ssh avila@192.168.1.24 'docker ps --format "{{.Names}}" | grep -E "^supabase-(edge-functions|rest)$"'
+```
+
+Esperado: `supabase-edge-functions` e `supabase-rest`. Com outro nome, use o que aparecer nos comandos abaixo.
+
+Backup da versão em uso, fora da pasta `functions/` (cada pasta lá dentro vira uma função chamável por URL, então a cópia não pode ficar ao lado):
+
+```powershell
+ssh avila@192.168.1.24 'cd ~/docker/supabase/docker/volumes && test ! -e linkhub-admin-users.bak-1026 && cp -a functions/linkhub-admin-users linkhub-admin-users.bak-1026 && ls -la linkhub-admin-users.bak-1026'
+```
+
+Esperado: a lista dos arquivos da cópia. Se a cópia já existir (o `test` falha e nada é copiado), pare e veja com o Daniel. Para voltar: `rm -rf functions/linkhub-admin-users && cp -a linkhub-admin-users.bak-1026 functions/linkhub-admin-users` na mesma pasta e o `--force-recreate functions` de novo.
 
 Edge function (DEPLOY.md, seção 4, só a pasta do Admin; o `scp -r` leva o `group.ts`):
 
@@ -7535,26 +7605,44 @@ Edge function (DEPLOY.md, seção 4, só a pasta do Admin; o `scp -r` leva o `gr
 scp -r supabase/functions/linkhub-admin-users avila@192.168.1.24:~/docker/supabase/docker/volumes/functions/
 ssh avila@192.168.1.24 'find ~/docker/supabase/docker/volumes/functions/linkhub-admin-users -type d -exec chmod 755 {} + && find ~/docker/supabase/docker/volumes/functions/linkhub-admin-users -type f -exec chmod 644 {} +'
 ssh avila@192.168.1.24 'cd ~/docker/supabase/docker && docker compose up -d --force-recreate functions'
+ssh avila@192.168.1.24 'docker logs --since 5m supabase-edge-functions 2>&1 | grep -i linkhub'
 ```
+
+Esperado no último: nenhum erro de carga (`error`, `failed`, `Uncaught`) com `linkhub`; sem saída também serve (a função só carrega na primeira chamada).
+
+`max-rows` do PostgREST (só leitura; o `grep` só mostra a linha dele, nenhum outro segredo do contêiner):
+
+```powershell
+ssh avila@192.168.1.24 'docker exec supabase-rest env | grep -i MAX_ROWS'
+```
+
+Anote o valor (por exemplo `PGRST_DB_MAX_ROWS=1000`). Sem saída = sem limite. A edge function lê `profile_owners` inteira: com mais vínculos que esse valor, o Admin perderia contas sem erro (comentário em `index.ts`).
 
 Frontend: `npm run build` e o bloco `& { … }` da seção "Publicar" do `DEPLOY.md`, colado inteiro. Esperado: `healthy` no fim, sem `Falhou: …`. Depois, a seção "Conferir" do `DEPLOY.md`.
 
-- [ ] **Passo 6: testes em produção num perfil de teste** — só com aprovação do Daniel em card
+Logo em seguida, `/admin` no navegador do Daniel (recarregue a página para pegar o bundle novo): a conta dele aparece uma vez, com o `@dna`, e o card "Perfis" mostra `1` (ainda não há perfil de teste).
+
+- [ ] **Passo 7: testes em produção num perfil de teste** — só com aprovação do Daniel em card
 
 O Daniel faz login no navegador (Claude in Chrome ou o navegador dele). Nenhum passo digita senha. Use um @ de teste que ainda não exista (por exemplo `teste_perfis_1026`) e **não** altere o perfil `dna`.
 
 1. No painel, o seletor da sidebar mostra `@dna`, e "Meus perfis" lista o `dna` com as visitas e cliques de 30 dias.
-2. "Criar novo perfil" → @ `teste_perfis_1026`, nome "Perfil de teste" → "Continuar". O onboarding abre com o nome "Perfil de teste" (não o do Google). Escolha um tipo, envie uma foto qualquer, escolha um modelo e adicione um link (por exemplo, `https://exemplo.com`).
-3. Abra `https://linkhub.avila.ia.br/teste_perfis_1026`: nome, foto, modelo e link do perfil de teste.
-4. Troque para `@dna` pelo seletor: tema, links e prévia são os do `dna` (nada do teste). Volte ao teste: nada do `dna`.
-5. Na aba Perfil do teste, confira o salvamento automático (por exemplo, a bio) e que o @ dele aparece como disponível.
-6. Anote o id do perfil de teste (aparece na conferência, em "Perfis da conta do dna") e rode a conferência: a pasta dele aparece em "Arquivos por pasta".
-7. "Meus perfis" → "Excluir" no perfil de teste → digite `@teste_perfis_1026` → "Excluir perfil". O seletor volta ao `dna`.
-8. Conferência de novo: o perfil de teste sumiu de "Perfis da conta do dna", e a pasta dele sumiu de "Arquivos por pasta" (os arquivos foram removidos pelo cliente). O `dna` tem os mesmos id, links, visitas e cliques do passo 4.
-9. `/admin`: a conta do Daniel aparece uma vez, com o `@dna`; o card "Perfis" bate com o total de perfis.
+2. Diálogos empilhados: abra "Criar novo perfil" pelos três caminhos (o dropdown do seletor na sidebar; o card tracejado de "Meus perfis"; e, no celular ou com a janela estreita, o seletor dentro da Sheet da sidebar). Em cada um, o foco cai no campo do @. Feche os dois primeiros com "Cancelar".
+3. No terceiro (ou reabra pelo caminho que preferir): @ `teste_perfis_1026`, nome "Perfil de teste" → "Continuar". O onboarding abre com o nome "Perfil de teste" (não o do Google), e o Tab circula só dentro dele. Escolha um tipo, envie uma foto qualquer, escolha um modelo e adicione um link (por exemplo, `https://exemplo.com`). Ao terminar, no console: `document.body.style.pointerEvents` é `''` (vazio), e a página aceita clique.
+4. Abra `https://linkhub.avila.ia.br/teste_perfis_1026`: nome, foto, modelo e link do perfil de teste.
+5. Na aba Links do teste, edite o link pelo `EditLinkDialog` e envie um ícone próprio (imagem). Isso põe um arquivo no `linkhub-link-icons`, para exercitar a limpeza de `icon_urls` na exclusão.
+6. Troca de perfil com cada aba aberta, pelo seletor, indo ao `@dna` e voltando ao teste: Links; Design com uma mudança **não salva** no teste (ao voltar, o tema é o gravado, e nada foi gravado no `dna`); Perfil logo depois do "Salvo"; Analytics. Também na página `/analytics`. Em todas, tema, links, prévia e números são os do perfil escolhido (nada do outro).
+7. Com o teste escolhido, recarregue a página (F5): o seletor continua no teste.
+8. Na aba Perfil do teste, confira o salvamento automático (por exemplo, a bio) e que o @ dele aparece como disponível.
+9. Foto do teste: a `avatar_url` dele fica em `…/linkhub-avatars/<id do teste>/…`. Troque `object/public/` por `object/info/public/` nessa URL e abra com `curl.exe -s '<url>'`: a resposta não traz o dono (`owner`/`owner_id` vazio ou ausente). E o og do teste: `curl.exe -s 'https://supabase-api.avila.ia.br/functions/v1/linkhub-profile-og?u=teste_perfis_1026' | Select-String -Pattern 'og:'` só com nome, foto e endereço do teste (nada do `dna`).
+10. Anote o id do perfil de teste (aparece na conferência, em "Perfis da conta do dna") e rode a conferência: a pasta dele aparece em "Arquivos por pasta", nos dois buckets (foto e ícone).
+11. "Meus perfis" → "Excluir" no perfil de teste → digite `@teste_perfis_1026` → "Excluir perfil". O seletor volta ao `dna`.
+12. Conferência de novo: o perfil de teste sumiu de "Perfis da conta do dna", e a pasta dele sumiu de "Arquivos por pasta" nos dois buckets (foto e ícone removidos pelo cliente). O `dna` tem os mesmos id, links, visitas e cliques da conferência do passo 4.
+13. `/admin`: a conta do Daniel aparece uma vez, com o `@dna`; o card "Perfis" bate com o total de perfis.
+14. Por último, logout: antes, no console, `Object.keys(localStorage).filter(k => k.startsWith('linkhub:currentProfile:'))` mostra a chave da conta; depois de "Sair", a mesma linha devolve `[]`.
 
 Se algo sobrar no banco ou no bucket, mostre ao Daniel antes de qualquer limpeza manual.
 
-- [ ] **Passo 7: fechamento**
+- [ ] **Passo 8: fechamento**
 
-Relate ao Daniel o que foi aplicado e publicado, as saídas das conferências e qualquer diferença. Commit final só se algo mudou (por caminho). Push só se o Daniel pedir.
+Relate ao Daniel o que foi aplicado e publicado, as saídas das conferências e qualquer diferença, o valor do `max-rows` anotado no passo 6 e o resultado das conferências de fora do passo 5 (a–b4). Commit final só se algo mudou (por caminho). Push só se o Daniel pedir.

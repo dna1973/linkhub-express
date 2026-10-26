@@ -151,11 +151,11 @@ npm run build
 
 Quando o deploy trouxer um arquivo novo em `deploy/vpsavila/migrations/`, aplique-o **antes** de publicar o frontend. O frontend novo pode gravar colunas que só existem depois da migração, e o antigo ignora colunas novas, então essa ordem é sempre segura:
 
-O arquivo vai por `scp` e é aplicado no servidor. Encadear o `Get-Content` com o `ssh` não serve: o Windows PowerShell 5.1 põe uma marca de codificação (BOM) no começo do texto enviado, e o `psql` acusa erro de sintaxe. Exemplo com a migração do QR code (troque o nome do arquivo nas duas linhas):
+O arquivo vai por `scp` e é aplicado no servidor. Encadear o `Get-Content` com o `ssh` não serve: o Windows PowerShell 5.1 põe uma marca de codificação (BOM) no começo do texto enviado, e o `psql` acusa erro de sintaxe. Exemplo com a migração do QR code (troque o nome do arquivo nas duas linhas). O `-X` faz o `psql` ignorar o `~/.psqlrc` do contêiner, e o `s=$?` devolve o código do `psql` e apaga o arquivo mesmo quando a migração falha:
 
 ```powershell
 scp deploy/vpsavila/migrations/2026-10-25-show-qr-code.sql avila@192.168.1.24:/tmp/
-ssh avila@192.168.1.24 'docker exec -i supabase-db psql -U postgres -d postgres -v ON_ERROR_STOP=1 < /tmp/2026-10-25-show-qr-code.sql && rm /tmp/2026-10-25-show-qr-code.sql'
+ssh avila@192.168.1.24 'docker exec -i supabase-db psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < /tmp/2026-10-25-show-qr-code.sql; s=$?; rm -f /tmp/2026-10-25-show-qr-code.sql; exit $s'
 ```
 
 Esperado: as linhas de cada comando da migração e nenhum `ERROR`. A do QR code imprime `SET`, `ALTER TABLE` e `NOTIFY`; a dos ícones (`2026-10-25-link-icons.sql`) imprime `BEGIN`, `SET`, três `ALTER TABLE`, três `DO`, `INSERT 0 1` (ou `INSERT 0 0` se o bucket já existir), pares `DROP POLICY`/`CREATE POLICY`, `NOTIFY` e `COMMIT`. Com erro, o `ON_ERROR_STOP` para tudo e **o frontend novo não deve ser publicado** até a migração passar. A dos vários perfis (`2026-10-26-varios-perfis.sql`) imprime `BEGIN`, `SET`, `LOCK TABLE`, `CREATE TABLE`, `CREATE INDEX`, `ALTER TABLE`, pares `DROP POLICY`/`CREATE POLICY`, `REVOKE`/`GRANT`, `INSERT 0 n`, três `DELETE 0`, quatro `DO`, `COMMENT`, `CREATE FUNCTION`, pares `DROP TRIGGER`/`CREATE TRIGGER`, `NOTIFY` e `COMMIT`. Na primeira vez, também aparecem avisos `NOTICE: … does not exist, skipping` dos `DROP … IF EXISTS` de políticas e gatilhos novos; são esperados.
