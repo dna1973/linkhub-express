@@ -62,9 +62,15 @@ O app pede o link com `redirectTo: https://linkhub.avila.ia.br/auth/nova-senha` 
 - SMTP (Resend) configurado nas variáveis `GOTRUE_SMTP_*`.
 - `GOTRUE_URI_ALLOW_LIST` com `https://linkhub.avila.ia.br/**` (já tem); sem isso o GoTrue troca o destino pelo `SITE_URL`, que é de outro app.
 - O modelo do e-mail de recuperação precisa usar `{{ .ConfirmationURL }}` (que leva o `redirect_to`), não `{{ .SiteURL }}`. O modelo vale para todos os apps do servidor: texto neutro, sem citar o LinkHub.
-- `GOTRUE_SECURITY_UPDATE_PASSWORD_REQUIRE_REAUTHENTICATION` desligado (padrão); ligado, o `updateUser({ password })` pede um código extra e a página mostra erro.
+- `GOTRUE_SECURITY_UPDATE_PASSWORD_REQUIRE_REAUTHENTICATION`: no código atual do GoTrue (`internal/api/user.go`, ramo `master` do supabase/auth), ligado, ele só exige o código de reautenticação quando a sessão não existe ou foi criada há mais de 24 h; a sessão do link de recuperação é nova, então não deveria pedir. **A confirmar** na versão da imagem `supabase/gotrue` (ou `supabase/auth`) do `docker-compose.yml` do Supabase no servidor. Se pedir, a página mostra o erro `reauthentication_needed` traduzido.
 - O app exige 8 caracteres; `GOTRUE_PASSWORD_MIN_LENGTH` maior que isso faz o servidor recusar com `weak_password` (a página traduz).
-- Limite de envio: `GOTRUE_RATE_LIMIT_EMAIL_SENT`; validade do link: `GOTRUE_MAILER_OTP_EXP`.
+- Limites de envio: `GOTRUE_RATE_LIMIT_EMAIL_SENT` (geral, por hora, para o servidor todo; a tela mostra "Muitas tentativas") e `GOTRUE_SMTP_MAX_FREQUENCY` (intervalo mínimo entre e-mails para a mesma conta; a tela mostra a mensagem neutra, para não revelar a conta). Validade do link: `GOTRUE_MAILER_OTP_EXP`.
+
+Comportamentos que ficam (limites aceitos):
+
+- Trocar a senha encerra as sessões da conta em **todos** os apps do servidor (a página chama `signOut()` global e o GoTrue é um só).
+- O link traz o token no hash; o supabase-js o apaga da barra de endereço, mas a entrada do histórico do navegador já foi criada com ele. É o comportamento da biblioteca no fluxo implicit; o access token continua válido até expirar (`GOTRUE_JWT_EXP`, 1 h por padrão). Risco aceito: depende de alguém com acesso ao histórico daquele navegador.
+- A tela não diz se a conta existe, mas a API do GoTrue chamada direto e o tempo de resposta ainda podem revelar (limite do GoTrue, fora do app).
 
 ## 4. Edge functions
 
