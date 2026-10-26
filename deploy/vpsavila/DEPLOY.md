@@ -55,6 +55,17 @@ Se o Google já está habilitado no GoTrue (por causa de outro app), só falta, 
 - Origens JavaScript autorizadas: `https://linkhub.avila.ia.br`
 - URI de redirecionamento (provavelmente já existe): `https://supabase-api.avila.ia.br/auth/v1/callback`
 
+### Recuperação de senha
+
+O app pede o link com `redirectTo: https://linkhub.avila.ia.br/auth/nova-senha` (fluxo implicit: o link do e-mail volta com `#access_token=…&type=recovery`). No GoTrue, que é compartilhado:
+
+- SMTP (Resend) configurado nas variáveis `GOTRUE_SMTP_*`.
+- `GOTRUE_URI_ALLOW_LIST` com `https://linkhub.avila.ia.br/**` (já tem); sem isso o GoTrue troca o destino pelo `SITE_URL`, que é de outro app.
+- O modelo do e-mail de recuperação precisa usar `{{ .ConfirmationURL }}` (que leva o `redirect_to`), não `{{ .SiteURL }}`. O modelo vale para todos os apps do servidor: texto neutro, sem citar o LinkHub.
+- `GOTRUE_SECURITY_UPDATE_PASSWORD_REQUIRE_REAUTHENTICATION` desligado (padrão); ligado, o `updateUser({ password })` pede um código extra e a página mostra erro.
+- O app exige 8 caracteres; `GOTRUE_PASSWORD_MIN_LENGTH` maior que isso faz o servidor recusar com `weak_password` (a página traduz).
+- Limite de envio: `GOTRUE_RATE_LIMIT_EMAIL_SENT`; validade do link: `GOTRUE_MAILER_OTP_EXP`.
+
 ## 4. Edge functions
 
 PowerShell:
@@ -128,6 +139,7 @@ docker exec -i supabase-db psql -U postgres -d postgres -c "INSERT INTO linkhub.
 ## 9. Validação
 
 - Login com email e com Google volta logado pro `/dashboard`.
+- Esqueci minha senha: o e-mail chega, o link abre `/auth/nova-senha`, a senha nova grava e a tela volta ao login (sem entrar no painel). Link usado de novo mostra "Este link expirou ou já foi usado".
 - Onboarding aparece no primeiro acesso e cria o perfil em `linkhub.profiles`.
 - Upload de avatar funciona (bucket `linkhub-avatars`).
 - Perfil público `https://linkhub.avila.ia.br/<username>` abre e registra visualização. Clique em link incrementa contador.
