@@ -66,6 +66,8 @@ O app pede o link com `redirectTo: https://linkhub.avila.ia.br/auth/nova-senha` 
 - O app exige 8 caracteres; `GOTRUE_PASSWORD_MIN_LENGTH` maior que isso faz o servidor recusar com `weak_password` (a página traduz).
 - Limites de envio: `GOTRUE_RATE_LIMIT_EMAIL_SENT` (geral, por hora, para o servidor todo; a tela mostra "Muitas tentativas") e `GOTRUE_SMTP_MAX_FREQUENCY` (intervalo mínimo entre e-mails para a mesma conta; a tela mostra a mensagem neutra, para não revelar a conta). Validade do link: `GOTRUE_MAILER_OTP_EXP`.
 
+- Marca da conta em recuperação (no navegador, `localStorage`, chave `linkhub:passwordRecoveryUser`, só id e hora): enquanto vale, o `/auth` manda a conta para `/auth/nova-senha` em vez do painel. Prazo de 1 h, o padrão do `GOTRUE_JWT_EXP`; se o servidor usar outro valor, ajuste `RECOVERY_MARK_TTL_MS` em `src/lib/passwordRecovery.ts`.
+
 Comportamentos que ficam (limites aceitos):
 
 - Trocar a senha encerra as sessões da conta em **todos** os apps do servidor (a página chama `signOut()` global e o GoTrue é um só).

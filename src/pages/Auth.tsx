@@ -124,7 +124,8 @@ const Auth = () => {
     if (!user) return;
     // Conta no meio da recuperação de senha: volta para a senha nova, não para o painel
     // (o painel criaria um perfil do LinkHub para ela)
-    navigate(getRecoveryUserId() === user.id ? NEW_PASSWORD_PATH : '/dashboard');
+    // replace: o Voltar não cai de novo no /auth, que redirecionaria outra vez
+    navigate(getRecoveryUserId() === user.id ? NEW_PASSWORD_PATH : '/dashboard', { replace: true });
   }, [user, navigate]);
 
   useEffect(() => {

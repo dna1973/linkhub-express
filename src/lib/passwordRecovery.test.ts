@@ -9,6 +9,7 @@ import {
   markRecoveryUser,
   newPasswordErrorMessage,
   parseLinkError,
+  RECOVERY_MARK_TTL_MS,
   rememberRecoveryLink,
   resetRequestErrorMessage,
 } from './passwordRecovery';
@@ -18,7 +19,8 @@ const ERROR_HASH = '#error=access_denied&error_code=otp_expired&error_descriptio
 beforeEach(() => {
   window.history.replaceState(null, '', '/');
   forgetRecoveryLink();
-  forgetRecoveryUser();
+  window.localStorage.clear();
+  window.sessionStorage.clear();
 });
 afterEach(() => vi.restoreAllMocks());
 
@@ -46,12 +48,32 @@ describe('rememberRecoveryLink', () => {
 });
 
 describe('marca da conta em recuperação', () => {
-  it('guarda só o id, lê e esquece', () => {
+  it('guarda só o id e a hora, no localStorage (o mesmo alcance da sessão), lê e esquece', () => {
     markRecoveryUser('u1');
     expect(getRecoveryUserId()).toBe('u1');
-    expect(Object.values({ ...window.sessionStorage })).toEqual(['u1']);
+    expect(window.sessionStorage.length).toBe(0);
+    const stored = Object.values({ ...window.localStorage });
+    expect(stored).toHaveLength(1);
+    expect(Object.keys(JSON.parse(stored[0] as string)).sort()).toEqual(['em', 'id']);
     forgetRecoveryUser();
     expect(getRecoveryUserId()).toBeNull();
+  });
+
+  it('marca com mais de 1 h é ignorada e apagada', () => {
+    const now = Date.now();
+    vi.spyOn(Date, 'now').mockReturnValue(now);
+    markRecoveryUser('u1');
+    vi.spyOn(Date, 'now').mockReturnValue(now + RECOVERY_MARK_TTL_MS - 1000);
+    expect(getRecoveryUserId()).toBe('u1');
+    vi.spyOn(Date, 'now').mockReturnValue(now + RECOVERY_MARK_TTL_MS + 1000);
+    expect(getRecoveryUserId()).toBeNull();
+    expect(window.localStorage.length).toBe(0);
+  });
+
+  it('marca ilegível (formato antigo, lixo) é ignorada e apagada', () => {
+    window.localStorage.setItem('linkhub:passwordRecoveryUser', 'u1');
+    expect(getRecoveryUserId()).toBeNull();
+    expect(window.localStorage.length).toBe(0);
   });
   it('sessionStorage indisponível não quebra nada', () => {
     vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {

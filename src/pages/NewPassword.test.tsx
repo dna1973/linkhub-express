@@ -18,6 +18,7 @@ type Listener = (event: string, session: Session) => void;
 const mocks = vi.hoisted(() => ({
   listener: null as Listener | null,
   session: null as Session,
+  beforeGetSession: null as null | (() => void),
   updateUser: vi.fn(),
   signOut: vi.fn(),
   toast: vi.fn(),
@@ -30,7 +31,10 @@ vi.mock('@/lib/supabase', () => ({
         mocks.listener = listener;
         return { data: { subscription: { unsubscribe: vi.fn() } } };
       },
-      getSession: async () => ({ data: { session: mocks.session }, error: null }),
+      getSession: async () => {
+        mocks.beforeGetSession?.();
+        return { data: { session: mocks.session }, error: null };
+      },
       updateUser: mocks.updateUser,
       signOut: mocks.signOut,
     },
@@ -50,8 +54,11 @@ beforeEach(() => {
   setUrl();
   forgetRecoveryLink();
   forgetRecoveryUser();
+  window.localStorage.clear();
+  window.sessionStorage.clear();
   mocks.listener = null;
   mocks.session = null;
+  mocks.beforeGetSession = null;
   mocks.updateUser.mockReset().mockResolvedValue({ data: { user: { id: 'u1' } }, error: null });
   mocks.signOut.mockReset().mockResolvedValue({ error: null });
   mocks.toast.mockReset();
@@ -70,10 +77,23 @@ function renderPage() {
   );
 }
 
-/** Sessão que o supabase-js abriu com o link (PASSWORD_RECOVERY marcou a conta) */
-async function renderWithRecoverySession() {
-  markRecoveryUser('u1');
+/**
+ * Chegada pelo link, na ordem do auth-js 2.95.3: o _initialize grava a sessão, agenda o
+ * PASSWORD_RECOVERY num setTimeout(0) e só então o getSession resolve. O listener do client.ts
+ * marca a conta nesse evento, antes dos outros.
+ */
+function arriveByLink() {
+  setUrl(RECOVERY_HASH);
   mocks.session = { user: { id: 'u1' } };
+  mocks.beforeGetSession = () =>
+    setTimeout(() => {
+      markRecoveryUser('u1');
+      mocks.listener?.('PASSWORD_RECOVERY', mocks.session);
+    }, 0);
+}
+
+async function renderWithRecoverySession() {
+  arriveByLink();
   renderPage();
   await screen.findByLabelText('Nova senha');
 }
@@ -137,10 +157,42 @@ describe('NewPassword: só a sessão vinda do link abre o formulário', () => {
     expect(screen.queryByText('painel')).toBeNull();
   });
 
-  it('recarregar a página (hash já limpo) continua no formulário', async () => {
+  it('na chegada pelo link, o aviso de link inválido não pisca antes do PASSWORD_RECOVERY', async () => {
+    const seen: string[] = [];
+    const observer = new MutationObserver(() => seen.push(document.body.textContent ?? ''));
+    observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+    arriveByLink();
+    renderPage();
+    await screen.findByLabelText('Nova senha');
+    observer.disconnect();
+    expect(seen.some((text) => text.includes(INVALID))).toBe(false);
+  });
+
+  it('F5: marca já no storage, sem hash e sem evento, sessão vinda do getSession, continua no formulário', async () => {
+    markRecoveryUser('u1');
     setUrl('');
+    mocks.session = { user: { id: 'u1' } };
+    renderPage();
+    expect(await screen.findByLabelText('Nova senha')).toBeTruthy();
+    expect(screen.queryByText(INVALID)).toBeNull();
+  });
+
+  it('"Cancelar e voltar ao login" sai da sessão de recuperação neste aparelho', async () => {
     await renderWithRecoverySession();
-    expect(screen.getByLabelText('Confirmar senha')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar e voltar ao login' }));
+    await screen.findByText('tela de login');
+    expect(mocks.signOut).toHaveBeenCalledWith({ scope: 'local' });
+    expect(getRecoveryUserId()).toBeNull();
+    expect(mocks.updateUser).not.toHaveBeenCalled();
+  });
+
+  it('cancelar sem conseguir sair fica na página com aviso e mantém a marca', async () => {
+    await renderWithRecoverySession();
+    mocks.signOut.mockResolvedValue({ error: { message: 'Failed to fetch' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar e voltar ao login' }));
+    expect(await screen.findByText('Sem conexão. Tente de novo.')).toBeTruthy();
+    expect(screen.queryByText('tela de login')).toBeNull();
+    expect(getRecoveryUserId()).toBe('u1');
   });
 
   it('o evento PASSWORD_RECOVERY depois de montar abre o formulário', async () => {
@@ -191,6 +243,36 @@ describe('NewPassword: link com erro', () => {
     await screen.findByText('tela de login');
     expect(mocks.signOut).toHaveBeenCalledWith({ scope: 'local' });
     expect(getRecoveryUserId()).toBeNull();
+  });
+
+  it('marca sem sessão (refresh falhou): sai para quebrar o ciclo com o /auth', async () => {
+    markRecoveryUser('u1');
+    renderPage();
+    await expectInvalid();
+    fireEvent.click(screen.getByRole('button', { name: /Ir para o login/ }));
+    await screen.findByText('tela de login');
+    expect(mocks.signOut).toHaveBeenCalledWith({ scope: 'local' });
+    expect(getRecoveryUserId()).toBeNull();
+  });
+
+  it('marca sem sessão e a saída falha: fica na página com "Sem conexão"', async () => {
+    markRecoveryUser('u1');
+    mocks.signOut.mockResolvedValue({ error: { message: 'Failed to fetch' } });
+    renderPage();
+    await expectInvalid();
+    fireEvent.click(screen.getByRole('button', { name: /Ir para o login/ }));
+    expect(await screen.findByText('Sem conexão. Tente de novo.')).toBeTruthy();
+    expect(screen.queryByText('tela de login')).toBeNull();
+  });
+
+  it('marca de outra conta: ao ir para o login não encerra a sessão comum', async () => {
+    markRecoveryUser('u2');
+    mocks.session = { user: { id: 'u1' } };
+    renderPage();
+    await expectInvalid();
+    fireEvent.click(screen.getByRole('button', { name: /Ir para o login/ }));
+    await screen.findByText('tela de login');
+    expect(mocks.signOut).not.toHaveBeenCalled();
   });
 
   it('sessão comum aberta não é encerrada ao ir para o login', async () => {
@@ -296,6 +378,39 @@ describe('NewPassword: gravação', () => {
     expect(screen.queryByText(/Não foi possível alterar a senha/)).toBeNull();
     expect(screen.queryByText('tela de login')).toBeNull();
     expect(screen.queryByLabelText('Nova senha')).toBeNull();
+    // A marca fica (localStorage): uma aba nova no /auth volta para cá, não ao painel
+    expect(getRecoveryUserId()).toBe('u1');
+  });
+
+  it('"Tentar sair de novo" depois da senha alterada leva ao login quando der certo', async () => {
+    mocks.signOut.mockResolvedValue({ error: { message: 'Failed to fetch' } });
+    await renderWithRecoverySession();
+    fill('senhaboa123');
+    fireEvent.click(saveButton());
+    await screen.findByText(/A senha foi alterada/);
+    mocks.signOut.mockReset().mockResolvedValue({ error: null });
+    fireEvent.click(screen.getByRole('button', { name: 'Tentar sair de novo' }));
+    await screen.findByText('tela de login');
+    expect(mocks.signOut).toHaveBeenCalledWith({ scope: 'local' });
+    expect(getRecoveryUserId()).toBeNull();
+  });
+
+  it('USER_UPDATED e SIGNED_OUT durante a gravação não trocam a tela nem gravam de novo', async () => {
+    const pending = deferred();
+    mocks.updateUser.mockReturnValue(pending.promise);
+    await renderWithRecoverySession();
+    fill('senhaboa123');
+    fireEvent.click(saveButton());
+    act(() => {
+      mocks.listener?.('USER_UPDATED', { user: { id: 'u1' } });
+      mocks.listener?.('SIGNED_OUT', null);
+    });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(screen.getByRole('button', { name: 'Salvando...' })).toBeTruthy();
+    expect(screen.queryByText(INVALID)).toBeNull();
+    pending.resolve({ data: { user: { id: 'u1' } }, error: null });
+    await screen.findByText('tela de login');
+    expect(mocks.updateUser).toHaveBeenCalledTimes(1);
   });
 
   it('signOut que lança depois da senha gravada também não diz que a senha falhou', async () => {

@@ -60,8 +60,11 @@ const NewPassword = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [leaving, setLeaving] = useState(false);
+  const [leaveError, setLeaveError] = useState<string | null>(null);
   // O estado só desabilita o botão no próximo render; a ref barra o segundo envio já no mesmo
   const savingRef = useRef(false);
+  const leavingRef = useRef(false);
   const sessionRef = useRef<Session | null>(null);
   const titleRef = useRef<HTMLParagraphElement>(null);
 
@@ -69,17 +72,19 @@ const NewPassword = () => {
     const linkError = getRecoveryLinkError();
     let active = true;
     const apply = (session: Session | null) => {
-      // Durante a gravação, o USER_UPDATED e o SIGNED_OUT do próprio fluxo não mexem na tela
-      if (!active || savingRef.current) return;
+      // Durante a gravação ou a saída, o USER_UPDATED e o SIGNED_OUT do próprio fluxo não mexem na tela
+      if (!active || savingRef.current || leavingRef.current) return;
       sessionRef.current = session;
       const ready = !linkError && isRecoverySession(session);
       setStatus((prev) => (prev === 'saved' ? prev : ready ? 'ready' : 'invalid'));
     };
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => apply(session));
-    // O getSession espera o supabase-js terminar de ler o link
+    // O getSession espera o supabase-js terminar de ler o link, mas resolve antes do
+    // PASSWORD_RECOVERY, que o auth-js manda num setTimeout(0) agendado antes. Esperar um
+    // setTimeout(0) aqui deixa o evento (e a marca) chegar primeiro: sem piscar "link inválido".
     supabase.auth
       .getSession()
-      .then(({ data }) => apply(data?.session ?? null))
+      .then(({ data }) => setTimeout(() => apply(data?.session ?? null), 0))
       .catch(() => apply(null));
     return () => {
       active = false;
@@ -97,18 +102,43 @@ const NewPassword = () => {
   const mismatch = confirm.length > 0 && password !== confirm;
   const valid = password.length >= NEW_PASSWORD_MIN_LENGTH && password === confirm;
 
-  const goToLogin = async () => {
-    // Sessão aberta por um link de recuperação: sai dela, senão o login a mandaria ao painel
-    if (isRecoverySession(sessionRef.current)) {
+  /**
+   * Volta ao login. Com a marca de recuperação valendo para esta sessão (ou sem sessão legível,
+   * como num refresh que falhou com o usuário ainda no contexto), sai neste aparelho antes: o
+   * /auth mandaria a conta marcada de volta para cá. Se a saída falhar, fica aqui com aviso, em
+   * vez de entrar no ciclo /auth ↔ /auth/nova-senha. Sessão comum de outra conta não é tocada.
+   */
+  const leaveToLogin = async () => {
+    if (leavingRef.current) return;
+    const markedId = getRecoveryUserId();
+    const session = sessionRef.current;
+    if (markedId && (!session || session.user?.id === markedId)) {
+      leavingRef.current = true;
+      setLeaving(true);
+      setLeaveError(null);
+      let signedOut = false;
       try {
         const { error: signOutError } = await supabase.auth.signOut({ scope: 'local' });
-        if (!signOutError) forgetRecoveryUser();
+        signedOut = !signOutError;
       } catch {
-        // continua marcada: o login a traz de volta para cá
+        signedOut = false;
       }
+      leavingRef.current = false;
+      setLeaving(false);
+      if (!signedOut) {
+        setLeaveError('Sem conexão. Tente de novo.');
+        return;
+      }
+      forgetRecoveryUser();
     }
     navigate('/auth', { replace: true });
   };
+
+  const leaveErrorMessage = leaveError && (
+    <p role="alert" className="text-sm text-center text-destructive">
+      {leaveError}
+    </p>
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -170,7 +200,8 @@ const NewPassword = () => {
               </CardHeader>
               <CardContent className="space-y-4">
                 <p className="text-sm text-center text-muted-foreground">{RESET_LINK_INVALID_MESSAGE}</p>
-                <Button className="w-full btn-gradient-primary" onClick={goToLogin}>
+                {leaveErrorMessage}
+                <Button className="w-full btn-gradient-primary" onClick={leaveToLogin} disabled={leaving}>
                   Ir para o login
                 </Button>
               </CardContent>
@@ -184,11 +215,15 @@ const NewPassword = () => {
                   Senha alterada
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-4">
                 <p className="text-sm text-center text-muted-foreground">
-                  A senha foi alterada, mas não conseguimos encerrar a sessão neste aparelho. Feche esta aba e
-                  entre de novo com a senha nova.
+                  A senha foi alterada, mas não conseguimos encerrar a sessão neste aparelho. Confira a conexão e
+                  tente sair de novo; até lá, o login traz você de volta para esta página.
                 </p>
+                {leaveErrorMessage}
+                <Button className="w-full btn-gradient-primary" onClick={leaveToLogin} disabled={leaving}>
+                  Tentar sair de novo
+                </Button>
               </CardContent>
             </>
           )}
@@ -264,6 +299,16 @@ const NewPassword = () => {
                   )}
                   <Button type="submit" className="w-full btn-gradient-primary" disabled={!valid || saving}>
                     {saving ? 'Salvando...' : 'Salvar senha nova'}
+                  </Button>
+                  {leaveErrorMessage}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="w-full"
+                    onClick={leaveToLogin}
+                    disabled={saving || leaving}
+                  >
+                    Cancelar e voltar ao login
                   </Button>
                 </form>
               </CardContent>

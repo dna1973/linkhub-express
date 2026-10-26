@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom';
 import Auth from './Auth';
 import { forgetRecoveryUser, markRecoveryUser } from '@/lib/passwordRecovery';
 
@@ -194,7 +194,38 @@ describe('Auth: Esqueci minha senha', () => {
   });
 });
 
+function Back({ label }: { label: string }) {
+  const navigate = useNavigate();
+  return (
+    <>
+      <p>{label}</p>
+      <button type="button" onClick={() => navigate(-1)}>
+        Voltar
+      </button>
+    </>
+  );
+}
+
+/** Histórico: /inicio → /auth; o redirecionamento automático não pode deixar /auth no meio */
+function renderAuthAfterHome() {
+  return render(
+    <MemoryRouter initialEntries={['/inicio', '/auth']} initialIndex={1}>
+      <Routes>
+        <Route path="/inicio" element={<p>início</p>} />
+        <Route path="/auth" element={<Auth />} />
+        <Route path="/dashboard" element={<Back label="painel" />} />
+        <Route path="/auth/nova-senha" element={<Back label="página de senha nova" />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
 describe('Auth: redirecionamento de quem já entrou', () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    window.sessionStorage.clear();
+  });
+
   it('conta comum vai ao painel', async () => {
     mocks.user = { id: 'u1' };
     renderAuth();
@@ -207,5 +238,49 @@ describe('Auth: redirecionamento de quem já entrou', () => {
     renderAuth();
     expect(await screen.findByText('página de senha nova')).toBeTruthy();
     expect(screen.queryByText('painel')).toBeNull();
+  });
+
+  it('a marca vale numa aba nova (outro render, mesmo localStorage, sessionStorage vazio)', async () => {
+    markRecoveryUser('u1');
+    window.sessionStorage.clear();
+    mocks.user = { id: 'u1' };
+    renderAuth();
+    expect(await screen.findByText('página de senha nova')).toBeTruthy();
+  });
+
+  it('marca de outra conta não redireciona: a sessão comum vai ao painel', async () => {
+    markRecoveryUser('u2');
+    mocks.user = { id: 'u1' };
+    renderAuth();
+    expect(await screen.findByText('painel')).toBeTruthy();
+    expect(screen.queryByText('página de senha nova')).toBeNull();
+  });
+
+  it('marca vencida é ignorada e apagada', async () => {
+    window.localStorage.setItem(
+      'linkhub:passwordRecoveryUser',
+      JSON.stringify({ id: 'u1', em: Date.now() - 2 * 60 * 60 * 1000 }),
+    );
+    mocks.user = { id: 'u1' };
+    renderAuth();
+    expect(await screen.findByText('painel')).toBeTruthy();
+    expect(window.localStorage.getItem('linkhub:passwordRecoveryUser')).toBeNull();
+  });
+
+  it('o Voltar depois do redirecionamento ao painel não cai de novo no /auth', async () => {
+    mocks.user = { id: 'u1' };
+    renderAuthAfterHome();
+    await screen.findByText('painel');
+    fireEvent.click(screen.getByRole('button', { name: 'Voltar' }));
+    expect(await screen.findByText('início')).toBeTruthy();
+  });
+
+  it('o Voltar depois do redirecionamento à senha nova não cai de novo no /auth', async () => {
+    markRecoveryUser('u1');
+    mocks.user = { id: 'u1' };
+    renderAuthAfterHome();
+    await screen.findByText('página de senha nova');
+    fireEvent.click(screen.getByRole('button', { name: 'Voltar' }));
+    expect(await screen.findByText('início')).toBeTruthy();
   });
 });

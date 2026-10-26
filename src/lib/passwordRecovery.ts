@@ -71,30 +71,51 @@ export function newPasswordErrorMessage(error: AuthErrorLike): string {
 // --- Conta em recuperação --------------------------------------------------------------------
 // Só o evento PASSWORD_RECOVERY do supabase-js prova que a sessão veio do link (o hash qualquer um
 // escreve, e um link que falha mantém a sessão antiga de outra conta). O cliente marca a conta
-// nesse evento; a página só abre o formulário para a sessão dessa conta. Guarda apenas o id, na
-// aba (sessionStorage): sobrevive ao F5 e some ao fechar a aba.
+// nesse evento; a página só abre o formulário para a sessão dessa conta, e o /auth manda essa
+// conta de volta à página em vez do painel (que criaria um perfil para ela).
+// Fica no localStorage, o mesmo alcance da sessão do supabase-js: vale no F5, numa aba nova e nas
+// outras abas. Guarda só o id e a hora (nunca token). O SIGNED_OUT, que chega a todas as abas,
+// apaga; o prazo cobre a sessão abandonada sem sair.
 
 const RECOVERY_USER_KEY = 'linkhub:passwordRecoveryUser';
 
+/**
+ * Prazo da marca: 1 h, o padrão do GOTRUE_JWT_EXP (3600 s), que é o que o access token do link
+ * dura antes do primeiro refresh. O valor configurado no servidor compartilhado não é conhecido
+ * aqui; depois do prazo a conta volta a ser tratada como sessão comum.
+ */
+export const RECOVERY_MARK_TTL_MS = 60 * 60 * 1000;
+
 export function markRecoveryUser(userId: string): void {
   try {
-    window.sessionStorage.setItem(RECOVERY_USER_KEY, userId);
+    window.localStorage.setItem(RECOVERY_USER_KEY, JSON.stringify({ id: userId, em: Date.now() }));
   } catch {
-    // sessionStorage bloqueado: a página mostra "link expirou"
+    // localStorage bloqueado: a página mostra "link expirou"
   }
 }
 
 export function getRecoveryUserId(): string | null {
+  let raw: string | null;
   try {
-    return window.sessionStorage.getItem(RECOVERY_USER_KEY);
+    raw = window.localStorage.getItem(RECOVERY_USER_KEY);
   } catch {
     return null;
   }
+  if (raw === null) return null;
+  try {
+    const mark = JSON.parse(raw) as { id?: unknown; em?: unknown };
+    const age = Date.now() - Number(mark?.em);
+    if (typeof mark?.id === 'string' && mark.id && age >= 0 && age <= RECOVERY_MARK_TTL_MS) return mark.id;
+  } catch {
+    // ilegível: apaga abaixo
+  }
+  forgetRecoveryUser();
+  return null;
 }
 
 export function forgetRecoveryUser(): void {
   try {
-    window.sessionStorage.removeItem(RECOVERY_USER_KEY);
+    window.localStorage.removeItem(RECOVERY_USER_KEY);
   } catch {
     // nada a apagar
   }
