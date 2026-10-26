@@ -9,11 +9,11 @@ export interface AdminProfile {
   links_count: number;
 }
 
-/** Uma conta com os perfis dela (do mais antigo para o mais novo). */
+/** Uma conta com os perfis dela (do mais antigo para o mais novo). O e-mail é nulo se a edge function não conseguiu lê-lo. */
 export interface AdminUser {
   id: string;
-  email: string;
-  created_at: string;
+  email: string | null;
+  created_at: string | null;
   last_sign_in_at: string | null;
   banned_until: string | null;
   role: string;

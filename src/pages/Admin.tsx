@@ -93,7 +93,7 @@ const Admin = () => {
       const count = target.profiles.length;
       toast({
         title: 'Conta excluída',
-        description: `${target.email}: ${count} ${count === 1 ? 'perfil removido' : 'perfis removidos'}.`,
+        description: `${target.email || '—'}: ${count} ${count === 1 ? 'perfil removido' : 'perfis removidos'}.`,
       });
       setUsers(prev => prev.filter(u => u.id !== target.id));
       setStats(prev => (prev ? statsAfterDeletingUser(prev, target) : prev));
@@ -219,6 +219,8 @@ const Admin = () => {
                   const handles = u.profiles.filter(p => p.username).map(p => `@${p.username}`);
                   const types = Array.from(new Set(u.profiles.map(p => p.user_type).filter(Boolean)));
                   const linksTotal = u.profiles.reduce((sum, p) => sum + p.links_count, 0);
+                  // Sem e-mail quando a edge function não conseguiu ler a conta
+                  const email = u.email || '—';
                   return (
                   <TableRow key={u.id} className={isBanned ? 'opacity-60' : ''}>
                     <TableCell>
@@ -231,13 +233,13 @@ const Admin = () => {
                         </Avatar>
                         <div className="min-w-0">
                           <p className="text-sm font-medium truncate">{profileName(main ?? {})}</p>
-                          <p className="text-xs text-muted-foreground truncate md:hidden">{u.email}</p>
+                          <p className="text-xs text-muted-foreground truncate md:hidden">{email}</p>
                           {handles.length > 0 && <p className="text-xs text-muted-foreground truncate">{handles.join(', ')}</p>}
                         </div>
                         {u.role === 'admin' && <Badge variant="secondary" className="text-[10px] h-5">Admin</Badge>}
                       </div>
                     </TableCell>
-                    <TableCell className="hidden md:table-cell text-sm">{u.email}</TableCell>
+                    <TableCell className="hidden md:table-cell text-sm">{email}</TableCell>
                     <TableCell className="hidden sm:table-cell">
                       <div className="flex flex-wrap gap-1">
                         {types.map(type => <Badge key={type} variant="outline" className="text-xs">{type}</Badge>)}
@@ -261,7 +263,7 @@ const Admin = () => {
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => handleToggleBan(u.id, u.email, !!isBanned)}
+                            onClick={() => handleToggleBan(u.id, email, !!isBanned)}
                             title={isBanned ? 'Reativar usuário' : 'Inativar usuário'}
                             className={isBanned ? 'text-green-500 hover:text-green-500' : 'text-orange-500 hover:text-orange-500'}
                           >
@@ -269,7 +271,7 @@ const Admin = () => {
                           </Button>
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
-                              <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" aria-label={`Excluir ${u.email}`}>
+                              <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" aria-label={`Excluir ${email}`}>
                                 <Trash2 className="h-4 w-4" />
                               </Button>
                             </AlertDialogTrigger>
@@ -277,7 +279,7 @@ const Admin = () => {
                               <AlertDialogHeader>
                                 <AlertDialogTitle>Excluir a conta no LinkHub?</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                  Isso apaga <strong>todos os perfis</strong> de <strong>{u.email}</strong> no LinkHub ({u.profiles.length} {u.profiles.length === 1 ? 'perfil' : 'perfis'}{handles.length > 0 ? `: ${handles.join(', ')}` : ''}), com os links e as estatísticas. A conta de login continua existindo, e os arquivos enviados ficam no Storage. Esta ação não pode ser desfeita.
+                                  Isso apaga <strong>todos os perfis</strong> de <strong>{email}</strong> no LinkHub ({u.profiles.length} {u.profiles.length === 1 ? 'perfil' : 'perfis'}{handles.length > 0 ? `: ${handles.join(', ')}` : ''}), com os links e as estatísticas. A conta de login continua existindo, e os arquivos enviados ficam no Storage. Esta ação não pode ser desfeita.
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
@@ -299,7 +301,7 @@ const Admin = () => {
                 })}
                 {filteredUsers.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={8}className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                       Nenhum usuário encontrado.
                     </TableCell>
                   </TableRow>
