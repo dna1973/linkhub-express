@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
-import { rememberRecoveryLink } from '@/lib/passwordRecovery';
+import { forgetRecoveryUser, markRecoveryUser, rememberRecoveryLink } from '@/lib/passwordRecovery';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -21,4 +21,12 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY, 
     persistSession: true,
     autoRefreshToken: true,
   },
+});
+
+// Logo depois do createClient, antes de o supabase-js terminar de ler o link (ele avisa num
+// setTimeout): só o PASSWORD_RECOVERY prova que a sessão veio do link de recuperação. O callback
+// só grava a marca; chamar o supabase aqui dentro travaria o lock do auth-js.
+supabase.auth.onAuthStateChange((event, session) => {
+  if (event === 'PASSWORD_RECOVERY' && session?.user) markRecoveryUser(session.user.id);
+  else if (event === 'SIGNED_OUT') forgetRecoveryUser();
 });

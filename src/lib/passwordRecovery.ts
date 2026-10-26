@@ -17,22 +17,36 @@ export function isValidEmail(email: string): boolean {
   return EMAIL_PATTERN.test(email.trim());
 }
 
-type AuthErrorLike = { message?: string; status?: number; code?: string; name?: string } | null | undefined;
+type AuthErrorLike =
+  | { message?: string; status?: number; code?: string; name?: string; reasons?: string[] }
+  | null
+  | undefined;
 
 /**
- * Resultado do pedido de link. "Conta não existe" conta como enviado (o GoTrue já responde 200
- * nesse caso; se um dia responder erro, a tela continua sem revelar nada). Limite e falha de rede
- * mostram erro curto, igual para qualquer e-mail.
+ * Resultado do pedido de link; null = mostrar a mensagem neutra.
+ * - "Conta não existe" conta como enviado (o GoTrue já responde 200; se um dia responder erro,
+ *   a tela continua sem revelar nada).
+ * - O limite por conta ("you can only request this after N seconds") só acontece para conta
+ *   cadastrada: mostrar erro ali revelaria a conta. O limite geral do servidor ("email rate limit
+ *   exceeded") vale para qualquer e-mail. Os dois usam o mesmo code (over_email_send_rate_limit),
+ *   então a diferença vem do texto.
  */
 export function resetRequestErrorMessage(error: AuthErrorLike): string | null {
   if (!error) return null;
   const message = error.message ?? '';
   if (error.code === 'user_not_found' || error.status === 404 || /user not found/i.test(message)) return null;
+  if (/only request this after/i.test(message)) return null;
   if (error.status === 429 || /rate limit/i.test(message) || error.code?.includes('rate_limit')) {
     return 'Muitas tentativas. Aguarde alguns minutos e tente de novo.';
   }
   return 'Não foi possível enviar o link agora. Confira sua conexão e tente de novo.';
 }
+
+const WEAK_PASSWORD_REASONS: Record<string, string> = {
+  length: `Use pelo menos ${NEW_PASSWORD_MIN_LENGTH} caracteres.`,
+  characters: 'Misture letras maiúsculas, minúsculas, números e símbolos.',
+  pwned: 'Essa senha aparece em vazamentos conhecidos; escolha outra.',
+};
 
 /** Erro do updateUser({ password }) em português. */
 export function newPasswordErrorMessage(error: AuthErrorLike): string {
@@ -41,8 +55,9 @@ export function newPasswordErrorMessage(error: AuthErrorLike): string {
   if (code === 'same_password' || /different from the old password/i.test(message)) {
     return 'A senha nova precisa ser diferente da antiga.';
   }
-  if (code === 'weak_password' || /password should|weak password/i.test(message)) {
-    return 'Senha fraca. Use pelo menos 8 caracteres, misturando letras e números.';
+  if (code === 'weak_password' || /weak/i.test(message)) {
+    const details = (error?.reasons ?? []).map((reason) => WEAK_PASSWORD_REASONS[reason]).filter(Boolean);
+    return ['Escolha uma senha mais forte.', ...details].join(' ');
   }
   if (code === 'session_not_found' || code === 'session_expired' || /session missing|auth session/i.test(message)) {
     return RESET_LINK_INVALID_MESSAGE;
@@ -53,39 +68,67 @@ export function newPasswordErrorMessage(error: AuthErrorLike): string {
   return 'Não foi possível alterar a senha agora. Tente de novo em alguns instantes.';
 }
 
-export interface RecoveryLink {
-  /** "recovery" quando o link do e-mail trouxe a sessão de recuperação */
-  type: string | null;
-  /** Link vencido ou já usado: o GoTrue devolve error/error_code/error_description no hash */
-  error: string | null;
+// --- Conta em recuperação --------------------------------------------------------------------
+// Só o evento PASSWORD_RECOVERY do supabase-js prova que a sessão veio do link (o hash qualquer um
+// escreve, e um link que falha mantém a sessão antiga de outra conta). O cliente marca a conta
+// nesse evento; a página só abre o formulário para a sessão dessa conta. Guarda apenas o id, na
+// aba (sessionStorage): sobrevive ao F5 e some ao fechar a aba.
+
+const RECOVERY_USER_KEY = 'linkhub:passwordRecoveryUser';
+
+export function markRecoveryUser(userId: string): void {
+  try {
+    window.sessionStorage.setItem(RECOVERY_USER_KEY, userId);
+  } catch {
+    // sessionStorage bloqueado: a página mostra "link expirou"
+  }
 }
 
-const EMPTY_LINK: RecoveryLink = { type: null, error: null };
+export function getRecoveryUserId(): string | null {
+  try {
+    return window.sessionStorage.getItem(RECOVERY_USER_KEY);
+  } catch {
+    return null;
+  }
+}
 
-export function parseRecoveryHash(hash: string): RecoveryLink {
+export function forgetRecoveryUser(): void {
+  try {
+    window.sessionStorage.removeItem(RECOVERY_USER_KEY);
+  } catch {
+    // nada a apagar
+  }
+}
+
+// --- Link com erro ---------------------------------------------------------------------------
+
+/** Link vencido ou já usado: o GoTrue devolve error/error_code/error_description no hash. */
+export function parseLinkError(hash: string): string | null {
   const params = new URLSearchParams(hash.replace(/^#/, ''));
-  const error = params.get('error_description') || params.get('error_code') || params.get('error');
-  return { type: params.get('type'), error: error || null };
+  return params.get('error_description') || params.get('error_code') || params.get('error') || null;
 }
 
-let rememberedLink: RecoveryLink = EMPTY_LINK;
+let rememberedError: string | null = null;
 
 /**
- * Guarda o hash da chegada antes de o supabase-js apagá-lo (ele troca o token por sessão e limpa
- * a URL enquanto a página, carregada sob demanda, ainda baixa). Chamado antes do createClient.
+ * Guarda o #error= da chegada à página de senha nova, antes de o cliente do Supabase ler a URL.
+ * Chamado antes do createClient; fora dessa página não guarda nada.
  */
-export function rememberRecoveryLink(hash: string = typeof window !== 'undefined' ? window.location.hash : ''): void {
-  const link = parseRecoveryHash(hash);
-  if (link.type || link.error) rememberedLink = link;
+export function rememberRecoveryLink(
+  location: { pathname: string; hash: string } = typeof window !== 'undefined'
+    ? window.location
+    : { pathname: '', hash: '' },
+): void {
+  if (location.pathname !== NEW_PASSWORD_PATH) return;
+  const error = parseLinkError(location.hash);
+  if (error) rememberedError = error;
 }
 
-/** O hash atual, se ainda houver; senão, o guardado na chegada. */
-export function getRecoveryLink(): RecoveryLink {
-  const current = parseRecoveryHash(typeof window !== 'undefined' ? window.location.hash : '');
-  if (current.type || current.error) return current;
-  return rememberedLink;
+/** O erro do hash atual, se houver; senão, o guardado na chegada. */
+export function getRecoveryLinkError(): string | null {
+  return parseLinkError(typeof window !== 'undefined' ? window.location.hash : '') ?? rememberedError;
 }
 
 export function forgetRecoveryLink(): void {
-  rememberedLink = EMPTY_LINK;
+  rememberedError = null;
 }
