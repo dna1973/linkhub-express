@@ -10,7 +10,7 @@ describe('isPublicProfilePath', () => {
     expect(isPublicProfilePath('/Maria_Silva')).toBe(true);
   });
   it('não trata rotas do app como perfil', () => {
-    for (const path of ['/', '', '/auth', '/auth/callback', '/dashboard', '/admin', '/analytics', '/exemplo', '/install', '/privacy', '/Dashboard']) {
+    for (const path of ['/', '', '/auth', '/auth/callback', '/auth/nova-senha', '/dashboard', '/admin', '/analytics', '/exemplo', '/install', '/privacy', '/Dashboard']) {
       expect(isPublicProfilePath(path)).toBe(false);
     }
   });

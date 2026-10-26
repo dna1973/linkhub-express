@@ -19,6 +19,7 @@ const Analytics = lazy(() => import("./pages/Analytics"));
 const PublicProfile = lazy(() => import("./pages/PublicProfile"));
 const ExampleProfile = lazy(() => import("./pages/ExampleProfile"));
 const AuthCallback = lazy(() => import("./pages/AuthCallback"));
+const NewPassword = lazy(() => import("./pages/NewPassword"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const Install = lazy(() => import("./pages/Install"));
 const Privacy = lazy(() => import("./pages/Privacy"));
@@ -45,6 +46,8 @@ const App = () => (
                   <Route path="/" element={<Index />} />
                   <Route path="/auth" element={<Auth />} />
                   <Route path="/auth/callback" element={<AuthCallback />} />
+                  {/* Link do e-mail de recuperação: sem redirecionar ao painel por haver sessão */}
+                  <Route path="/auth/nova-senha" element={<NewPassword />} />
                   {/* Painel e relatórios compartilham o perfil atual (CurrentProfileProvider) */}
                   <Route element={<ProfileLayout />}>
                     <Route path="/dashboard" element={<Dashboard />} />
