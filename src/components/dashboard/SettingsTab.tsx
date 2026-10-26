@@ -14,7 +14,7 @@ import { supabase, AVATARS_BUCKET } from '@/lib/supabase';
 import { avatarPathFromUrl } from '@/lib/avatarStorage';
 import { PUBLIC_SITE_URL } from '@/lib/siteUrl';
 import { getPublicProfileUrl } from '@/lib/publicProfileUrl';
-import { useAuth } from '@/contexts/AuthContext';
+import { profileInitial } from '@/lib/profileLabel';
 import { useToast } from '@/hooks/use-toast';
 import { useUsernameValidation } from '@/hooks/useUsernameValidation';
 import { useAutosave } from '@/hooks/useAutosave';
@@ -33,7 +33,6 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   profile, 
   onProfileUpdate 
 }) => {
-  const { user } = useAuth();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
@@ -349,8 +348,8 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
               <Avatar className="w-16 h-16 flex-shrink-0">
                 <AvatarImage src={formData.avatar_url} />
                 <AvatarFallback className="bg-gradient-primary text-white text-xl">
-                  {formData.full_name?.[0]?.toUpperCase() || 
-                   user?.email?.[0]?.toUpperCase() || 'U'}
+                  {/* Avatar do perfil: nome, depois @; o e-mail da conta não entra */}
+                  {profileInitial(formData)}
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 space-y-2">
@@ -433,7 +432,6 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             onChange={(value) => handleInputChange('username', value)}
             label="Username (slug único)"
             placeholder="seuusername"
-            currentProfileId={profile?.id}
             validation={usernameValidation}
           />
 

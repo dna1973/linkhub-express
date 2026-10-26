@@ -134,6 +134,16 @@ describe('CurrentProfileProvider: carga', () => {
     });
   });
 
+  it('conta sem nome nem e-mail: o primeiro perfil se chama "Usuário"', async () => {
+    mocks.user = { id: 'u1', email: '', user_metadata: {} };
+    const lists = [[], [profile('u1')]];
+    rpcHandlers({ list_own_profiles: () => ({ data: lists.shift() ?? [profile('u1')], error: null }) });
+    renderProvider();
+
+    await waitFor(() => expect(atual()).toBe('u1'));
+    expect(mocks.insert).toHaveBeenCalledWith({ id: 'u1', full_name: 'Usuário', avatar_url: null });
+  });
+
   it('duas cargas simultâneas fazem um único insert', async () => {
     const insert = deferred<{ error: null }>();
     mocks.insert.mockReturnValue(insert.promise);

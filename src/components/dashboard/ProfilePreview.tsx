@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import { safeOpenUrl } from '@/utils/sanitize';
-import { useAuth } from '@/contexts/AuthContext';
 import { useDesignStore } from '@/stores/useDesignStore';
 import { ProfileView } from '@/components/profile/ProfileView';
 import { DeviceFrame } from '@/components/preview/DeviceFrame';
@@ -24,8 +23,7 @@ interface ProfilePreviewProps {
  * seletor no topo e, embaixo, a área medida onde o aparelho é reduzido para caber.
  */
 export const ProfilePreview: React.FC<ProfilePreviewProps> = ({ profile, headerEnd, className }) => {
-  const { user } = useAuth();
-  // Links do perfil recebido (o atual), não da conta. A conta só dá o nome reserva (e-mail).
+  // Links do perfil recebido (o atual), não da conta
   const profileId: string | undefined = profile?.id;
   // Sempre o customTheme do store, para a prévia acompanhar o editor em tempo real
   const customTheme = useDesignStore((state) => state.customTheme);
@@ -60,7 +58,6 @@ export const ProfilePreview: React.FC<ProfilePreviewProps> = ({ profile, headerE
     };
   }, [profileId]);
 
-  const previewProfile = { ...profile, full_name: profile?.full_name || user?.email?.split('@')[0] };
   // Horário e ícones legíveis também em fundo claro (Grafite, Blush)
   const statusBarColor = getContrastText(getBaseBackgroundColor(customTheme));
 
@@ -75,7 +72,8 @@ export const ProfilePreview: React.FC<ProfilePreviewProps> = ({ profile, headerE
         <ProfileView
           variant="device"
           topInset={device.statusBar.height}
-          profile={previewProfile}
+          // O perfil como está: sem nome, o ProfileView mostra o mesmo que a página pública
+          profile={profile}
           links={links}
           theme={customTheme}
           // Prévia: só abre o link, sem registrar clique

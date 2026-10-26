@@ -9,8 +9,8 @@ import { ProfilePreview } from './ProfilePreview';
 const mocks = vi.hoisted(() => ({ eq: vi.fn(), hold: null as Promise<void> | null }));
 
 vi.mock('@/contexts/AuthContext', () => {
-  // Mesmo objeto a cada render, como no AuthContext real
-  const user = { id: 'u1', email: 'dna@example.com' };
+  // Mesmo objeto a cada render, como no AuthContext real. A prévia não usa a conta (e-mail).
+  const user = { id: 'u1', email: 'conta@example.com' };
   return { useAuth: () => ({ user }) };
 });
 vi.mock('@/utils/sanitize', () => ({
@@ -70,9 +70,11 @@ describe('ProfilePreview', () => {
     expect(supabase.from).toHaveBeenCalledWith('links');
   });
 
-  it('sem nome no perfil, usa o início do e-mail', async () => {
+  it('sem nome no perfil, mostra o mesmo que a página pública, nunca o e-mail da conta', async () => {
     render(<ProfilePreview profile={{ id: 'p1', username: 'dna' }} />);
-    expect(await screen.findByText('dna')).toBeTruthy();
+    expect(await screen.findByText('Usuário')).toBeTruthy();
+    expect(screen.queryByText('conta')).toBeNull();
+    expect(screen.getByText('U')).toBeTruthy();
   });
 
   it('desenha o perfil no aparelho escolhido, com o conteúdo abaixo da barra de status', async () => {

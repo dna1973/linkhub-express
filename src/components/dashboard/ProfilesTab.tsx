@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/lib/supabase';
 import { getPublicProfileUrl } from '@/lib/publicProfileUrl';
-import { profileLabel, profileName } from '@/lib/profileLabel';
+import { profileInitial, profileLabel, profileName } from '@/lib/profileLabel';
 import { useToast } from '@/hooks/use-toast';
 import { MAX_PROFILES, useCurrentProfile, type DeleteProfileResult, type Profile } from '@/contexts/CurrentProfileContext';
 
@@ -108,7 +108,7 @@ function ProfileCard({ profile, isCurrent, isOnly, onOpen, onDelete }: ProfileCa
         <div className="flex items-center gap-3">
           <Avatar className="h-12 w-12 shrink-0">
             {profile.avatar_url && <AvatarImage src={profile.avatar_url} alt="" />}
-            <AvatarFallback>{(profile.full_name || profile.username || '?').charAt(0).toUpperCase()}</AvatarFallback>
+            <AvatarFallback>{profileInitial(profile)}</AvatarFallback>
           </Avatar>
           <div className="min-w-0 flex-1">
             <p className="truncate font-medium">

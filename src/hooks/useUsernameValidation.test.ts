@@ -83,7 +83,7 @@ describe('useUsernameValidation', () => {
 
   it('@ reservado é recusado sem consultar o banco', async () => {
     const { result } = renderHook(() => useUsernameValidation('admin', 0, 'p1'));
-    await waitFor(() => expect(result.current.error).toBe('Este username é reservado pelo sistema'));
+    await waitFor(() => expect(result.current.error).toBe('Este @username não pode ser usado'));
     expect(result.current.isAvailable).toBe(false);
     expect(mocks.eq).not.toHaveBeenCalled();
   });

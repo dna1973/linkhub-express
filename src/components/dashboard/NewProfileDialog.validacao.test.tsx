@@ -37,6 +37,9 @@ beforeEach(() => {
 });
 afterEach(() => cleanup());
 
+// Resultado do hook da aba Configurações, que roda lá e chega por prop
+const CONFERIDO_DNA = { isValid: true, isAvailable: true, isChecking: false, error: null, suggestions: [], checkedUsername: 'dna' };
+
 const continuar = () => screen.getByRole('button', { name: /Continuar/ }) as HTMLButtonElement;
 const usernameField = () => screen.getByLabelText('@username') as HTMLInputElement;
 
@@ -66,7 +69,7 @@ describe('NewProfileDialog com a validação real', () => {
   it('com outro UsernameInput na página (o da aba Configurações), cada rótulo aponta para o seu campo', () => {
     render(
       <>
-        <UsernameInput value="dna" onChange={vi.fn()} label="Username (slug único)" currentProfileId="p1" />
+        <UsernameInput value="dna" onChange={vi.fn()} label="Username (slug único)" validation={CONFERIDO_DNA} />
         <NewProfileDialog open onOpenChange={vi.fn()} onCreated={vi.fn()} />
       </>,
     );

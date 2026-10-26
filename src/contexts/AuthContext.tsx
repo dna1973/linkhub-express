@@ -1,6 +1,7 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
+import { forgetStoredProfileId } from '@/lib/currentProfileStorage';
 
 interface AuthContextType {
   user: User | null;
@@ -25,21 +26,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  // Conta da sessão anterior: quando ela sai, o perfil escolhido dela sai do localStorage
+  const accountIdRef = useRef<string | null>(null);
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        setLoading(false);
-      }
-    );
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    // Aqui, e não no CurrentProfileProvider: a sessão também acaba fora do painel (logout em
+    // outra aba, token vencido), com o Provider desmontado. Renovar o token não muda o id.
+    const applySession = (session: Session | null) => {
+      const nextId = session?.user?.id ?? null;
+      if (accountIdRef.current && accountIdRef.current !== nextId) forgetStoredProfileId(accountIdRef.current);
+      accountIdRef.current = nextId;
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
-    });
+    };
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => applySession(session)
+    );
+
+    supabase.auth.getSession().then(({ data: { session } }) => applySession(session));
 
     return () => subscription.unsubscribe();
   }, []);

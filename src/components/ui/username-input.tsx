@@ -3,7 +3,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Check, X, Loader2, AlertCircle } from 'lucide-react';
-import { useUsernameValidation, type UsernameValidationResult } from '@/hooks/useUsernameValidation';
+import type { UsernameValidationResult } from '@/hooks/useUsernameValidation';
 import { cn } from '@/lib/utils';
 
 interface UsernameInputProps {
@@ -13,24 +13,15 @@ interface UsernameInputProps {
   placeholder?: string;
   className?: string;
   disabled?: boolean;
-  /** Perfil que está sendo editado: o @ dele conta como disponível. Sem ele, é um perfil novo. */
-  currentProfileId?: string | null;
   /** Id do campo. Sem ele, um gerado (dois UsernameInput na mesma página não se confundem). */
   id?: string;
-  /**
-   * Resultado do useUsernameValidation de quem já roda o hook para o mesmo @ (uma consulta por @).
-   * Sem ele, o componente roda o hook com `value` e `currentProfileId`.
-   */
-  validation?: UsernameValidationResult;
+  /** Resultado do useUsernameValidation de quem roda o hook para o mesmo @ (uma consulta por @). */
+  validation: UsernameValidationResult;
   /** Erro de fora da validação (ex.: o banco recusou o @ ao gravar). Esconde o "disponível". */
   error?: string | null;
 }
 
-type UsernameInputViewProps = Omit<UsernameInputProps, 'validation' | 'currentProfileId'> & {
-  validation: UsernameValidationResult;
-};
-
-const UsernameInputView: React.FC<UsernameInputViewProps> = ({
+export const UsernameInput: React.FC<UsernameInputProps> = ({
   value,
   onChange,
   label = "Username",
@@ -177,16 +168,3 @@ const UsernameInputView: React.FC<UsernameInputViewProps> = ({
     </div>
   );
 };
-
-/** Roda a validação aqui: para quem não tem o resultado do hook em mãos. */
-const UsernameInputWithValidation: React.FC<Omit<UsernameInputProps, 'validation'>> = ({ currentProfileId, ...props }) => {
-  const validation = useUsernameValidation(props.value, 500, currentProfileId);
-  return <UsernameInputView {...props} validation={validation} />;
-};
-
-export const UsernameInput: React.FC<UsernameInputProps> = ({ validation, currentProfileId, ...props }) =>
-  validation ? (
-    <UsernameInputView {...props} validation={validation} />
-  ) : (
-    <UsernameInputWithValidation {...props} currentProfileId={currentProfileId} />
-  );

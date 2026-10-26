@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCurrentProfile } from '@/contexts/CurrentProfileContext';
+import { profileLabel } from '@/lib/profileLabel';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -47,7 +48,7 @@ const Analytics = () => {
   // Estatísticas do perfil atual (o seletor da sidebar troca)
   const { currentProfile, loading: profileLoading, error: profileError } = useCurrentProfile();
   const profileId = currentProfile?.id ?? null;
-  const profileLabel = currentProfile?.username ? `@${currentProfile.username}` : currentProfile?.full_name || '';
+  const currentLabel = currentProfile ? profileLabel(currentProfile) : '';
   // Só a carga mais recente mexe na tela: trocar de perfil ou de período descarta a anterior
   const requestRef = useRef(0);
   const [loading, setLoading] = useState(true);
@@ -414,7 +415,7 @@ const Analytics = () => {
         <div>
           <h1 className="text-4xl font-bold">Analytics</h1>
           <p className="text-muted-foreground mt-2">
-            {profileLabel ? `Acompanhe o desempenho de ${profileLabel}` : 'Acompanhe o desempenho do seu perfil'}
+            {currentLabel ? `Acompanhe o desempenho de ${currentLabel}` : 'Acompanhe o desempenho do seu perfil'}
           </p>
         </div>
         

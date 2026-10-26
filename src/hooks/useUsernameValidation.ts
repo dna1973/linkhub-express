@@ -77,7 +77,8 @@ export const useUsernameValidation = (
         isValid: false,
         isAvailable: false,
         isChecking: false,
-        error: 'Este username é reservado pelo sistema',
+        // O mesmo texto do diálogo de perfil novo e da recusa do create_profile
+        error: 'Este @username não pode ser usado',
         suggestions
       });
       return;

@@ -80,6 +80,8 @@ serve(async (req) => {
       // Uma leitura só, com o perfil e a contagem de links embutidos (FKs profile_owners.profile_id
       // e links_user_id_profile_fkey). Evita listas de ids na query string, que estouram a URL.
       // A sintaxe do embed (profile:profiles(...), links(count)) precisa ser conferida no teste em produção.
+      // Leitura inteira, sem .range(): o PostgREST corta a resposta em max-rows (PGRST_DB_MAX_ROWS,
+      // em geral 1000 no Supabase self-hosted) sem dar erro. Acima disso, contas sumiriam da lista e do total.
       const { data: ownerData, error: ownersError } = await adminClient
         .from("profile_owners")
         .select("profile_id, owner_id, profile:profiles(id, username, full_name, avatar_url, user_type, created_at, links(count))");
@@ -155,6 +157,8 @@ serve(async (req) => {
 
     // STATS: "Usuários" são as contas distintas com perfil; "Perfis", todos os perfis
     if (req.method === "GET" && action === "stats") {
+      // Leitura inteira, como no LIST: o max-rows do PostgREST (PGRST_DB_MAX_ROWS) limita as linhas e,
+      // passando dele, "Usuários" sairia menor sem erro. Os count("exact") abaixo não têm esse limite.
       const { data: owners, error: ownersError } = await adminClient.from("profile_owners").select("owner_id");
       if (ownersError) throw ownersError;
       const count = async (table: string) => {

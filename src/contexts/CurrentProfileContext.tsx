@@ -7,6 +7,7 @@ import { profileThemeOf } from '@/lib/profileTheme';
 import { AVATARS_BUCKET, avatarPathFromUrl } from '@/lib/avatarStorage';
 import { LINK_ICONS_BUCKET } from '@/lib/linkIcons/storagePrefix';
 import { linkIconPathFromUrl } from '@/lib/linkIcons/storage';
+import { currentProfileStorageKey, readStoredProfileId, writeStoredProfileId } from '@/lib/currentProfileStorage';
 import type { Database } from '@/integrations/supabase/types';
 
 export type Profile = Database['public']['Tables']['profiles']['Row'];
@@ -48,23 +49,8 @@ export function useCurrentProfile(): CurrentProfileContextValue {
   return context;
 }
 
-export const currentProfileStorageKey = (userId: string) => `linkhub:currentProfile:${userId}`;
-
-function readStoredProfileId(userId: string): string | null {
-  try {
-    return window.localStorage.getItem(currentProfileStorageKey(userId));
-  } catch {
-    return null;
-  }
-}
-
-function writeStoredProfileId(userId: string, profileId: string) {
-  try {
-    window.localStorage.setItem(currentProfileStorageKey(userId), profileId);
-  } catch {
-    // Sem localStorage (janela privada, site bloqueado): a escolha vale até recarregar a página
-  }
-}
+// A chave mora em lib/currentProfileStorage (o AuthContext a apaga no logout); fica exportada daqui também
+export { currentProfileStorageKey };
 
 /** O frontend decide pelo hint (ou pelo 23505 do unique do @), nunca pela mensagem. */
 export function createProfileErrorFrom(error: RpcError): CreateProfileError {
@@ -100,7 +86,7 @@ function pickProfileId(list: Profile[], preferred: string | null): string | null
 }
 
 function displayNameOf(user: User): string {
-  return user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'Usuario';
+  return user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'Usuário';
 }
 
 async function fetchOwnProfiles(): Promise<Profile[] | null> {

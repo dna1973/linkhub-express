@@ -18,7 +18,7 @@ import { useTheme } from 'next-themes';
 import { useAuth } from '@/contexts/AuthContext';
 import { MAX_PROFILES, useCurrentProfile, type Profile } from '@/contexts/CurrentProfileContext';
 import { getPublicProfileUrl } from '@/lib/publicProfileUrl';
-import { profileLabel, profileName } from '@/lib/profileLabel';
+import { profileInitial, profileLabel, profileName } from '@/lib/profileLabel';
 import { useNavigate } from 'react-router-dom';
 import {
   Sidebar,
@@ -58,7 +58,7 @@ const currentLabelOf = (profile: Profile | null): string => (profile ? profileLa
 
 /** Avatar de 24 px do seletor. Decorativo: o nome acessível vem do texto do item ou do aria-label. */
 function ProfileAvatar({ profile }: { profile: Profile | null }) {
-  const initial = (profile?.full_name?.trim() || profile?.username || '?').charAt(0).toUpperCase();
+  const initial = profileInitial(profile);
   return (
     <Avatar className="h-6 w-6 shrink-0" aria-hidden>
       {profile?.avatar_url && <AvatarImage src={profile.avatar_url} alt="" />}

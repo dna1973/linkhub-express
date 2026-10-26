@@ -119,6 +119,12 @@ describe('ProfilesTab', () => {
     expect(clicks[5]).toBe('clicked_at');
   });
 
+  it('a inicial do avatar ignora espaços no começo do nome', () => {
+    mocks.profiles = [DNA, { ...PRO, full_name: '  ana', username: 'ana' }];
+    renderTab();
+    expect(within(card(1)).getByText('A')).toBeTruthy();
+  });
+
   it('"Abrir" seleciona o perfil e vai para Links', () => {
     const { onOpenLinks } = renderTab();
     fireEvent.click(screen.getByRole('button', { name: 'Abrir @pro' }));

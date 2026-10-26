@@ -514,6 +514,12 @@ describe('SettingsTab, QR code e link público', () => {
     expect(screen.getByDisplayValue('https://meusite.com/dna')).toBeTruthy();
   });
 
+  it('a inicial do avatar vem do perfil (nome, depois @), não do e-mail da conta', () => {
+    render(<SettingsTab profile={{ id: 'p1', username: 'loja', full_name: '', avatar_url: '' }} onProfileUpdate={vi.fn()} />);
+    expect(screen.getByText('L', { selector: 'span' })).toBeTruthy();
+    expect(screen.queryByText('D', { selector: 'span' })).toBeNull();
+  });
+
   it('sem username, mostra o aviso no lugar do link', () => {
     render(<SettingsTab profile={{ id: 'p1', username: '', full_name: 'Daniel', avatar_url: '' }} onProfileUpdate={vi.fn()} />);
     expect(screen.getByDisplayValue('Configure seu @username primeiro')).toBeTruthy();

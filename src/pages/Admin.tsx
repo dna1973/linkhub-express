@@ -12,7 +12,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Users, UserCircle, Link as LinkIcon, Eye, MousePointerClick, Trash2, Search, ArrowLeft, Shield, Ban, CheckCircle } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { filterAdminUsers, statsAfterDeletingUser, type AdminStats, type AdminUser } from '@/lib/adminUsers';
-import { profileName } from '@/lib/profileLabel';
+import { profileInitial, profileName } from '@/lib/profileLabel';
 
 const Admin = () => {
   const { user } = useAuth();
@@ -228,7 +228,7 @@ const Admin = () => {
                         <Avatar className="h-8 w-8">
                           <AvatarImage src={main?.avatar_url || ''} />
                           <AvatarFallback className="text-xs">
-                            {(main?.full_name || u.email)?.[0]?.toUpperCase()}
+                            {profileInitial(main, u.email)}
                           </AvatarFallback>
                         </Avatar>
                         <div className="min-w-0">

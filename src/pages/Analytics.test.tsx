@@ -179,4 +179,10 @@ describe('Analytics por perfil', () => {
     render(<Analytics />);
     expect(await screen.findByText('Acompanhe o desempenho de Minha loja')).toBeTruthy();
   });
+
+  it('o subtítulo usa o rótulo da sidebar: sem @ e sem nome, "Perfil sem nome"', async () => {
+    mocks.current = { id: 'p2', username: null, full_name: '   ' };
+    render(<Analytics />);
+    expect(await screen.findByText('Acompanhe o desempenho de Perfil sem nome')).toBeTruthy();
+  });
 });

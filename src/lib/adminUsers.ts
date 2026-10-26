@@ -1,24 +1,11 @@
 // Tipos e regras da tela do Admin. A resposta vem da edge function linkhub-admin-users (group.ts).
+// Os tipos da resposta vêm do próprio group.ts (só tipos: nada do Deno entra no bundle).
+import type { AdminAccount, AdminProfile } from '../../supabase/functions/linkhub-admin-users/group.ts';
 
-export interface AdminProfile {
-  id: string;
-  username: string | null;
-  full_name: string | null;
-  avatar_url: string | null;
-  user_type: string | null;
-  links_count: number;
-}
+export type { AdminProfile };
 
 /** Uma conta com os perfis dela (do mais antigo para o mais novo). O e-mail é nulo se a edge function não conseguiu lê-lo. */
-export interface AdminUser {
-  id: string;
-  email: string | null;
-  created_at: string | null;
-  last_sign_in_at: string | null;
-  banned_until: string | null;
-  role: string;
-  profiles: AdminProfile[];
-}
+export type AdminUser = AdminAccount;
 
 export interface AdminStats {
   totalUsers: number;

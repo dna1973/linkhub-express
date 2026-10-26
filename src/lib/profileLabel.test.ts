@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { UNNAMED_PROFILE, profileLabel, profileName } from './profileLabel';
+import { UNNAMED_PROFILE, profileInitial, profileLabel, profileName } from './profileLabel';
 
 describe('profileName', () => {
   it('usa o nome sem espaços nas pontas', () => {
@@ -23,5 +23,19 @@ describe('profileLabel', () => {
   it('sem @, mostra o nome; sem @ e sem nome, "Perfil sem nome"', () => {
     expect(profileLabel({ username: null, full_name: ' Daniel ' })).toBe('Daniel');
     expect(profileLabel({ username: '', full_name: null })).toBe(UNNAMED_PROFILE);
+  });
+});
+
+describe('profileInitial', () => {
+  it('primeira letra do nome, sem espaços nas pontas, em maiúscula', () => {
+    expect(profileInitial({ full_name: '  ana', username: 'zeca' })).toBe('A');
+  });
+
+  it('sem nome, a do @; sem nome nem @, a reserva (padrão "?")', () => {
+    expect(profileInitial({ full_name: '   ', username: 'dna' })).toBe('D');
+    expect(profileInitial({ full_name: null, username: null })).toBe('?');
+    expect(profileInitial({ full_name: null, username: '' }, 'conta@example.com')).toBe('C');
+    expect(profileInitial(null, 'conta@example.com')).toBe('C');
+    expect(profileInitial(undefined)).toBe('?');
   });
 });
