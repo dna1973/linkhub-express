@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCurrentProfile } from '@/contexts/CurrentProfileContext';
 import { profileLabel } from '@/lib/profileLabel';
+import { formatClicks } from '@/lib/formatClicks';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -218,6 +219,7 @@ const Analytics = () => {
       .sort((a, b) => b.clicks - a.clicks)
       .slice(0, 5)
       .map(link => ({
+        id: link.id,
         title: link.title,
         clicks: link.clicks
       }));
@@ -574,14 +576,17 @@ const Analytics = () => {
           <CardContent>
             <div className="space-y-4">
               {topLinks.map((link, index) => (
-                <div key={index} className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                <div key={link.id ?? index} className="flex items-center justify-between gap-3">
+                  {/* min-w-0 deixa o título encolher e cortar; a contagem fica sempre inteira dentro do card */}
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-8 h-8 shrink-0 rounded-full bg-primary/10 flex items-center justify-center">
                       <span className="text-sm font-medium text-primary">{index + 1}</span>
                     </div>
-                    <span className="font-medium truncate">{link.title}</span>
+                    <span className="font-medium truncate" title={link.title}>{link.title}</span>
                   </div>
-                  <span className="text-sm text-muted-foreground">{link.clicks} cliques</span>
+                  <span className="shrink-0 whitespace-nowrap text-sm text-muted-foreground">
+                    {formatClicks(link.clicks)}
+                  </span>
                 </div>
               ))}
               {topLinks.length === 0 && (

@@ -180,6 +180,30 @@ describe('Analytics por perfil', () => {
     expect(await screen.findByText('Acompanhe o desempenho de Minha loja')).toBeTruthy();
   });
 
+  it('links mais clicados: plural certo e contagem que não sai do card com título longo', async () => {
+    const titulo = 'Playlist Arena CALOG: como usar a plataforma do começo ao fim';
+    mocks.respond = (table) =>
+      table === 'links'
+        ? [
+            { id: 'l1', title: titulo, clicks: 1 },
+            { id: 'l2', title: 'Canal YouTube', clicks: 4 },
+          ]
+        : [];
+    render(<Analytics />);
+
+    const um = await screen.findByText('1 clique');
+    expect(screen.getByText('4 cliques')).toBeTruthy();
+
+    // A contagem não encolhe nem quebra; o título encolhe e corta com reticências
+    expect(um.className).toContain('shrink-0');
+    expect(um.className).toContain('whitespace-nowrap');
+    const nome = screen.getByText(titulo);
+    expect(nome.className).toContain('truncate');
+    expect(nome.getAttribute('title')).toBe(titulo);
+    expect(nome.parentElement?.className).toContain('min-w-0');
+    expect(nome.parentElement?.parentElement?.className).toContain('gap-');
+  });
+
   it('o subtítulo usa o rótulo da sidebar: sem @ e sem nome, "Perfil sem nome"', async () => {
     mocks.current = { id: 'p2', username: null, full_name: '   ' };
     render(<Analytics />);
