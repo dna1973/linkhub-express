@@ -9,36 +9,17 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { Users, Link as LinkIcon, Eye, MousePointerClick, Trash2, Search, ArrowLeft, Shield, Ban, CheckCircle } from 'lucide-react';
+import { Users, UserCircle, Link as LinkIcon, Eye, MousePointerClick, Trash2, Search, ArrowLeft, Shield, Ban, CheckCircle } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
-
-interface AdminUser {
-  id: string;
-  email: string;
-  created_at: string;
-  last_sign_in_at: string | null;
-  banned_until: string | null;
-  username: string | null;
-  full_name: string | null;
-  avatar_url: string | null;
-  user_type: string | null;
-  role: string;
-  link_count: number;
-}
-
-interface Stats {
-  totalUsers: number;
-  totalLinks: number;
-  totalViews: number;
-  totalClicks: number;
-}
+import { filterAdminUsers, statsAfterDeletingUser, type AdminStats, type AdminUser } from '@/lib/adminUsers';
+import { profileName } from '@/lib/profileLabel';
 
 const Admin = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [users, setUsers] = useState<AdminUser[]>([]);
-  const [stats, setStats] = useState<Stats | null>(null);
+  const [stats, setStats] = useState<AdminStats | null>(null);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
 
@@ -93,11 +74,11 @@ const Admin = () => {
     setLoading(false);
   };
 
-  const handleDeleteUser = async (userId: string, email: string) => {
+  const handleDeleteUser = async (target: AdminUser) => {
     try {
       const session = (await supabase.auth.getSession()).data.session;
       const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/linkhub-admin-users?action=delete&userId=${userId}`,
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/linkhub-admin-users?action=delete&userId=${target.id}`,
         {
           method: 'DELETE',
           headers: {
@@ -109,9 +90,13 @@ const Admin = () => {
       const data = await res.json();
       if (data.error) throw new Error(data.error);
 
-      toast({ title: 'Usuário excluído', description: `${email} foi removido.` });
-      setUsers(prev => prev.filter(u => u.id !== userId));
-      if (stats) setStats({ ...stats, totalUsers: stats.totalUsers - 1 });
+      const count = target.profiles.length;
+      toast({
+        title: 'Conta excluída',
+        description: `${target.email}: ${count} ${count === 1 ? 'perfil removido' : 'perfis removidos'}.`,
+      });
+      setUsers(prev => prev.filter(u => u.id !== target.id));
+      setStats(prev => (prev ? statsAfterDeletingUser(prev, target) : prev));
     } catch (err: any) {
       toast({ title: 'Erro', description: err.message, variant: 'destructive' });
     }
@@ -157,11 +142,8 @@ const Admin = () => {
 
   if (!isAdmin) return null;
 
-  const filteredUsers = users.filter(u =>
-    (u.email || '').toLowerCase().includes(search.toLowerCase()) ||
-    (u.username || '').toLowerCase().includes(search.toLowerCase()) ||
-    (u.full_name || '').toLowerCase().includes(search.toLowerCase())
-  );
+  // E-mail, @ e nome de todos os perfis da conta
+  const filteredUsers = filterAdminUsers(users, search);
 
   return (
     <div className="min-h-screen bg-background">
@@ -178,9 +160,10 @@ const Admin = () => {
       <div className="max-w-7xl mx-auto p-4 md:p-6 space-y-6">
         {/* Stats */}
         {stats && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             {[
               { label: 'Usuários', value: stats.totalUsers, icon: Users, color: 'text-blue-500' },
+              { label: 'Perfis', value: stats.totalProfiles ?? 0, icon: UserCircle, color: 'text-sky-500' },
               { label: 'Links', value: stats.totalLinks, icon: LinkIcon, color: 'text-green-500' },
               { label: 'Visualizações', value: stats.totalViews, icon: Eye, color: 'text-purple-500' },
               { label: 'Cliques', value: stats.totalClicks, icon: MousePointerClick, color: 'text-orange-500' },
@@ -206,7 +189,7 @@ const Admin = () => {
               <div className="relative w-full sm:w-64">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Buscar por nome, email..."
+                  placeholder="Buscar por e-mail, @ ou nome..."
                   value={search}
                   onChange={e => setSearch(e.target.value)}
                   className="pl-9"
@@ -221,6 +204,7 @@ const Admin = () => {
                   <TableHead>Usuário</TableHead>
                   <TableHead className="hidden md:table-cell">Email</TableHead>
                   <TableHead className="hidden sm:table-cell">Tipo</TableHead>
+                  <TableHead className="hidden sm:table-cell">Perfis</TableHead>
                   <TableHead className="hidden md:table-cell">Links</TableHead>
                   <TableHead className="hidden md:table-cell">Status</TableHead>
                   <TableHead className="hidden lg:table-cell">Último acesso</TableHead>
@@ -230,29 +214,37 @@ const Admin = () => {
               <TableBody>
                 {filteredUsers.map(u => {
                   const isBanned = u.banned_until && new Date(u.banned_until) > new Date();
+                  // O perfil mais antigo da conta representa a linha; os @ de todos aparecem embaixo
+                  const main = u.profiles[0];
+                  const handles = u.profiles.filter(p => p.username).map(p => `@${p.username}`);
+                  const types = Array.from(new Set(u.profiles.map(p => p.user_type).filter(Boolean)));
+                  const linksTotal = u.profiles.reduce((sum, p) => sum + p.links_count, 0);
                   return (
                   <TableRow key={u.id} className={isBanned ? 'opacity-60' : ''}>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <Avatar className="h-8 w-8">
-                          <AvatarImage src={u.avatar_url || ''} />
+                          <AvatarImage src={main?.avatar_url || ''} />
                           <AvatarFallback className="text-xs">
-                            {(u.full_name || u.email)?.[0]?.toUpperCase()}
+                            {(main?.full_name || u.email)?.[0]?.toUpperCase()}
                           </AvatarFallback>
                         </Avatar>
                         <div className="min-w-0">
-                          <p className="text-sm font-medium truncate">{u.full_name || 'Sem nome'}</p>
+                          <p className="text-sm font-medium truncate">{profileName(main ?? {})}</p>
                           <p className="text-xs text-muted-foreground truncate md:hidden">{u.email}</p>
-                          {u.username && <p className="text-xs text-muted-foreground">@{u.username}</p>}
+                          {handles.length > 0 && <p className="text-xs text-muted-foreground truncate">{handles.join(', ')}</p>}
                         </div>
                         {u.role === 'admin' && <Badge variant="secondary" className="text-[10px] h-5">Admin</Badge>}
                       </div>
                     </TableCell>
                     <TableCell className="hidden md:table-cell text-sm">{u.email}</TableCell>
                     <TableCell className="hidden sm:table-cell">
-                      {u.user_type && <Badge variant="outline" className="text-xs">{u.user_type}</Badge>}
+                      <div className="flex flex-wrap gap-1">
+                        {types.map(type => <Badge key={type} variant="outline" className="text-xs">{type}</Badge>)}
+                      </div>
                     </TableCell>
-                    <TableCell className="hidden md:table-cell text-sm">{u.link_count}</TableCell>
+                    <TableCell className="hidden sm:table-cell text-sm">{u.profiles.length}</TableCell>
+                    <TableCell className="hidden md:table-cell text-sm">{linksTotal}</TableCell>
                     <TableCell className="hidden md:table-cell">
                       {isBanned ? (
                         <Badge variant="destructive" className="text-[10px]">Inativo</Badge>
@@ -277,21 +269,21 @@ const Admin = () => {
                           </Button>
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
-                              <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
+                              <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" aria-label={`Excluir ${u.email}`}>
                                 <Trash2 className="h-4 w-4" />
                               </Button>
                             </AlertDialogTrigger>
                             <AlertDialogContent>
                               <AlertDialogHeader>
-                                <AlertDialogTitle>Excluir usuário?</AlertDialogTitle>
+                                <AlertDialogTitle>Excluir a conta no LinkHub?</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                  Isso removerá permanentemente todos os dados de <strong>{u.email}</strong> no LinkHub (links, analytics, perfil). A conta de login continua existindo. Esta ação não pode ser desfeita.
+                                  Isso apaga <strong>todos os perfis</strong> de <strong>{u.email}</strong> no LinkHub ({u.profiles.length} {u.profiles.length === 1 ? 'perfil' : 'perfis'}{handles.length > 0 ? `: ${handles.join(', ')}` : ''}), com os links e as estatísticas. A conta de login continua existindo, e os arquivos enviados ficam no Storage. Esta ação não pode ser desfeita.
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
                                 <AlertDialogCancel>Cancelar</AlertDialogCancel>
                                 <AlertDialogAction
-                                  onClick={() => handleDeleteUser(u.id, u.email)}
+                                  onClick={() => handleDeleteUser(u)}
                                   className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                                 >
                                   Excluir
@@ -307,7 +299,7 @@ const Admin = () => {
                 })}
                 {filteredUsers.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={8}className="text-center py-8 text-muted-foreground">
                       Nenhum usuário encontrado.
                     </TableCell>
                   </TableRow>

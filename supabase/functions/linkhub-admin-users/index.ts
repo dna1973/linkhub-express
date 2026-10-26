@@ -1,11 +1,25 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  accountIdsByNewestProfile,
+  countAccounts,
+  pageOf,
+  profilesByOwner,
+  type OwnerRow,
+  type ProfileRow,
+} from "./group.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
   "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
 };
+
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -25,13 +39,9 @@ serve(async (req) => {
       global: { headers: { Authorization: authHeader } },
     });
     const { data: { user } } = await userClient.auth.getUser();
-    if (!user) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    if (!user) return json({ error: "Unauthorized" }, 401);
 
-    // Check admin role
+    // Check admin role (o papel é da conta)
     const adminClient = createClient(supabaseUrl, serviceRoleKey, { db: { schema } });
     const { data: roleData } = await adminClient
       .from("user_roles")
@@ -40,98 +50,90 @@ serve(async (req) => {
       .eq("role", "admin")
       .single();
 
-    if (!roleData) {
-      return new Response(JSON.stringify({ error: "Forbidden" }), {
-        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    if (!roleData) return json({ error: "Forbidden" }, 403);
 
     const url = new URL(req.url);
     const action = url.searchParams.get("action");
 
-    // LIST USERS
+    // LIST: contas (donos distintos em profile_owners) com os perfis de cada uma, 50 contas por página.
+    // auth.users é compartilhado com outros apps: só aparece quem tem perfil no LinkHub.
     if (req.method === "GET" && action === "list") {
       const page = parseInt(url.searchParams.get("page") || "1");
       const perPage = 50;
 
-      // auth.users é compartilhado com outros apps do Supabase: lista só quem tem perfil no linkhub
-      const from = (page - 1) * perPage;
-      const { data: profiles, error } = await adminClient
+      const { data: owners, error: ownersError } = await adminClient
+        .from("profile_owners")
+        .select("profile_id, owner_id");
+      if (ownersError) throw ownersError;
+      const ownerRows = (owners || []) as OwnerRow[];
+
+      const { data: profiles, error: profilesError } = await adminClient
         .from("profiles")
-        .select("id, username, full_name, avatar_url, created_at, user_type")
-        .order("created_at", { ascending: false })
-        .range(from, from + perPage - 1);
+        .select("id, username, full_name, avatar_url, user_type, created_at")
+        .in("id", ownerRows.map((o) => o.profile_id));
+      if (profilesError) throw profilesError;
+      const profileRows = (profiles || []) as ProfileRow[];
 
-      if (error) throw error;
+      const accountIds = accountIdsByNewestProfile(ownerRows, profileRows);
+      const pageIds = pageOf(accountIds, page, perPage);
+      const pageOwners = ownerRows.filter((o) => pageIds.includes(o.owner_id));
 
-      const userIds = (profiles || []).map((p: any) => p.id);
-      const authResults = await Promise.all(
-        userIds.map((id: string) => adminClient.auth.admin.getUserById(id)),
-      );
-      const users = authResults
-        .map((r: any) => r.data?.user)
-        .filter((u: any) => !!u);
+      const authResults = await Promise.all(pageIds.map((id) => adminClient.auth.admin.getUserById(id)));
 
-      // Get roles
-      const { data: roles } = await adminClient
+      const { data: roles, error: rolesError } = await adminClient
         .from("user_roles")
         .select("user_id, role")
-        .in("user_id", userIds);
+        .in("user_id", pageIds);
+      if (rolesError) throw rolesError;
 
-      // Get link counts
-      const { data: linkCounts } = await adminClient
+      // links.user_id é o id do perfil
+      const { data: linkRows, error: linksError } = await adminClient
         .from("links")
         .select("user_id")
-        .in("user_id", userIds);
+        .in("user_id", pageOwners.map((o) => o.profile_id));
+      if (linksError) throw linksError;
 
-      const profileMap = new Map((profiles || []).map((p: any) => [p.id, p]));
+      const grouped = profilesByOwner(pageOwners, profileRows, (linkRows || []).map((l: any) => l.user_id));
       const roleMap = new Map((roles || []).map((r: any) => [r.user_id, r.role]));
-      const linkCountMap = new Map<string, number>();
-      (linkCounts || []).forEach((l: any) => {
-        linkCountMap.set(l.user_id, (linkCountMap.get(l.user_id) || 0) + 1);
-      });
 
-      const enrichedUsers = users.map((u: any) => {
-        const profile = profileMap.get(u.id) || {};
-        return {
+      const users = authResults
+        .map((r: any) => r.data?.user)
+        .filter((u: any) => !!u)
+        .map((u: any) => ({
           id: u.id,
           email: u.email,
           created_at: u.created_at,
           last_sign_in_at: u.last_sign_in_at,
           banned_until: u.banned_until,
-          username: profile.username,
-          full_name: profile.full_name,
-          avatar_url: profile.avatar_url,
-          user_type: profile.user_type,
           role: roleMap.get(u.id) || "user",
-          link_count: linkCountMap.get(u.id) || 0,
-        };
-      });
+          profiles: grouped.get(u.id) || [],
+        }));
 
-      return new Response(JSON.stringify({ users: enrichedUsers }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return json({ users, total_accounts: accountIds.length, page, per_page: perPage });
     }
 
-    // DELETE USER
+    // DELETE: apaga os vínculos da conta. O gatilho cleanup_owned_profile apaga os perfis,
+    // e links, visitas e cliques saem em cascata. Os arquivos do Storage ficam, como antes.
     if (req.method === "DELETE" && action === "delete") {
       const targetUserId = url.searchParams.get("userId");
       if (!targetUserId) throw new Error("userId required");
       if (targetUserId === user.id) throw new Error("Cannot delete yourself");
 
-      // Delete related data first (cascading)
-      await adminClient.from("link_clicks").delete().eq("profile_id", targetUserId);
-      await adminClient.from("profile_views").delete().eq("profile_id", targetUserId);
-      await adminClient.from("links").delete().eq("user_id", targetUserId);
-      await adminClient.from("profiles").delete().eq("id", targetUserId);
-      await adminClient.from("user_roles").delete().eq("user_id", targetUserId);
+      const { error: ownersError } = await adminClient
+        .from("profile_owners")
+        .delete()
+        .eq("owner_id", targetUserId);
+      if (ownersError) throw ownersError;
+
+      const { error: rolesError } = await adminClient
+        .from("user_roles")
+        .delete()
+        .eq("user_id", targetUserId);
+      if (rolesError) throw rolesError;
 
       // O usuário em auth.users é compartilhado com outros apps do Supabase,
       // então só os dados do linkhub são removidos aqui.
-
-      return new Response(JSON.stringify({ success: true }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return json({ success: true });
     }
 
     // TOGGLE BAN USER
@@ -142,48 +144,35 @@ serve(async (req) => {
       if (!targetUserId) throw new Error("userId required");
       if (targetUserId === user.id) throw new Error("Cannot ban yourself");
 
-      if (ban) {
-        // Ban for ~100 years (effectively permanent)
-        const { error } = await adminClient.auth.admin.updateUserById(targetUserId, {
-          ban_duration: "876000h",
-        });
-        if (error) throw error;
-      } else {
-        // Unban
-        const { error } = await adminClient.auth.admin.updateUserById(targetUserId, {
-          ban_duration: "none",
-        });
-        if (error) throw error;
-      }
-
-      return new Response(JSON.stringify({ success: true }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      const { error } = await adminClient.auth.admin.updateUserById(targetUserId, {
+        // Inativar: ~100 anos (na prática, permanente); reativar: "none"
+        ban_duration: ban ? "876000h" : "none",
       });
+      if (error) throw error;
+
+      return json({ success: true });
     }
 
-    // STATS
+    // STATS: "Usuários" são as contas distintas com perfil; "Perfis", todos os perfis
     if (req.method === "GET" && action === "stats") {
-      const { count: userCount } = await adminClient.from("profiles").select("*", { count: "exact", head: true });
+      const { data: owners, error: ownersError } = await adminClient.from("profile_owners").select("owner_id");
+      if (ownersError) throw ownersError;
+      const { count: profileCount } = await adminClient.from("profiles").select("*", { count: "exact", head: true });
       const { count: linkCount } = await adminClient.from("links").select("*", { count: "exact", head: true });
       const { count: viewCount } = await adminClient.from("profile_views").select("*", { count: "exact", head: true });
       const { count: clickCount } = await adminClient.from("link_clicks").select("*", { count: "exact", head: true });
 
-      return new Response(JSON.stringify({
-        totalUsers: userCount || 0,
+      return json({
+        totalUsers: countAccounts(owners || []),
+        totalProfiles: profileCount || 0,
         totalLinks: linkCount || 0,
         totalViews: viewCount || 0,
         totalClicks: clickCount || 0,
-      }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    return new Response(JSON.stringify({ error: "Invalid action" }), {
-      status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return json({ error: "Invalid action" }, 400);
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return json({ error: err.message }, 500);
   }
 });
