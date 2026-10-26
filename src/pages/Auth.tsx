@@ -14,6 +14,7 @@ import { supabase, PUBLIC_SITE_URL } from '@/lib/supabase';
 import {
   NEW_PASSWORD_PATH,
   RESET_EMAIL_SENT_MESSAGE,
+  getRecoveryUserId,
   isValidEmail,
   resetRequestErrorMessage,
 } from '@/lib/passwordRecovery';
@@ -26,7 +27,13 @@ const ForgotPasswordForm = ({ initialEmail, onBack }: { initialEmail: string; on
   const [error, setError] = useState<string | null>(null);
   // O estado só desabilita o botão no próximo render; a ref barra o segundo clique já no mesmo
   const sendingRef = useRef(false);
+  const emailRef = useRef<HTMLInputElement>(null);
   const valid = isValidEmail(email);
+  const showInvalid = email.trim() !== '' && !valid;
+
+  useEffect(() => {
+    emailRef.current?.focus();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,8 +66,9 @@ const ForgotPasswordForm = ({ initialEmail, onBack }: { initialEmail: string; on
         </p>
       </div>
       <div className="space-y-2">
-        <Label htmlFor="forgot-email">Email</Label>
+        <Label htmlFor="forgot-email">E-mail</Label>
         <Input
+          ref={emailRef}
           id="forgot-email"
           type="email"
           autoComplete="email"
@@ -68,18 +76,22 @@ const ForgotPasswordForm = ({ initialEmail, onBack }: { initialEmail: string; on
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
-          aria-invalid={email.trim() !== '' && !valid}
+          aria-invalid={showInvalid}
+          aria-describedby={showInvalid ? 'forgot-email-hint' : undefined}
           className="bg-background/50"
         />
-        {email.trim() !== '' && !valid && (
-          <p className="text-xs text-destructive">Digite um e-mail válido, como nome@exemplo.com.</p>
+        {showInvalid && (
+          <p id="forgot-email-hint" className="text-xs text-destructive">
+            Digite um e-mail válido, como nome@exemplo.com.
+          </p>
         )}
       </div>
-      {sent && (
-        <p role="status" className="text-sm rounded-md border border-border/50 bg-muted/50 p-3">
-          {RESET_EMAIL_SENT_MESSAGE}
-        </p>
-      )}
+      {/* A região fica sempre na tela; o texto sai ao reenviar e volta depois, e o leitor anuncia de novo */}
+      <div role="status">
+        {sent && (
+          <p className="text-sm rounded-md border border-border/50 bg-muted/50 p-3">{RESET_EMAIL_SENT_MESSAGE}</p>
+        )}
+      </div>
       {error && (
         <p role="alert" className="text-sm text-destructive">
           {error}
@@ -102,15 +114,30 @@ const Auth = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [forgotPassword, setForgotPassword] = useState(false);
+  const forgotLinkRef = useRef<HTMLButtonElement>(null);
+  const returnFocusRef = useRef(false);
   const { signIn, signUp, user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (user) {
-      navigate('/dashboard');
-    }
+    if (!user) return;
+    // Conta no meio da recuperação de senha: volta para a senha nova, não para o painel
+    // (o painel criaria um perfil do LinkHub para ela)
+    navigate(getRecoveryUserId() === user.id ? NEW_PASSWORD_PATH : '/dashboard');
   }, [user, navigate]);
+
+  useEffect(() => {
+    if (!forgotPassword && returnFocusRef.current) {
+      returnFocusRef.current = false;
+      forgotLinkRef.current?.focus();
+    }
+  }, [forgotPassword]);
+
+  const closeForgotPassword = () => {
+    returnFocusRef.current = true;
+    setForgotPassword(false);
+  };
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -211,7 +238,7 @@ const Auth = () => {
               
               <TabsContent value="signin">
                 {forgotPassword ? (
-                  <ForgotPasswordForm initialEmail={email} onBack={() => setForgotPassword(false)} />
+                  <ForgotPasswordForm initialEmail={email} onBack={closeForgotPassword} />
                 ) : (
                 <div className="space-y-4">
                   {/* Social Login Buttons */}
@@ -290,6 +317,7 @@ const Auth = () => {
                     </Button>
                     <div className="text-center">
                       <Button
+                        ref={forgotLinkRef}
                         type="button"
                         variant="link"
                         className="h-auto p-0 text-sm text-muted-foreground"
