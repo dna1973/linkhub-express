@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,7 +10,90 @@ import { useToast } from '@/hooks/use-toast';
 import { Eye, EyeOff } from 'lucide-react';
 import { BrandLogo } from '@/components/BrandLogo';
 import { GoogleIcon } from '@/components/ui/google-icon';
-import { supabase } from '@/lib/supabase';
+import { supabase, PUBLIC_SITE_URL } from '@/lib/supabase';
+import {
+  NEW_PASSWORD_PATH,
+  RESET_EMAIL_SENT_MESSAGE,
+  isValidEmail,
+  resetRequestErrorMessage,
+} from '@/lib/passwordRecovery';
+
+/** "Esqueci minha senha": só o e-mail; a resposta é a mesma exista ou não a conta. */
+const ForgotPasswordForm = ({ initialEmail, onBack }: { initialEmail: string; onBack: () => void }) => {
+  const [email, setEmail] = useState(initialEmail);
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  // O estado só desabilita o botão no próximo render; a ref barra o segundo clique já no mesmo
+  const sendingRef = useRef(false);
+  const valid = isValidEmail(email);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!valid || sendingRef.current) return;
+    sendingRef.current = true;
+    setSending(true);
+    setError(null);
+    setSent(false);
+    let message: string | null;
+    try {
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo: `${PUBLIC_SITE_URL}${NEW_PASSWORD_PATH}`,
+      });
+      message = resetRequestErrorMessage(resetError);
+    } catch {
+      message = resetRequestErrorMessage({ message: 'network' });
+    }
+    if (message) setError(message);
+    else setSent(true);
+    sendingRef.current = false;
+    setSending(false);
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+      <div className="space-y-1">
+        <h2 className="text-base font-semibold">Esqueci minha senha</h2>
+        <p className="text-sm text-muted-foreground">
+          Informe o e-mail da conta. Se ele estiver cadastrado, você recebe um link para criar uma senha nova.
+        </p>
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="forgot-email">Email</Label>
+        <Input
+          id="forgot-email"
+          type="email"
+          autoComplete="email"
+          placeholder="seu@email.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+          aria-invalid={email.trim() !== '' && !valid}
+          className="bg-background/50"
+        />
+        {email.trim() !== '' && !valid && (
+          <p className="text-xs text-destructive">Digite um e-mail válido, como nome@exemplo.com.</p>
+        )}
+      </div>
+      {sent && (
+        <p role="status" className="text-sm rounded-md border border-border/50 bg-muted/50 p-3">
+          {RESET_EMAIL_SENT_MESSAGE}
+        </p>
+      )}
+      {error && (
+        <p role="alert" className="text-sm text-destructive">
+          {error}
+        </p>
+      )}
+      <Button type="submit" className="w-full btn-gradient-primary" disabled={!valid || sending}>
+        {sending ? 'Enviando link...' : 'Enviar link'}
+      </Button>
+      <Button type="button" variant="ghost" className="w-full" onClick={onBack} disabled={sending}>
+        Voltar para o login
+      </Button>
+    </form>
+  );
+};
 
 
 const Auth = () => {
@@ -18,6 +101,7 @@ const Auth = () => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [forgotPassword, setForgotPassword] = useState(false);
   const { signIn, signUp, user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -126,6 +210,9 @@ const Auth = () => {
               </TabsList>
               
               <TabsContent value="signin">
+                {forgotPassword ? (
+                  <ForgotPasswordForm initialEmail={email} onBack={() => setForgotPassword(false)} />
+                ) : (
                 <div className="space-y-4">
                   {/* Social Login Buttons */}
                   <div className="space-y-3">
@@ -201,8 +288,19 @@ const Auth = () => {
                     >
                       {loading ? "Entrando..." : "Entrar"}
                     </Button>
+                    <div className="text-center">
+                      <Button
+                        type="button"
+                        variant="link"
+                        className="h-auto p-0 text-sm text-muted-foreground"
+                        onClick={() => setForgotPassword(true)}
+                      >
+                        Esqueci minha senha
+                      </Button>
+                    </div>
                   </form>
                 </div>
+                )}
               </TabsContent>
               
               <TabsContent value="signup">
