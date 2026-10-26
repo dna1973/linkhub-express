@@ -226,6 +226,19 @@ ssh avila@192.168.1.24 'cd ~/docker/linkhub-frontend && cp nginx.conf nginx.conf
 
 Esperado no `nginx -t`: `syntax is ok` e `test is successful`. Se falhar, pare: o nginx em uso continua com o arquivo antigo.
 
+### Prévia dos perfis no WhatsApp e nas redes
+
+O WhatsApp, o Telegram e as redes sociais não rodam o JavaScript do site: montam a prévia de um link com as tags `og:` do HTML que recebem. Por isso o `nginx.conf` reconhece esses robôs pelo `User-Agent` (o `map` `$linkhub_preview_bot`) e, quando pedem `/<@>`, busca a página na edge function `linkhub-profile-og`, com o nome, a bio e a foto do perfil. Quem visita recebe o site normal, e as rotas do app (`/auth`, `/dashboard`…) ficam de fora. A lista dessas rotas no `nginx.conf` é conferida contra `APP_ROUTE_SEGMENTS` por `src/lib/nginxPreview.test.ts`: ao criar uma rota nova, atualize os dois. Se a edge function falhar, o robô recebe o site com a prévia genérica.
+
+Para conferir depois de uma troca:
+
+```powershell
+curl.exe -s -A 'WhatsApp/2.23.20.0 A' https://linkhub.avila.ia.br/dna | Select-String -Pattern 'og:(title|image)'
+curl.exe -s -A 'Mozilla/5.0' https://linkhub.avila.ia.br/dna | Select-String -Pattern 'og:(title|image)'
+```
+
+Esperado: no primeiro, o nome e a foto do perfil; no segundo, a prévia genérica do LinkHub. O WhatsApp guarda a prévia de cada endereço por um tempo: um link já enviado continua com a prévia antiga, e para testar na hora vale mandar o endereço com algo no fim (`/dna?v=2`).
+
 ### Conferir
 
 ```powershell
