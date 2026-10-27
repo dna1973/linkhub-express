@@ -61,6 +61,19 @@ describe('ProfileView', () => {
     expect(screen.getByRole('button', { name: /Meu site/ }).className).toContain('text-xl');
   });
 
+  it('título longo quebra linha dentro do botão: altura mínima em vez de fixa', () => {
+    const longo = [{ id: 3, title: 'SIMP Ambiente de Treinamento (VPN)', url: 'https://example.com' }];
+    render(<ProfileView variant="page" profile={profile} links={longo} theme={null} onLinkClick={vi.fn()} />);
+    const button = screen.getByRole('button', { name: /SIMP Ambiente/ });
+    const classes = button.className.split(/\s+/);
+    expect(classes).toContain('whitespace-normal');
+    expect(classes).toContain('h-auto');
+    expect(classes).toContain('min-h-12');
+    expect(classes).not.toContain('h-12');
+    const title = screen.getByText('SIMP Ambiente de Treinamento (VPN)');
+    expect(title.className.split(/\s+/)).toEqual(expect.arrayContaining(['min-w-0', 'break-words']));
+  });
+
   it('o formato do avatar vale também para o fallback', () => {
     render(<ProfileView variant="page" profile={profile} links={links} theme={theme} onLinkClick={vi.fn()} />);
     expect(screen.getByText('D').style.borderRadius).toBe('28%');

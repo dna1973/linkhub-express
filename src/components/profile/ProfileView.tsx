@@ -129,16 +129,19 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               key={link.id}
               onClick={() => onLinkClick({ id: link.id, url: link.url })}
               className={cn(
-                'w-full',
-                buttonSize === 'sm' ? 'h-10' : buttonSize === 'lg' ? 'h-14' : 'h-12',
+                // Altura mínima, não fixa: título longo quebra linha em vez de sair do botão.
+                'w-full h-auto whitespace-normal py-2',
+                buttonSize === 'sm' ? 'min-h-10' : buttonSize === 'lg' ? 'min-h-14' : 'min-h-12',
                 getLinkButtonClassName(buttonType),
-                'hover-bounce flex items-center justify-center space-x-3 transition-all duration-200',
+                'hover-bounce flex items-center justify-center gap-3 transition-all duration-200',
                 textSizes.button,
               )}
               style={linkButtonStyle}
             >
               <LinkIcon link={link} size={20} defaultColor={buttonTextColor} backgrounds={iconBackgrounds} />
-              <span style={{ fontWeight: fontWeight ?? 500 }}>{link.title}</span>
+              <span className="min-w-0 break-words text-center leading-snug" style={{ fontWeight: fontWeight ?? 500 }}>
+                {link.title}
+              </span>
             </Button>
           ))
         )}
