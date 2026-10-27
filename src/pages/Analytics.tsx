@@ -1,5 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCurrentProfile } from '@/contexts/CurrentProfileContext';
+import { profileLabel } from '@/lib/profileLabel';
+import { formatClicks } from '@/lib/formatClicks';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -43,6 +46,12 @@ import { InsightsPanel, useAnalyticsInsights } from '@/components/analytics/Insi
 const Analytics = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  // Estatísticas do perfil atual (o seletor da sidebar troca)
+  const { currentProfile, loading: profileLoading, error: profileError } = useCurrentProfile();
+  const profileId = currentProfile?.id ?? null;
+  const currentLabel = currentProfile ? profileLabel(currentProfile) : '';
+  // Só a carga mais recente mexe na tela: trocar de perfil ou de período descarta a anterior
+  const requestRef = useRef(0);
   const [loading, setLoading] = useState(true);
   const [timeRange, setTimeRange] = useState('7d');
   const [profileViews, setProfileViews] = useState([]);
@@ -63,8 +72,9 @@ const Analytics = () => {
       navigate('/auth');
       return;
     }
-    loadAnalytics();
-  }, [user, navigate, timeRange]);
+    if (!profileId) return;
+    loadAnalytics(profileId);
+  }, [user, navigate, timeRange, profileId]);
 
   const getDateRange = () => {
     const days = timeRange === '24h' ? 1 : timeRange === '7d' ? 7 : timeRange === '30d' ? 30 : 90;
@@ -73,8 +83,8 @@ const Analytics = () => {
     return { startDate, endDate };
   };
 
-  const loadAnalytics = async () => {
-    if (!user) return;
+  const loadAnalytics = async (id: string) => {
+    const request = ++requestRef.current;
     setLoading(true);
 
     const { startDate, endDate } = getDateRange();
@@ -89,7 +99,7 @@ const Analytics = () => {
       const { data: views } = await supabase
         .from('profile_views')
         .select('*')
-        .eq('profile_id', user.id)
+        .eq('profile_id', id)
         .gte('viewed_at', startDate.toISOString())
         .lte('viewed_at', endDate.toISOString())
         .order('viewed_at', { ascending: true });
@@ -98,7 +108,7 @@ const Analytics = () => {
       const { data: previousViews } = await supabase
         .from('profile_views')
         .select('*')
-        .eq('profile_id', user.id)
+        .eq('profile_id', id)
         .gte('viewed_at', previousStartDate.toISOString())
         .lte('viewed_at', previousEndDate.toISOString());
 
@@ -106,7 +116,7 @@ const Analytics = () => {
       const { data: userLinks } = await supabase
         .from('links')
         .select('id, title, clicks')
-        .eq('user_id', user.id);
+        .eq('user_id', id);
 
       // Buscar cliques nos links para análise temporal (período atual)
       const { data: clicks, error: clicksError } = await supabase
@@ -122,7 +132,7 @@ const Analytics = () => {
           referrer,
           links(title, url)
         `)
-        .eq('profile_id', user.id)
+        .eq('profile_id', id)
         .gte('clicked_at', startDate.toISOString())
         .lte('clicked_at', endDate.toISOString())
         .order('clicked_at', { ascending: true });
@@ -131,13 +141,16 @@ const Analytics = () => {
       const { data: previousClicks } = await supabase
         .from('link_clicks')
         .select('id')
-        .eq('profile_id', user.id)
+        .eq('profile_id', id)
         .gte('clicked_at', previousStartDate.toISOString())
         .lte('clicked_at', previousEndDate.toISOString());
 
       if (clicksError) {
         console.error('❌ Erro ao buscar cliques:', clicksError);
       }
+
+      // Outra carga começou (troca de perfil ou de período): esta não mexe mais na tela
+      if (request !== requestRef.current) return;
 
       // Calcular total de cliques somando os cliques de cada link
       const totalClicksSum = userLinks?.reduce((sum, link) => sum + (link.clicks || 0), 0) || 0;
@@ -167,7 +180,7 @@ const Analytics = () => {
     } catch (error) {
       console.error('Erro ao carregar analytics:', error);
     } finally {
-      setLoading(false);
+      if (request === requestRef.current) setLoading(false);
     }
   };
 
@@ -206,6 +219,7 @@ const Analytics = () => {
       .sort((a, b) => b.clicks - a.clicks)
       .slice(0, 5)
       .map(link => ({
+        id: link.id,
         title: link.title,
         clicks: link.clicks
       }));
@@ -380,7 +394,15 @@ const Analytics = () => {
   };
   const insights = useAnalyticsInsights(analyticsData);
 
-  if (loading) {
+  if (!profileLoading && !currentProfile) {
+    return (
+      <div className="flex items-center justify-center min-h-screen p-8">
+        <p className="text-muted-foreground">{profileError || 'Não foi possível carregar o seu perfil.'}</p>
+      </div>
+    );
+  }
+
+  if (profileLoading || loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -394,7 +416,9 @@ const Analytics = () => {
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
           <h1 className="text-4xl font-bold">Analytics</h1>
-          <p className="text-muted-foreground mt-2">Acompanhe o desempenho do seu perfil</p>
+          <p className="text-muted-foreground mt-2">
+            {currentLabel ? `Acompanhe o desempenho de ${currentLabel}` : 'Acompanhe o desempenho do seu perfil'}
+          </p>
         </div>
         
         <Select value={timeRange} onValueChange={setTimeRange}>
@@ -552,14 +576,17 @@ const Analytics = () => {
           <CardContent>
             <div className="space-y-4">
               {topLinks.map((link, index) => (
-                <div key={index} className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                <div key={link.id ?? index} className="flex items-center justify-between gap-3">
+                  {/* min-w-0 deixa o título encolher e cortar; a contagem fica sempre inteira dentro do card */}
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-8 h-8 shrink-0 rounded-full bg-primary/10 flex items-center justify-center">
                       <span className="text-sm font-medium text-primary">{index + 1}</span>
                     </div>
-                    <span className="font-medium truncate">{link.title}</span>
+                    <span className="font-medium truncate" title={link.title}>{link.title}</span>
                   </div>
-                  <span className="text-sm text-muted-foreground">{link.clicks} cliques</span>
+                  <span className="shrink-0 whitespace-nowrap text-sm text-muted-foreground">
+                    {formatClicks(link.clicks)}
+                  </span>
                 </div>
               ))}
               {topLinks.length === 0 && (

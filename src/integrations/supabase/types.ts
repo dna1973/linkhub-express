@@ -69,19 +69,26 @@ export type Database = {
       }
       links: {
         Row: {
+          accent_color: string | null
           clicks: number
           created_at: string
+          icon_type: string
+          icon_value: string | null
           id: number
           is_visible: boolean
           position: number
           title: string
           updated_at: string
           url: string
+          /** Id do perfil (profiles.id), não da conta: o nome é histórico. */
           user_id: string
         }
         Insert: {
+          accent_color?: string | null
           clicks?: number
           created_at?: string
+          icon_type?: string
+          icon_value?: string | null
           id?: number
           is_visible?: boolean
           position?: number
@@ -91,8 +98,11 @@ export type Database = {
           user_id: string
         }
         Update: {
+          accent_color?: string | null
           clicks?: number
           created_at?: string
+          icon_type?: string
+          icon_value?: string | null
           id?: number
           is_visible?: boolean
           position?: number
@@ -102,6 +112,32 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      profile_owners: {
+        Row: {
+          created_at: string
+          owner_id: string
+          profile_id: string
+        }
+        Insert: {
+          created_at?: string
+          owner_id: string
+          profile_id: string
+        }
+        Update: {
+          created_at?: string
+          owner_id?: string
+          profile_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profile_owners_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profile_views: {
         Row: {
@@ -154,6 +190,7 @@ export type Database = {
           full_name: string | null
           id: string
           preferred_domain: string | null
+          show_qr_code: boolean
           show_username: boolean
           theme_options: Json | null
           updated_at: string
@@ -166,8 +203,9 @@ export type Database = {
           created_at?: string
           custom_domain?: string | null
           full_name?: string | null
-          id: string
+          id?: string
           preferred_domain?: string | null
+          show_qr_code?: boolean
           show_username?: boolean
           theme_options?: Json | null
           updated_at?: string
@@ -182,6 +220,7 @@ export type Database = {
           full_name?: string | null
           id?: string
           preferred_domain?: string | null
+          show_qr_code?: boolean
           show_username?: boolean
           theme_options?: Json | null
           updated_at?: string
@@ -216,11 +255,31 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_profile: {
+        Args: { p_full_name: string; p_username: string }
+        Returns: string
+      }
+      delete_own_profile: {
+        Args: { p_profile_id: string }
+        Returns: Json
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
+        Returns: boolean
+      }
+      list_own_profiles: {
+        Args: never
+        Returns: Database["public"]["Tables"]["profiles"]["Row"][]
+      }
+      owns_profile: {
+        Args: { p_profile_id: string }
+        Returns: boolean
+      }
+      owns_profile_folder: {
+        Args: { p_name: string }
         Returns: boolean
       }
     }

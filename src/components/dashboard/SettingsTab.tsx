@@ -9,14 +9,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { UsernameInput } from '@/components/ui/username-input';
 import { USER_TYPE_LABELS } from './OnboardingDialog';
-import { Copy, Check, Upload, ExternalLink, Trash2, Globe, Loader2, CheckCircle2, Megaphone, Briefcase, User } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/contexts/AuthContext';
+import { Copy, Check, Upload, ExternalLink, Trash2, Globe, Loader2, CheckCircle2, Megaphone, Briefcase, User, Eraser } from 'lucide-react';
+import { supabase, AVATARS_BUCKET } from '@/lib/supabase';
+import { avatarPathFromUrl } from '@/lib/avatarStorage';
+import { PUBLIC_SITE_URL } from '@/lib/siteUrl';
+import { getPublicProfileUrl } from '@/lib/publicProfileUrl';
+import { profileInitial } from '@/lib/profileLabel';
 import { useToast } from '@/hooks/use-toast';
 import { useUsernameValidation } from '@/hooks/useUsernameValidation';
 import { useAutosave } from '@/hooks/useAutosave';
 import { AuthProviderInfo } from './AuthProviderInfo';
 import { ImageCropDialog } from './ImageCropDialog';
+import { useDesignStore } from '@/stores/useDesignStore';
+import { getBaseBackgroundColor } from '@/utils/profileAppearance';
+import { resolveButtonColors } from '@/utils/linkButtonStyle';
 
 interface SettingsTabProps {
   profile: any;
@@ -27,26 +33,53 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   profile, 
   onProfileUpdate 
 }) => {
-  const { user } = useAuth();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
   const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
-  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [cropRemoveBackground, setCropRemoveBackground] = useState(false);
+  const [isOpeningCurrentAvatar, setIsOpeningCurrentAvatar] = useState(false);
+  // Cores do tema para os atalhos de "Atrás da pessoa" na janela de recorte
+  const customTheme = useDesignStore((state) => state.customTheme);
+  const themeColors = useMemo(
+    () => ({ background: getBaseBackgroundColor(customTheme), button: resolveButtonColors(customTheme).bg }),
+    [customTheme],
+  );
+  // objectURL aberto na janela de recorte: o ref deixa revogar o anterior mesmo depois de um await
+  const cropImageSrcRef = useRef<string | null>(null);
+  const isOpeningCurrentAvatarRef = useRef(false);
+  const mountedRef = useRef(true);
   const [formData, setFormData] = useState({
     username: profile?.username || '',
     full_name: profile?.full_name || '',
     bio: profile?.bio || '',
     avatar_url: profile?.avatar_url || '',
     custom_domain: profile?.custom_domain || '',
-    preferred_domain: profile?.preferred_domain || 'lovable',
+    preferred_domain: profile?.preferred_domain === 'custom' ? 'custom' : 'default',
     show_username: profile?.show_username ?? true,
+    show_qr_code: profile?.show_qr_code ?? true,
     user_type: profile?.user_type || '',
   });
 
-  // Username validation
-  const usernameValidation = useUsernameValidation(formData.username);
+  // O @ que já é deste perfil conta como disponível. Vai também para o UsernameInput: uma consulta por @
+  const usernameValidation = useUsernameValidation(formData.username, 500, profile?.id);
+
+  // Troca a imagem da janela de recorte, revogando o objectURL anterior
+  const replaceCropImageSrc = (url: string | null) => {
+    if (cropImageSrcRef.current && cropImageSrcRef.current !== url) URL.revokeObjectURL(cropImageSrcRef.current);
+    cropImageSrcRef.current = url;
+    setCropImageSrc(url);
+  };
+
+  React.useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      if (cropImageSrcRef.current) URL.revokeObjectURL(cropImageSrcRef.current);
+      cropImageSrcRef.current = null;
+    };
+  }, []);
 
   // Atualizar formData quando profile muda
   React.useEffect(() => {
@@ -57,31 +90,25 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
         bio: profile.bio || '',
         avatar_url: profile.avatar_url || '',
         custom_domain: profile.custom_domain || '',
-        preferred_domain: profile.preferred_domain || 'lovable',
+        preferred_domain: profile.preferred_domain === 'custom' ? 'custom' : 'default',
         show_username: profile.show_username ?? true,
+        show_qr_code: profile.show_qr_code ?? true,
         user_type: profile.user_type || '',
       });
     }
   }, [profile]);
 
-  // Determinar o domínio baseado na preferência do usuário
-  const getSelectedDomain = () => {
-    if (formData.preferred_domain === 'custom' && formData.custom_domain) {
-      const domain = formData.custom_domain.startsWith('http') 
-        ? formData.custom_domain 
-        : `https://${formData.custom_domain}`;
-      return domain;
-    }
-    return 'https://linkhub-express.lovable.app';
-  };
-  
-  const publicUrl = profile?.username 
-    ? `${getSelectedDomain()}/${profile.username}`
-    : 'Configure seu @username primeiro';
+  // Username gravado (o digitado pode estar inválido ou em uso) com o domínio do formulário, ainda não salvo
+  const publicUrl =
+    getPublicProfileUrl({
+      username: profile?.username,
+      preferred_domain: formData.preferred_domain,
+      custom_domain: formData.custom_domain,
+    }) ?? 'Configure seu @username primeiro';
 
   // Shareable URL via edge function (serves proper OG meta tags for social previews)
   const shareableUrl = profile?.username
-    ? `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/profile-og?u=${profile.username}`
+    ? `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/linkhub-profile-og?u=${profile.username}`
     : publicUrl;
 
   const handleInputChange = (field: string, value: string | boolean) => {
@@ -89,13 +116,24 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   };
 
   const canAutosave = useMemo(() => {
-    if (!user) return false;
-    if (formData.username && (!usernameValidation.isValid || !usernameValidation.isAvailable)) return false;
+    if (!profile?.id) return false;
+    if (formData.username) {
+      // O resultado tem de ser do @ digitado: durante o debounce, o hook ainda devolve o do anterior.
+      // O UsernameInput já entrega o @ normalizado (minúsculas, sem outros caracteres), como o hook confere.
+      if (usernameValidation.checkedUsername !== formData.username) return false;
+      if (!usernameValidation.isValid || !usernameValidation.isAvailable) return false;
+    }
     return true;
-  }, [user, formData.username, usernameValidation.isValid, usernameValidation.isAvailable]);
+  }, [
+    profile?.id,
+    formData.username,
+    usernameValidation.checkedUsername,
+    usernameValidation.isValid,
+    usernameValidation.isAvailable,
+  ]);
 
   const handleAutosave = useCallback(async (data: typeof formData) => {
-    if (!user) return;
+    if (!profile?.id) return;
     
     const { error } = await supabase
       .from('profiles')
@@ -107,15 +145,16 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
         custom_domain: data.custom_domain || null,
         preferred_domain: data.preferred_domain,
         show_username: data.show_username,
+        show_qr_code: data.show_qr_code,
         user_type: data.user_type || null,
       })
-      .eq('id', user.id);
+      .eq('id', profile.id);
 
     if (error) {
       if (error.code === '23505' && error.message.includes('username')) {
         toast({
           title: "Username já existe",
-          description: "Este username já está sendo usado por outro usuário.",
+          description: "Este username já está sendo usado por outro perfil.",
           variant: "destructive",
         });
       }
@@ -123,13 +162,14 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
     }
     
     onProfileUpdate();
-  }, [user, toast, onProfileUpdate]);
+  }, [profile?.id, toast, onProfileUpdate]);
 
-  const autosaveStatus = useAutosave(formData, handleAutosave, 1500, canAutosave);
+  // resetKey: os dados de outro perfil nunca são salvos neste (a aba também remonta pela key)
+  const autosaveStatus = useAutosave(formData, handleAutosave, 1500, canAutosave, profile?.id);
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file || !user) return;
+    if (!file || !profile?.id) return;
 
     if (!file.type.startsWith('image/')) {
       toast({ title: "Erro", description: "Por favor, selecione apenas arquivos de imagem.", variant: "destructive" });
@@ -140,47 +180,93 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
       return;
     }
 
-    setPendingFile(file);
-    const objectUrl = URL.createObjectURL(file);
-    setCropImageSrc(objectUrl);
+    setCropRemoveBackground(false);
+    replaceCropImageSrc(URL.createObjectURL(file));
 
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
+  // Fecha a janela de recorte e libera o objectURL da imagem aberta nela
+  const closeCropDialog = () => {
+    replaceCropImageSrc(null);
+    setCropRemoveBackground(false);
+  };
+
+  const handleRemoveCurrentBackground = async () => {
+    // Durante a busca o botão fica aria-disabled (e não disabled, para não perder o foco)
+    if (!formData.avatar_url || isOpeningCurrentAvatarRef.current) return;
+    isOpeningCurrentAvatarRef.current = true;
+    setIsOpeningCurrentAvatar(true);
+    try {
+      // no-store: não reaproveita a resposta que o <img> guardou sem cabeçalho CORS
+      const response = await fetch(formData.avatar_url, { cache: 'no-store' });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const blob = await response.blob();
+      // Um valor parcial no campo de URL cai no fallback da SPA, que responde 200 com text/html
+      if (!blob.type.startsWith('image/')) throw new Error(`Resposta não é imagem: ${blob.type || 'sem tipo'}`);
+      // A aba saiu durante a busca: não cria um objectURL que ninguém revogaria
+      if (!mountedRef.current) return;
+      setCropRemoveBackground(true);
+      // objectURL: o canvas do recorte não fica "sujo" com imagem de outra origem
+      replaceCropImageSrc(URL.createObjectURL(blob));
+    } catch (error) {
+      if (!mountedRef.current) return;
+      console.error('Error opening current avatar:', error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível abrir a foto atual. Envie a foto de novo para remover o fundo.",
+        variant: "destructive",
+      });
+    } finally {
+      isOpeningCurrentAvatarRef.current = false;
+      if (mountedRef.current) setIsOpeningCurrentAvatar(false);
+    }
+  };
+
+  // Falha ao apagar a foto antiga não desfaz a troca: só fica registrada no console.
+  // Só sai do bucket a foto da pasta deste perfil; a do Google ou de outro perfil fica como está.
+  const removeOldAvatar = async (oldAvatarUrl: string, profileId: string) => {
+    const oldPath = avatarPathFromUrl(oldAvatarUrl, profileId);
+    if (!oldPath) return;
+    try {
+      const { error } = await supabase.storage.from(AVATARS_BUCKET).remove([oldPath]);
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error removing old avatar:', error);
+    }
+  };
+
   const handleCropComplete = async (croppedBlob: Blob) => {
-    setCropImageSrc(null);
-    setPendingFile(null);
-    if (!user) return;
+    closeCropDialog();
+    const profileId = profile?.id;
+    if (!profileId) return;
+    const oldAvatarUrl = formData.avatar_url;
 
     setIsUploadingImage(true);
     try {
-      // Delete old avatar if exists
-      if (formData.avatar_url && formData.avatar_url.includes('supabase')) {
-        const oldFileName = formData.avatar_url.split('/').pop();
-        if (oldFileName) {
-          await supabase.storage.from('avatars').remove([`${user.id}/${oldFileName}`]);
-        }
-      }
+      // PNG quando o fundo foi removido; o resto continua JPEG
+      const isPng = croppedBlob.type === 'image/png';
+      const fileName = `${Date.now()}.${isPng ? 'png' : 'jpg'}`;
+      const filePath = `${profileId}/${fileName}`;
+      const file = new File([croppedBlob], fileName, { type: isPng ? 'image/png' : 'image/jpeg' });
 
-      const fileName = `${Date.now()}.jpg`;
-      const filePath = `${user.id}/${fileName}`;
-      const file = new File([croppedBlob], fileName, { type: 'image/jpeg' });
-
-      const { error: uploadError } = await supabase.storage.from('avatars').upload(filePath, file);
+      const { error: uploadError } = await supabase.storage.from(AVATARS_BUCKET).upload(filePath, file);
       if (uploadError) throw uploadError;
 
-      const { data } = supabase.storage.from('avatars').getPublicUrl(filePath);
+      const { data } = supabase.storage.from(AVATARS_BUCKET).getPublicUrl(filePath);
       const newAvatarUrl = data.publicUrl;
 
       // Save directly to database (don't rely on autosave delay)
       const { error: updateError } = await supabase
         .from('profiles')
         .update({ avatar_url: newAvatarUrl })
-        .eq('id', user.id);
+        .eq('id', profileId);
 
       if (updateError) throw updateError;
 
       setFormData(prev => ({ ...prev, avatar_url: newAvatarUrl }));
+      // Só agora apaga a antiga: com "Remover fundo", ela costuma ser a única cópia da foto original
+      await removeOldAvatar(oldAvatarUrl, profileId);
       onProfileUpdate();
       toast({ title: "Sucesso!", description: "Imagem carregada com sucesso." });
     } catch (error) {
@@ -192,20 +278,22 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   };
 
   const handleDeleteImage = async () => {
-    if (!user || !formData.avatar_url) return;
+    const profileId = profile?.id;
+    const oldAvatarUrl = formData.avatar_url;
+    if (!profileId || !oldAvatarUrl) return;
 
     try {
-      // Delete from storage if it's a supabase URL
-      if (formData.avatar_url.includes('supabase')) {
-        const fileName = formData.avatar_url.split('/').pop();
-        if (fileName) {
-          await supabase.storage
-            .from('avatars')
-            .remove([`${user.id}/${fileName}`]);
-        }
-      }
+      // Grava no perfil antes de mexer no arquivo (sem esperar o autosave): se falhar, a foto continua
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ avatar_url: null })
+        .eq('id', profileId);
+      if (updateError) throw updateError;
 
       setFormData(prev => ({ ...prev, avatar_url: '' }));
+      // Só agora apaga o arquivo, e só o da pasta deste perfil; falha fica no console
+      await removeOldAvatar(oldAvatarUrl, profileId);
+      onProfileUpdate();
 
       toast({
         title: "Imagem removida",
@@ -260,18 +348,18 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
               <Avatar className="w-16 h-16 flex-shrink-0">
                 <AvatarImage src={formData.avatar_url} />
                 <AvatarFallback className="bg-gradient-primary text-white text-xl">
-                  {formData.full_name?.[0]?.toUpperCase() || 
-                   user?.email?.[0]?.toUpperCase() || 'U'}
+                  {/* Avatar do perfil: nome, depois @; o e-mail da conta não entra */}
+                  {profileInitial(formData)}
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 space-y-2">
-                <div className="flex space-x-2">
+                <div className="flex flex-wrap gap-2">
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
                     onClick={() => fileInputRef.current?.click()}
-                    disabled={isUploadingImage}
+                    disabled={isUploadingImage || isOpeningCurrentAvatar}
                     className="flex items-center space-x-2"
                   >
                     <Upload className="h-4 w-4" />
@@ -282,7 +370,27 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                       type="button"
                       variant="outline"
                       size="sm"
+                      onClick={handleRemoveCurrentBackground}
+                      disabled={isUploadingImage}
+                      aria-disabled={isOpeningCurrentAvatar || undefined}
+                      aria-busy={isOpeningCurrentAvatar}
+                      className="flex items-center space-x-2 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+                    >
+                      {isOpeningCurrentAvatar ? (
+                        <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                      ) : (
+                        <Eraser className="h-4 w-4" aria-hidden="true" />
+                      )}
+                      <span>Remover fundo</span>
+                    </Button>
+                  )}
+                  {formData.avatar_url && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
                       onClick={handleDeleteImage}
+                      disabled={isUploadingImage || isOpeningCurrentAvatar}
                       className="flex items-center space-x-2 text-destructive hover:text-destructive"
                     >
                       <Trash2 className="h-4 w-4" />
@@ -324,6 +432,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             onChange={(value) => handleInputChange('username', value)}
             label="Username (slug único)"
             placeholder="seuusername"
+            validation={usernameValidation}
           />
 
           {/* Full Name */}
@@ -358,14 +467,30 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
           {/* Show Username Toggle */}
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
-              <Label>Exibir @username no perfil público</Label>
+              <Label htmlFor="show_username">Exibir @username no perfil público</Label>
               <p className="text-xs text-muted-foreground">
                 Quando desativado, o @username não aparecerá na sua página pública.
               </p>
             </div>
             <Switch
+              id="show_username"
               checked={formData.show_username}
               onCheckedChange={(checked) => handleInputChange('show_username', checked as any)}
+            />
+          </div>
+
+          {/* QR code no rodapé do perfil público */}
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label htmlFor="show_qr_code">Exibir QR code no perfil público</Label>
+              <p className="text-xs text-muted-foreground">
+                Quando desativado, o QR code não aparecerá no rodapé da sua página pública.
+              </p>
+            </div>
+            <Switch
+              id="show_qr_code"
+              checked={formData.show_qr_code}
+              onCheckedChange={(checked) => handleInputChange('show_qr_code', checked as any)}
             />
           </div>
 
@@ -464,10 +589,10 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="lovable">
+                  <SelectItem value="default">
                     <div className="flex items-center space-x-2">
                       <Globe className="h-4 w-4" />
-                      <span>Lovable (linkhub-express.lovable.app)</span>
+                      <span>Padrão ({PUBLIC_SITE_URL.replace(/^https?:\/\//, '')})</span>
                     </div>
                   </SelectItem>
                   {formData.custom_domain && (
@@ -524,9 +649,13 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
       {/* Image Crop Dialog */}
       {cropImageSrc && (
         <ImageCropDialog
+          // Imagem nova remonta a janela: ela só lê initialRemoveBackground ao montar
+          key={cropImageSrc}
           open={!!cropImageSrc}
           imageSrc={cropImageSrc}
-          onClose={() => { setCropImageSrc(null); setPendingFile(null); }}
+          initialRemoveBackground={cropRemoveBackground}
+          themeColors={themeColors}
+          onClose={closeCropDialog}
           onCropComplete={handleCropComplete}
         />
       )}

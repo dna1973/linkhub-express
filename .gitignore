@@ -12,6 +12,12 @@ dist
 dist-ssr
 *.local
 
+# Motor e modelo do MediaPipe, preparados por scripts/prepare-mediapipe.mjs
+public/mediapipe/
+
+# Ícones de marca e do Lucide, preparados por scripts/prepare-icons.mjs
+public/vendor-icons/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -22,3 +28,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# env
+.env
+.env.local
+.env.*.local

@@ -1,5 +1,4 @@
-import React, { useState, useEffect } from 'react';
-import { cn } from '@/lib/utils';
+import React, { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,14 +6,25 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Palette, Sparkles, Save, Type, Zap, Image, UserCircle, LayoutTemplate, Check } from 'lucide-react';
+import { Palette, Sparkles, Save, Type, Zap, Image, UserCircle, LayoutTemplate } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { useDesignStore, ThemeConfig } from '@/stores/useDesignStore';
+import { createDefaultCustomTheme, DEFAULT_THEME_ID, useDesignStore, ThemeConfig } from '@/stores/useDesignStore';
 import { PREDEFINED_THEMES } from '@/utils/themes';
-import { ONBOARDING_TEMPLATES } from '@/components/dashboard/OnboardingDialog';
+import { profileThemeOf } from '@/lib/profileTheme';
+import { ONBOARDING_TEMPLATES, filterTemplates } from '@/components/dashboard/onboardingTemplates';
+import type { TemplateFilter } from '@/components/dashboard/onboardingTemplates';
+import { TemplateMockup } from '@/components/dashboard/TemplateMockup';
+import { TemplateCategoryChips } from '@/components/dashboard/TemplateCategoryChips';
+import { Switch } from '@/components/ui/switch';
+import { normalizeHex, resolveButtonColors } from '@/utils/linkButtonStyle';
+import {
+  FONT_FAMILY_CSS,
+  getBackgroundEditorColors,
+  withBackgroundPrimaryColor,
+  withBackgroundSecondaryColor,
+} from '@/utils/profileAppearance';
 
 interface DesignTabProps {
   profile: any;
@@ -23,87 +33,16 @@ interface DesignTabProps {
 
 // PREDEFINED_THEMES imported from @/utils/themes
 
-const FONT_FAMILIES = [
-  { 
-    id: 'inter', 
-    name: 'Inter', 
-    category: 'Sans-serif',
-    preview: 'Aa Bb Cc',
-    description: 'Moderna e legível',
-    style: 'font-sans',
-    weight: 'font-normal',
-    cssFamily: 'Inter, system-ui, sans-serif'
-  },
-  { 
-    id: 'playfair', 
-    name: 'Playfair Display', 
-    category: 'Serif',
-    preview: 'Aa Bb Cc',
-    description: 'Elegante e sofisticada',
-    style: 'font-serif',
-    weight: 'font-normal',
-    cssFamily: 'Playfair Display, serif'
-  },
-  { 
-    id: 'poppins', 
-    name: 'Poppins', 
-    category: 'Sans-serif',
-    preview: 'Aa Bb Cc',
-    description: 'Amigável e arredondada',
-    style: 'font-sans',
-    weight: 'font-medium',
-    cssFamily: 'Poppins, sans-serif'
-  },
-  { 
-    id: 'roboto-mono', 
-    name: 'Roboto Mono', 
-    category: 'Monospace',
-    preview: 'Aa Bb Cc',
-    description: 'Técnica e precisa',
-    style: 'font-mono',
-    weight: 'font-normal',
-    cssFamily: 'Roboto Mono, monospace'
-  },
-  { 
-    id: 'dancing-script', 
-    name: 'Dancing Script', 
-    category: 'Handwriting',
-    preview: 'Aa Bb Cc',
-    description: 'Casual e divertida',
-    style: 'font-serif italic',
-    weight: 'font-normal',
-    cssFamily: 'Dancing Script, cursive'
-  },
-  { 
-    id: 'montserrat', 
-    name: 'Montserrat', 
-    category: 'Sans-serif',
-    preview: 'Aa Bb Cc',
-    description: 'Forte e impactante',
-    style: 'font-sans',
-    weight: 'font-semibold',
-    cssFamily: 'Montserrat, sans-serif'
-  },
-  { 
-    id: 'lora', 
-    name: 'Lora', 
-    category: 'Serif',
-    preview: 'Aa Bb Cc',
-    description: 'Clássica e confortável',
-    style: 'font-serif',
-    weight: 'font-normal',
-    cssFamily: 'Lora, serif'
-  },
-  { 
-    id: 'source-code-pro', 
-    name: 'Source Code Pro', 
-    category: 'Monospace',
-    preview: 'Aa Bb Cc',
-    description: 'Profissional e limpa',
-    style: 'font-mono',
-    weight: 'font-normal',
-    cssFamily: 'Source Code Pro, monospace'
-  }
+// A família CSS de cada fonte vem de FONT_FAMILY_CSS, a mesma lista do perfil público e da prévia
+const FONT_FAMILIES: { id: ThemeConfig['font']['family']; name: string; category: string; preview: string; description: string }[] = [
+  { id: 'inter', name: 'Inter', category: 'Sans-serif', preview: 'Aa Bb Cc', description: 'Moderna e legível' },
+  { id: 'playfair', name: 'Playfair Display', category: 'Serif', preview: 'Aa Bb Cc', description: 'Elegante e sofisticada' },
+  { id: 'poppins', name: 'Poppins', category: 'Sans-serif', preview: 'Aa Bb Cc', description: 'Amigável e arredondada' },
+  { id: 'roboto-mono', name: 'Roboto Mono', category: 'Monospace', preview: 'Aa Bb Cc', description: 'Técnica e precisa' },
+  { id: 'dancing-script', name: 'Dancing Script', category: 'Handwriting', preview: 'Aa Bb Cc', description: 'Casual e divertida' },
+  { id: 'montserrat', name: 'Montserrat', category: 'Sans-serif', preview: 'Aa Bb Cc', description: 'Forte e impactante' },
+  { id: 'lora', name: 'Lora', category: 'Serif', preview: 'Aa Bb Cc', description: 'Clássica e confortável' },
+  { id: 'source-code-pro', name: 'Source Code Pro', category: 'Monospace', preview: 'Aa Bb Cc', description: 'Profissional e limpa' },
 ];
 
 const BUTTON_STYLES = [
@@ -114,52 +53,61 @@ const BUTTON_STYLES = [
   { id: 'rounded', name: 'Arredondado', preview: 'bg-primary text-white rounded-full' },
 ];
 
-const BACKGROUND_PATTERNS = [
+const BACKGROUND_PATTERNS: { id: NonNullable<ThemeConfig['background']['pattern']>; name: string; preview: string }[] = [
   { id: 'none', name: 'Nenhum', preview: '' },
   { id: 'dots', name: 'Pontos', preview: 'radial-gradient(circle, rgba(255,255,255,0.1) 1px, transparent 1px)' },
   { id: 'grid', name: 'Grade', preview: 'linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)' },
   { id: 'waves', name: 'Ondas', preview: 'repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255,255,255,0.1) 10px, rgba(255,255,255,0.1) 20px)' },
+  { id: 'stripes', name: 'Listras', preview: 'linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)' },
 ];
 
+/** Tema salvo do perfil para iniciar o editor. Sem tema salvo, o padrão (nada vem do perfil anterior). */
+function initialDesignOf(profile: any): { themeId: string; config: ThemeConfig } {
+  return profileThemeOf(profile) ?? { themeId: DEFAULT_THEME_ID, config: createDefaultCustomTheme() };
+}
+
 export const DesignTab: React.FC<DesignTabProps> = ({ profile, onProfileUpdate }) => {
-  const { user } = useAuth();
   const { toast } = useToast();
-  const { currentTheme, customTheme, setCurrentTheme, setCustomTheme } = useDesignStore();
-  const [selectedTheme, setSelectedTheme] = useState('pebble-blue');
-  const [customConfig, setCustomConfig] = useState<ThemeConfig>(customTheme);
+  const { setCurrentTheme, setCustomTheme } = useDesignStore();
+  // Começa pelo tema salvo deste perfil. O Dashboard remonta a aba ao trocar de perfil (key),
+  // e o CurrentProfileContext aplica o tema no store; nada do perfil anterior fica aqui.
+  const [initialDesign] = useState(() => initialDesignOf(profile));
+  const [selectedTheme, setSelectedTheme] = useState(initialDesign.themeId);
+  const [customConfig, setCustomConfig] = useState<ThemeConfig>(initialDesign.config);
+
+  // Ao montar, a prévia (store) volta ao tema salvo, igual ao editor: uma escolha não salva
+  // de uma visita anterior à aba não pode sobrar na prévia.
+  useEffect(() => {
+    setCurrentTheme(initialDesign.themeId);
+    setCustomTheme(initialDesign.config);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [loading, setLoading] = useState(false);
   const [activeCustomTab, setActiveCustomTab] = useState<'background' | 'typography' | 'buttons' | 'avatar'>('background');
+  const [templateFilter, setTemplateFilter] = useState<TemplateFilter>('todos');
 
-  useEffect(() => {
-    if (profile?.theme_options) {
-      const themeOptions = profile.theme_options;
-      if (themeOptions.themeId) {
-        setSelectedTheme(themeOptions.themeId);
-        setCurrentTheme(themeOptions.themeId);
-      }
-      if (themeOptions.custom) {
-        setCustomTheme(themeOptions.custom);
-        setCustomConfig(themeOptions.custom);
-      }
-    }
-  }, [profile, setCurrentTheme, setCustomTheme]);
-
-  const handleSaveTheme = async () => {
-    if (!user) return;
+  // Recebe o id por parâmetro para não depender de estado ainda não atualizado.
+  // Grava sempre a config que está na tela (modelos e edição manual usam customConfig).
+  const handleSaveTheme = async (themeId: string) => {
+    if (!profile?.id) return;
 
     setLoading(true);
 
-    // Always save custom config — onboarding templates also use it
-    const isPredefined = PREDEFINED_THEMES.some(t => t.id === selectedTheme);
-    const themeOptions = {
-      themeId: selectedTheme,
-      custom: selectedTheme === 'custom' || !isPredefined ? customConfig : (PREDEFINED_THEMES.find(t => t.id === selectedTheme)?.config || null),
+    // Grava a cor efetiva do botão em buttonStyle.color, inclusive quando ela vinha da reserva colors.primary
+    const custom = {
+      ...customConfig,
+      buttonStyle: {
+        ...customConfig.buttonStyle,
+        color: resolveButtonColors(customConfig).bg,
+        textColor: normalizeHex(customConfig.buttonStyle?.textColor) ?? 'auto',
+      },
     };
+    const themeOptions = { themeId, custom };
 
     const { error } = await supabase
       .from('profiles')
       .update({ theme_options: themeOptions as any })
-      .eq('id', user.id);
+      .eq('id', profile.id);
 
     if (error) {
       toast({
@@ -200,6 +148,13 @@ export const DesignTab: React.FC<DesignTabProps> = ({ profile, onProfileUpdate }
     // Atualizar o store imediatamente para pré-visualização em tempo real
     setCustomTheme(newConfig);
   };
+
+  const buttonColors = resolveButtonColors(customConfig);
+  // As cores do fundo que o editor mostra são as que a página desenha (no gradiente, colors[0] e colors[1])
+  const backgroundColors = getBackgroundEditorColors(customConfig.background);
+  // Só undefined e 'auto' contam como automático: apagar o campo manual não pode religar o interruptor
+  const isAutoButtonText = customConfig.buttonStyle?.textColor === undefined || customConfig.buttonStyle?.textColor === 'auto';
+  const manualButtonText = normalizeHex(customConfig.buttonStyle?.textColor) ?? buttonColors.text;
 
   return (
     <div className="space-y-4">
@@ -246,43 +201,52 @@ export const DesignTab: React.FC<DesignTabProps> = ({ profile, onProfileUpdate }
                   <div className="space-y-4">
                     <div>
                       <Label className="text-sm">Tipo de Fundo</Label>
-                      <Select value={customConfig.background.type} onValueChange={(value: 'solid' | 'gradient' | 'pattern') => updateCustomConfig('background', { type: value })}>
+                      {/* 'pattern' é valor legado: o fundo é desenhado como sólido, então o seletor mostra "Sólido" */}
+                      <Select value={customConfig.background.type === 'gradient' ? 'gradient' : 'solid'} onValueChange={(value: 'solid' | 'gradient') => updateCustomConfig('background', { type: value })}>
                         <SelectTrigger className="mt-2"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="solid">Cor Sólida</SelectItem>
+                          <SelectItem value="solid">Sólido</SelectItem>
                           <SelectItem value="gradient">Gradiente</SelectItem>
-                          <SelectItem value="pattern">Padrão</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
                     <div>
                       <Label className="text-sm">Cor Principal</Label>
                       <div className="flex items-center space-x-2 mt-2">
-                        <Input type="color" value={customConfig.background.color || '#111827'} onChange={(e) => updateCustomConfig('background', { color: e.target.value })} className="w-12 h-10 p-1 rounded" />
-                        <Input type="text" value={customConfig.background.color || '#111827'} onChange={(e) => updateCustomConfig('background', { color: e.target.value })} placeholder="#111827" className="flex-1" />
+                        <Input type="color" value={backgroundColors.primary} onChange={(e) => updateCustomConfig('background', withBackgroundPrimaryColor(customConfig.background, e.target.value))} className="w-12 h-10 p-1 rounded" />
+                        <Input type="text" value={backgroundColors.primary} onChange={(e) => updateCustomConfig('background', withBackgroundPrimaryColor(customConfig.background, e.target.value))} placeholder="#111827" className="flex-1" />
                       </div>
                     </div>
                     {customConfig.background.type === 'gradient' && (
                       <div>
                         <Label className="text-sm">Segunda Cor (Gradiente)</Label>
                         <div className="flex items-center space-x-2 mt-2">
-                          <Input type="color" value={customConfig.background.colors?.[1] || '#1f2937'} onChange={(e) => updateCustomConfig('background', { colors: [customConfig.background.color || '#111827', e.target.value] })} className="w-12 h-10 p-1 rounded" />
-                          <Input type="text" value={customConfig.background.colors?.[1] || '#1f2937'} onChange={(e) => updateCustomConfig('background', { colors: [customConfig.background.color || '#111827', e.target.value] })} placeholder="#1f2937" className="flex-1" />
+                          <Input type="color" value={backgroundColors.secondary} onChange={(e) => updateCustomConfig('background', withBackgroundSecondaryColor(customConfig.background, e.target.value))} className="w-12 h-10 p-1 rounded" />
+                          <Input type="text" value={backgroundColors.secondary} onChange={(e) => updateCustomConfig('background', withBackgroundSecondaryColor(customConfig.background, e.target.value))} placeholder="#1f2937" className="flex-1" />
                         </div>
                       </div>
                     )}
-                    {customConfig.background.type === 'pattern' && (
-                      <div>
-                        <Label className="text-sm">Padrão</Label>
-                        <div className="grid grid-cols-2 gap-2 mt-2">
-                          {BACKGROUND_PATTERNS.map((pattern) => (
-                            <Button key={pattern.id} variant={customConfig.background.pattern === pattern.id ? "default" : "outline"} className="h-12 text-xs" onClick={() => updateCustomConfig('background', { pattern: pattern.id })}>
-                              {pattern.name}
-                            </Button>
-                          ))}
-                        </div>
+                    {customConfig.background.type === 'gradient' && (
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="background-animated" className="text-sm">Animado</Label>
+                        <Switch
+                          id="background-animated"
+                          checked={customConfig.background.animated === true}
+                          onCheckedChange={(checked) => updateCustomConfig('background', { animated: checked })}
+                        />
                       </div>
                     )}
+                    {/* O padrão é uma camada sobre qualquer tipo de fundo */}
+                    <div>
+                      <Label className="text-sm">Padrão</Label>
+                      <div className="grid grid-cols-3 gap-2 mt-2">
+                        {BACKGROUND_PATTERNS.map((pattern) => (
+                          <Button key={pattern.id} variant={(customConfig.background.pattern || 'none') === pattern.id ? "default" : "outline"} className="h-12 text-xs" onClick={() => updateCustomConfig('background', { pattern: pattern.id })}>
+                            {pattern.name}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 )}
 
@@ -304,7 +268,7 @@ export const DesignTab: React.FC<DesignTabProps> = ({ profile, onProfileUpdate }
                           >
                             <div className="flex items-center justify-between mb-2">
                               <div className="flex items-center space-x-3">
-                                <div className="text-2xl font-medium" style={{ fontFamily: font.cssFamily }}>{font.preview}</div>
+                                <div className="text-2xl font-medium" style={{ fontFamily: FONT_FAMILY_CSS[font.id] }}>{font.preview}</div>
                                 <div>
                                   <h4 className="font-medium text-sm">{font.name}</h4>
                                   <p className="text-xs text-muted-foreground">{font.category}</p>
@@ -364,6 +328,19 @@ export const DesignTab: React.FC<DesignTabProps> = ({ profile, onProfileUpdate }
                       </div>
                       <p className="text-xs text-muted-foreground mt-1">Cor do círculo ao redor da foto de perfil</p>
                     </div>
+                    <div>
+                      <Label className="text-sm">Formato</Label>
+                      {/* avatar pode não existir: o merge de updateCustomConfig cria o bloco */}
+                      <Select value={customConfig.avatar?.shape || 'circle'} onValueChange={(value: 'circle' | 'rounded' | 'hexagon') => updateCustomConfig('avatar', { shape: value })}>
+                        <SelectTrigger className="mt-2"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="circle">Círculo</SelectItem>
+                          <SelectItem value="rounded">Arredondado</SelectItem>
+                          <SelectItem value="hexagon">Hexágono</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground mt-1">No hexágono, a borda não aparece.</p>
+                    </div>
                   </div>
                 )}
 
@@ -384,8 +361,8 @@ export const DesignTab: React.FC<DesignTabProps> = ({ profile, onProfileUpdate }
                       <div>
                         <Label className="text-sm">Cor do Botão</Label>
                         <div className="flex items-center space-x-2 mt-2">
-                          <Input type="color" value={customConfig.buttonStyle.color || '#3b82f6'} onChange={(e) => updateCustomConfig('buttonStyle', { color: e.target.value })} className="w-12 h-10 p-1 rounded" />
-                          <Input type="text" value={customConfig.buttonStyle.color || '#3b82f6'} onChange={(e) => updateCustomConfig('buttonStyle', { color: e.target.value })} className="flex-1" />
+                          <Input type="color" value={buttonColors.bg} onChange={(e) => updateCustomConfig('buttonStyle', { color: e.target.value })} className="w-12 h-10 p-1 rounded" />
+                          <Input type="text" value={customConfig.buttonStyle.color ?? buttonColors.bg} onChange={(e) => updateCustomConfig('buttonStyle', { color: e.target.value })} className="flex-1" />
                         </div>
                       </div>
                       <div>
@@ -421,33 +398,49 @@ export const DesignTab: React.FC<DesignTabProps> = ({ profile, onProfileUpdate }
                         ))}
                       </div>
                     </div>
-                    <div className="space-y-4">
-                      <h4 className="font-medium flex items-center">
-                        <Palette className="h-4 w-4 mr-2" />
-                        Cores do Tema
-                      </h4>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <Label className="text-sm">Cor Primária</Label>
-                          <div className="flex items-center space-x-2 mt-2">
-                            <Input type="color" value={customConfig.colors?.primary || '#3b82f6'} onChange={(e) => updateCustomConfig('colors', { ...customConfig.colors, primary: e.target.value })} className="w-12 h-10 p-1 rounded" />
-                            <Input type="text" value={customConfig.colors?.primary || '#3b82f6'} onChange={(e) => updateCustomConfig('colors', { ...customConfig.colors, primary: e.target.value })} className="flex-1" />
-                          </div>
-                        </div>
-                        <div>
-                          <Label className="text-sm">Cor de Destaque</Label>
-                          <div className="flex items-center space-x-2 mt-2">
-                            <Input type="color" value={customConfig.colors?.accent || '#8b5cf6'} onChange={(e) => updateCustomConfig('colors', { ...customConfig.colors, accent: e.target.value })} className="w-12 h-10 p-1 rounded" />
-                            <Input type="text" value={customConfig.colors?.accent || '#8b5cf6'} onChange={(e) => updateCustomConfig('colors', { ...customConfig.colors, accent: e.target.value })} className="flex-1" />
-                          </div>
+                    <div>
+                      <Label className="text-sm">Sombra</Label>
+                      {/* shadowColor não tem controle: o merge de updateCustomConfig preserva o valor vindo do modelo */}
+                      <Select value={customConfig.buttonStyle.shadow || 'none'} onValueChange={(value: 'none' | 'soft' | 'hard' | 'glow') => updateCustomConfig('buttonStyle', { shadow: value })}>
+                        <SelectTrigger className="mt-2"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Nenhuma</SelectItem>
+                          <SelectItem value="soft">Suave</SelectItem>
+                          <SelectItem value="hard">Dura</SelectItem>
+                          <SelectItem value="glow">Brilho</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="button-text-auto" className="text-sm">Cor do texto do botão</Label>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground">Automático</span>
+                          <Switch
+                            id="button-text-auto"
+                            checked={isAutoButtonText}
+                            onCheckedChange={(checked) =>
+                              updateCustomConfig('buttonStyle', { textColor: checked ? 'auto' : buttonColors.text })
+                            }
+                          />
                         </div>
                       </div>
+                      {isAutoButtonText ? (
+                        <p className="text-xs text-muted-foreground mt-2">
+                          Sólido: preto ou branco, o que for mais legível. Contorno: a cor do botão. Demais estilos: a cor do texto da página.
+                        </p>
+                      ) : (
+                        <div className="flex items-center space-x-2 mt-2">
+                          <Input type="color" value={manualButtonText} onChange={(e) => updateCustomConfig('buttonStyle', { textColor: e.target.value })} className="w-12 h-10 p-1 rounded" />
+                          <Input type="text" value={customConfig.buttonStyle.textColor ?? ''} onChange={(e) => updateCustomConfig('buttonStyle', { textColor: e.target.value })} className="flex-1" />
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
               </div>
 
-          <Button onClick={() => { if (selectedTheme !== 'custom') handleThemeSelect('custom'); handleSaveTheme(); }} disabled={loading} className="w-full btn-gradient-primary hover-bounce">
+          <Button onClick={() => { if (selectedTheme !== 'custom') handleThemeSelect('custom'); handleSaveTheme('custom'); }} disabled={loading} className="w-full btn-gradient-primary hover-bounce">
             <Save className="h-4 w-4 mr-2" />
             {loading ? 'Salvando...' : 'Salvar Configurações'}
           </Button>
@@ -457,79 +450,26 @@ export const DesignTab: React.FC<DesignTabProps> = ({ profile, onProfileUpdate }
         <TabsContent value="templates" className="mt-4 space-y-4">
           <p className="text-sm text-muted-foreground">Escolha um modelo visual para seu perfil. Clique para aplicar.</p>
           
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-            {ONBOARDING_TEMPLATES.map((template) => {
-              const isSelected = selectedTheme === template.id;
-              const btnBorderStyle = template.config.buttonStyle.type === 'outline'
-                ? { border: `2px solid ${template.btnText}`, background: 'transparent' }
-                : { background: template.btnBg };
+          <TemplateCategoryChips value={templateFilter} onChange={setTemplateFilter} />
 
-              return (
-                <button
-                  key={template.id}
-                  onClick={() => {
-                    setSelectedTheme(template.id);
-                    setCurrentTheme(template.id);
-                    setCustomTheme(template.config as ThemeConfig);
-                    setCustomConfig(template.config as ThemeConfig);
-                  }}
-                  className={cn(
-                    'relative rounded-2xl overflow-hidden transition-all duration-300',
-                    'w-full h-[220px] sm:h-[240px]',
-                    'hover:scale-105 hover:shadow-xl',
-                    isSelected
-                      ? 'ring-3 ring-primary shadow-xl scale-105'
-                      : 'ring-1 ring-border/30 hover:ring-primary/50'
-                  )}
-                >
-                  <div
-                    className="w-full h-full flex flex-col items-center pt-6 px-3 pb-3"
-                    style={{ background: template.bg }}
-                  >
-                    <div className="w-10 h-10 rounded-full bg-white/30 border-2 border-white/50 mb-2" />
-                    <div
-                      className="text-[10px] font-bold mb-0.5 truncate w-full text-center"
-                      style={{ color: template.textColor, fontFamily: template.font }}
-                    >
-                      Seu Nome
-                    </div>
-                    <div
-                      className="text-[7px] opacity-70 mb-3 truncate w-full text-center"
-                      style={{ color: template.textColor }}
-                    >
-                      Sua bio aqui
-                    </div>
-                    <div className="w-full space-y-1.5">
-                      {['Meu site', 'YouTube', 'Instagram'].map((label) => (
-                        <div
-                          key={label}
-                          className="w-full h-5 flex items-center justify-center text-[7px] font-medium"
-                          style={{
-                            ...btnBorderStyle,
-                            color: template.btnText,
-                            borderRadius: template.btnRadius,
-                            fontFamily: template.font,
-                          }}
-                        >
-                          {label}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  {isSelected && (
-                    <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-primary flex items-center justify-center">
-                      <Check className="h-3 w-3 text-primary-foreground" />
-                    </div>
-                  )}
-                  <div className="absolute bottom-0 inset-x-0 bg-black/50 backdrop-blur-sm py-1">
-                    <p className="text-[9px] text-white text-center font-medium">{template.name}</p>
-                  </div>
-                </button>
-              );
-            })}
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+            {filterTemplates(ONBOARDING_TEMPLATES, templateFilter).map((template) => (
+              <TemplateMockup
+                key={template.id}
+                template={template}
+                isSelected={selectedTheme === template.id}
+                onClick={() => {
+                  setSelectedTheme(template.id);
+                  setCurrentTheme(template.id);
+                  setCustomTheme(template.config);
+                  setCustomConfig(template.config);
+                }}
+                className="w-full h-[220px] sm:h-[240px]"
+              />
+            ))}
           </div>
 
-          <Button onClick={handleSaveTheme} disabled={loading} className="w-full btn-gradient-primary hover-bounce">
+          <Button onClick={() => handleSaveTheme(selectedTheme)} disabled={loading} className="w-full btn-gradient-primary hover-bounce">
             <Save className="h-4 w-4 mr-2" />
             {loading ? 'Salvando...' : 'Salvar Modelo'}
           </Button>

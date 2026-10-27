@@ -1,32 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { ExternalLink, Instagram, Youtube, Github, Globe, Mail, Facebook, Linkedin } from 'lucide-react';
-import googleDriveIcon from '@/assets/google-drive.png';
-import notebookLmIcon from '@/assets/notebook-lm.svg';
 import { supabase } from '@/lib/supabase';
 import { safeOpenUrl, isValidUrl } from '@/utils/sanitize';
 import { resolveThemeConfig } from '@/utils/themes';
-
-const ICON_MAP: Record<string, any> = {
-  instagram: Instagram,
-  x: ExternalLink,
-  tiktok: ExternalLink,
-  facebook: Facebook,
-  linkedin: Linkedin,
-  youtube: Youtube,
-  github: Github,
-  googledrive: ({ className }: { className?: string }) => <img src={googleDriveIcon} alt="Google Drive" className={className} />,
-  'google drive': ({ className }: { className?: string }) => <img src={googleDriveIcon} alt="Google Drive" className={className} />,
-  drive: ({ className }: { className?: string }) => <img src={googleDriveIcon} alt="Google Drive" className={className} />,
-  notebooklm: ({ className }: { className?: string }) => <img src={notebookLmIcon} alt="NotebookLM" className={className} />,
-  notebook: ({ className }: { className?: string }) => <img src={notebookLmIcon} alt="NotebookLM" className={className} />,
-  website: Globe,
-  web: Globe,
-  email: Mail,
-  default: ExternalLink,
-};
+import { ProfileView } from '@/components/profile/ProfileView';
+import { getPublicProfileUrl } from '@/lib/publicProfileUrl';
 
 const updateMetaTag = (name: string, content: string, isProperty = false) => {
   const attr = isProperty ? 'property' : 'name';
@@ -181,110 +160,6 @@ const PublicProfile = () => {
     }
   };
 
-  const getThemeStyles = () => {
-    const themeOptions = profile?.theme_options;
-    const resolved = resolveThemeConfig(themeOptions as Record<string, any> | null);
-    
-    if (resolved) {
-      return {
-        background: resolved.background?.type === 'gradient' 
-          ? `linear-gradient(135deg, ${resolved.background.colors?.[0] || '#111827'}, ${resolved.background.colors?.[1] || '#1f2937'})`
-          : resolved.background?.color || resolved.background?.colors?.[0] || '#111827',
-        buttonStyle: resolved.buttonStyle?.type || 'glass',
-        buttonSize: (resolved.buttonStyle as any)?.size || 'md',
-        buttonBorderRadius: resolved.buttonStyle?.borderRadius || 'md',
-        font: resolved.font,
-        colors: resolved.colors,
-      };
-    }
-
-    return {
-      background: '#111827',
-      buttonStyle: 'glass',
-      colors: { text: '#ffffff' },
-    };
-  };
-
-  const getButtonClassName = (buttonStyle: string, themeColors?: any) => {
-    const textColor = themeColors?.text || '#ffffff';
-    const isLightText = textColor === '#ffffff' || textColor.startsWith('#fff');
-    
-    switch (buttonStyle) {
-      case 'solid':
-        return `bg-white/90 ${isLightText ? 'text-gray-900' : 'text-white'} hover:bg-white border-0`;
-      case 'outline':
-        return `bg-transparent border-2 hover:bg-white/10 ${isLightText ? 'text-white' : 'text-gray-900'}`;
-      case 'modern':
-        return `bg-white/20 border hover:bg-white/30 backdrop-blur-sm ${isLightText ? 'text-white' : 'text-gray-900'}`;
-      case 'rounded':
-        return `bg-white/20 border hover:bg-white/30 backdrop-blur-sm rounded-full ${isLightText ? 'text-white' : 'text-gray-900'}`;
-      case 'glass':
-      default:
-        return `bg-white/10 backdrop-blur border border-white/20 hover:bg-white/20 ${isLightText ? 'text-white' : 'text-gray-900'}`;
-    }
-  };
-
-  const getButtonStyle = (buttonStyle: string, themeColors?: any) => {
-    const primaryColor = themeColors?.primary || '#ffffff';
-    const textColor = themeColors?.text || '#ffffff';
-    
-    switch (buttonStyle) {
-      case 'solid':
-        return {
-          backgroundColor: primaryColor,
-          color: primaryColor === '#ffffff' ? '#000000' : '#ffffff',
-          borderColor: primaryColor
-        };
-      case 'outline':
-        return {
-          borderColor: primaryColor,
-          color: primaryColor
-        };
-      case 'modern':
-        return {
-          background: `linear-gradient(135deg, ${primaryColor}20, ${primaryColor}40)`,
-          borderColor: `${primaryColor}50`,
-          color: textColor
-        };
-      case 'rounded':
-        return {
-          background: `linear-gradient(135deg, ${primaryColor}20, ${primaryColor}40)`,
-          borderColor: `${primaryColor}50`,
-          color: textColor
-        };
-      case 'glass':
-      default:
-        return {
-          color: textColor
-        };
-    }
-  };
-
-  const getIconComponent = (title: string, url?: string) => {
-    const lowerTitle = title.toLowerCase();
-    for (const [key, Icon] of Object.entries(ICON_MAP)) {
-      if (key !== 'default' && lowerTitle.includes(key)) {
-        return Icon;
-      }
-    }
-    // Check URL for known platforms
-    if (url) {
-      const lowerUrl = url.toLowerCase();
-      if (lowerUrl.includes('instagram.com')) return ICON_MAP.instagram;
-      if (lowerUrl.includes('youtube.com')) return ICON_MAP.youtube;
-      if (lowerUrl.includes('github.com')) return ICON_MAP.github;
-      if (lowerUrl.includes('facebook.com')) return ICON_MAP.facebook;
-      if (lowerUrl.includes('linkedin.com')) return ICON_MAP.linkedin;
-      if (lowerUrl.includes('x.com') || lowerUrl.includes('twitter.com')) return ICON_MAP.x;
-      if (lowerUrl.includes('tiktok.com')) return ICON_MAP.tiktok;
-      if (lowerUrl.includes('drive.google.com')) return ICON_MAP.drive;
-      if (lowerUrl.includes('notebooklm.google.com')) return ICON_MAP.notebooklm;
-      if (lowerUrl.startsWith('mailto:')) return ICON_MAP.email;
-    }
-    // Default to Globe for regular websites instead of generic ExternalLink
-    return Globe;
-  };
-
   const handleLinkClick = (linkId: number, url: string) => {
     // CRITICAL: Open link FIRST, synchronously, before any async work.
     // iOS blocks window.open if it's not called directly from the user gesture.
@@ -363,120 +238,15 @@ const PublicProfile = () => {
     );
   }
 
-  const themeStyles = getThemeStyles();
-
   return (
-    <div className="min-h-screen relative">
-      {/* Background */}
-      <div 
-        className="fixed inset-0"
-        style={{ background: themeStyles.background }}
-      />
-      
-      {/* Content */}
-      <div className="relative z-10 min-h-screen flex items-center justify-center p-4">
-        <div className="w-full max-w-md mx-auto">
-          
-          {/* Profile Section */}
-          <div className="text-center mb-8">
-            <Avatar className="w-24 h-24 mx-auto mb-6 border-4" style={{ borderColor: (themeStyles.colors as any)?.avatarBorder || 'rgba(255,255,255,0.2)' }}>
-              <AvatarImage src={profile?.avatar_url} />
-              <AvatarFallback 
-                className="bg-white/10 text-2xl"
-                style={{ color: themeStyles.colors?.text || '#ffffff' }}
-              >
-                {profile?.full_name?.[0]?.toUpperCase() || 'U'}
-              </AvatarFallback>
-            </Avatar>
-            
-            <h1 
-              className="text-2xl font-bold mb-2"
-              style={{ color: themeStyles.colors?.text || '#ffffff' }}
-            >
-              {profile?.full_name || 'Usuário'}
-            </h1>
-            
-            {profile?.show_username !== false && (
-              <p 
-                className="text-sm mb-4 opacity-80"
-                style={{ color: themeStyles.colors?.text || '#ffffff' }}
-              >
-                @{profile.username}
-              </p>
-            )}
-            
-            {profile?.bio && (
-              <p 
-                className="text-base leading-relaxed max-w-sm mx-auto opacity-90"
-                style={{ color: themeStyles.colors?.text || '#ffffff' }}
-              >
-                {profile.bio}
-              </p>
-            )}
-          </div>
-
-          {/* Links Section */}
-          <div className="space-y-4 mb-8">
-            {links.length === 0 ? (
-              <div className="text-center py-8">
-                <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center mx-auto mb-4">
-                  <ExternalLink 
-                    className="h-8 w-8 opacity-60"
-                    style={{ color: themeStyles.colors?.text || '#ffffff' }}
-                  />
-                </div>
-                <p 
-                  className="text-lg opacity-60"
-                  style={{ color: themeStyles.colors?.text || '#ffffff' }}
-                >
-                  Nenhum link disponível
-                </p>
-              </div>
-            ) : (
-              links.map((link) => {
-                const IconComponent = getIconComponent(link.title, link.url);
-                return (
-                  <Button
-                    key={link.id}
-                    onClick={() => handleLinkClick(link.id, link.url)}
-                    className={`w-full ${(themeStyles as any).buttonSize === 'sm' ? 'h-10' : (themeStyles as any).buttonSize === 'lg' ? 'h-14' : 'h-12'} ${getButtonClassName(themeStyles.buttonStyle, themeStyles.colors)} hover-bounce flex items-center justify-center space-x-3 transition-all duration-200 text-lg`}
-                    style={{
-                      ...getButtonStyle(themeStyles.buttonStyle, themeStyles.colors),
-                      borderRadius: (themeStyles as any).buttonBorderRadius === 'none' ? '0px' : (themeStyles as any).buttonBorderRadius === 'sm' ? '4px' : (themeStyles as any).buttonBorderRadius === 'lg' ? '16px' : (themeStyles as any).buttonBorderRadius === 'full' ? '9999px' : '8px',
-                    }}
-                  >
-                    <IconComponent className="h-6 w-6" />
-                    <span className="font-medium">{link.title}</span>
-                  </Button>
-                );
-              })
-            )}
-          </div>
-
-          {/* Footer */}
-          <div className="text-center">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => window.location.href = '/'}
-              className="rounded-full px-6 border-2 opacity-70 hover:opacity-100 bg-transparent transition-all duration-200 mb-3"
-              style={{ 
-                color: themeStyles.colors?.text || '#ffffff',
-                borderColor: `${themeStyles.colors?.text || '#ffffff'}50`
-              }}
-            >
-              👉 Clique aqui para criar seu LinkHub
-            </Button>
-            <p 
-              className="text-sm opacity-40"
-              style={{ color: themeStyles.colors?.text || '#ffffff' }}
-            >
-              Powered by LinkHub
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
+    <ProfileView
+      variant="page"
+      profile={profile}
+      links={links}
+      theme={resolveThemeConfig(profile?.theme_options as Record<string, any> | null)}
+      onLinkClick={(link) => handleLinkClick(link.id, link.url)}
+      qrCodeUrl={getPublicProfileUrl(profile)}
+    />
   );
 };
 

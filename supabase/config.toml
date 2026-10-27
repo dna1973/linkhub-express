@@ -1,7 +1,7 @@
 project_id = "ktfkuidoulxogiscwnws"
 
-[functions.profile-og]
+[functions.linkhub-profile-og]
 verify_jwt = false
 
-[functions.admin-users]
+[functions.linkhub-admin-users]
 verify_jwt = false

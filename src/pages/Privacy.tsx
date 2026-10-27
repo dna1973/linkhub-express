@@ -16,7 +16,7 @@ const Privacy = () => {
 
         <article className="prose prose-invert max-w-none">
           <h1 className="text-3xl font-bold mb-2">Política de Privacidade</h1>
-          <p className="text-muted-foreground mb-8">Última atualização: Fevereiro 2026</p>
+          <p className="text-muted-foreground mb-8">Última atualização: Outubro 2026</p>
 
           <section className="space-y-4 mb-8">
             <h2 className="text-xl font-semibold">1. Dados Coletados</h2>
@@ -29,6 +29,9 @@ const Privacy = () => {
             <h2 className="text-xl font-semibold">2. Uso dos Dados</h2>
             <p className="text-muted-foreground">
               Seus dados são utilizados exclusivamente para fornecer e melhorar o serviço. Não vendemos, compartilhamos ou transferimos seus dados pessoais a terceiros, exceto quando exigido por lei.
+            </p>
+            <p className="text-muted-foreground">
+              Para mostrar o ícone de alguns links nas páginas públicas, o navegador de quem visita a página busca o ícone do site (favicon) no serviço público de favicons do Google. Nessa consulta, o Google recebe o endereço IP do visitante e o domínio do link.
             </p>
           </section>
 

@@ -1,8 +1,8 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
-import { componentTagger } from "lovable-tagger";
 import { VitePWA } from "vite-plugin-pwa";
+import { SW_NAVIGATE_FALLBACK_DENYLIST } from "./src/lib/serviceWorkerRoutes";
 
 export default defineConfig(({ mode }) => ({
   server: {
@@ -11,10 +11,11 @@ export default defineConfig(({ mode }) => ({
   },
   plugins: [
     react(),
-    mode === 'development' && componentTagger(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'icons/icon-192x192.png', 'icons/icon-512x512.png'],
+      // O registro é feito em src/registerServiceWorker.ts, só fora do perfil público
+      injectRegister: false,
+      includeAssets: ['favicon.ico', 'icons/icon-32x32.png', 'icons/apple-touch-icon.png'],
       manifest: {
         name: 'LinkHub Express',
         short_name: 'LinkHub',
@@ -38,7 +39,8 @@ export default defineConfig(({ mode }) => ({
             type: 'image/png',
           },
           {
-            src: '/icons/icon-512x512.png',
+            // Fundo azul-marinho e círculo dentro da zona segura: o Android recorta o ícone na forma do aparelho
+            src: '/icons/icon-maskable-512x512.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'maskable',
@@ -46,8 +48,15 @@ export default defineConfig(({ mode }) => ({
         ],
       },
       workbox: {
+        // Explícitos porque injectRegister é false: o plugin não os liga sozinho nesse caso.
+        skipWaiting: true,
+        clientsClaim: true,
         globPatterns: ['**/*.{js,css,html,ico,png,svg,jpg,jpeg,woff,woff2}'],
-        navigateFallbackDenylist: [/^\/~oauth/],
+        // Motor e modelo da remoção de fundo (~43 MB) e os ~5.000 SVGs de ícones dos links:
+        // carregados sob demanda, nunca no pré-cache
+        globIgnores: ['**/mediapipe/**', '**/vendor-icons/**'],
+        // Login e callbacks sempre da rede, com o index.html atual (ver serviceWorkerRoutes.ts)
+        navigateFallbackDenylist: [...SW_NAVIGATE_FALLBACK_DENYLIST],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,

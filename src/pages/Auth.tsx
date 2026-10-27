@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,8 +7,105 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { Link, Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff } from 'lucide-react';
+import { BrandLogo } from '@/components/BrandLogo';
 import { GoogleIcon } from '@/components/ui/google-icon';
+import { supabase, PUBLIC_SITE_URL } from '@/lib/supabase';
+import {
+  NEW_PASSWORD_PATH,
+  RESET_EMAIL_SENT_MESSAGE,
+  getRecoveryUserId,
+  isValidEmail,
+  resetRequestErrorMessage,
+} from '@/lib/passwordRecovery';
+
+/** "Esqueci minha senha": só o e-mail; a resposta é a mesma exista ou não a conta. */
+const ForgotPasswordForm = ({ initialEmail, onBack }: { initialEmail: string; onBack: () => void }) => {
+  const [email, setEmail] = useState(initialEmail);
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  // O estado só desabilita o botão no próximo render; a ref barra o segundo clique já no mesmo
+  const sendingRef = useRef(false);
+  const emailRef = useRef<HTMLInputElement>(null);
+  const valid = isValidEmail(email);
+  const showInvalid = email.trim() !== '' && !valid;
+
+  useEffect(() => {
+    emailRef.current?.focus();
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!valid || sendingRef.current) return;
+    sendingRef.current = true;
+    setSending(true);
+    setError(null);
+    setSent(false);
+    let message: string | null;
+    try {
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo: `${PUBLIC_SITE_URL}${NEW_PASSWORD_PATH}`,
+      });
+      message = resetRequestErrorMessage(resetError);
+    } catch {
+      message = resetRequestErrorMessage({ message: 'network' });
+    }
+    if (message) setError(message);
+    else setSent(true);
+    sendingRef.current = false;
+    setSending(false);
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+      <div className="space-y-1">
+        <h2 className="text-base font-semibold">Esqueci minha senha</h2>
+        <p className="text-sm text-muted-foreground">
+          Informe o e-mail da conta. Se ele estiver cadastrado, você recebe um link para criar uma senha nova.
+        </p>
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="forgot-email">E-mail</Label>
+        <Input
+          ref={emailRef}
+          id="forgot-email"
+          type="email"
+          autoComplete="email"
+          placeholder="seu@email.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+          aria-invalid={showInvalid}
+          aria-describedby={showInvalid ? 'forgot-email-hint' : undefined}
+          className="bg-background/50"
+        />
+        {showInvalid && (
+          <p id="forgot-email-hint" className="text-xs text-destructive">
+            Digite um e-mail válido, como nome@exemplo.com.
+          </p>
+        )}
+      </div>
+      {/* A região fica sempre na tela; o texto sai ao reenviar e volta depois, e o leitor anuncia de novo */}
+      <div role="status">
+        {sent && (
+          <p className="text-sm rounded-md border border-border/50 bg-muted/50 p-3">{RESET_EMAIL_SENT_MESSAGE}</p>
+        )}
+      </div>
+      {error && (
+        <p role="alert" className="text-sm text-destructive">
+          {error}
+        </p>
+      )}
+      <Button type="submit" className="w-full btn-gradient-primary" disabled={!valid || sending}>
+        {sending ? 'Enviando link...' : 'Enviar link'}
+      </Button>
+      <Button type="button" variant="ghost" className="w-full" onClick={onBack} disabled={sending}>
+        Voltar para o login
+      </Button>
+    </form>
+  );
+};
 
 
 const Auth = () => {
@@ -16,15 +113,32 @@ const Auth = () => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [forgotPassword, setForgotPassword] = useState(false);
+  const forgotLinkRef = useRef<HTMLButtonElement>(null);
+  const returnFocusRef = useRef(false);
   const { signIn, signUp, user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (user) {
-      navigate('/dashboard');
-    }
+    if (!user) return;
+    // Conta no meio da recuperação de senha: volta para a senha nova, não para o painel
+    // (o painel criaria um perfil do LinkHub para ela)
+    // replace: o Voltar não cai de novo no /auth, que redirecionaria outra vez
+    navigate(getRecoveryUserId() === user.id ? NEW_PASSWORD_PATH : '/dashboard', { replace: true });
   }, [user, navigate]);
+
+  useEffect(() => {
+    if (!forgotPassword && returnFocusRef.current) {
+      returnFocusRef.current = false;
+      forgotLinkRef.current?.focus();
+    }
+  }, [forgotPassword]);
+
+  const closeForgotPassword = () => {
+    returnFocusRef.current = true;
+    setForgotPassword(false);
+  };
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,9 +191,9 @@ const Auth = () => {
   const handleGoogleLogin = async () => {
     setLoading(true);
     try {
-      const { lovable } = await import('@/integrations/lovable/index');
-      const { error } = await lovable.auth.signInWithOAuth("google", {
-        redirect_uri: window.location.origin,
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: `${window.location.origin}/auth/callback` },
       });
       if (error) {
         toast({
@@ -104,9 +218,7 @@ const Auth = () => {
       <div className="w-full max-w-md space-y-6 animate-fade-in">
         {/* Logo */}
         <div className="text-center space-y-2">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full btn-gradient-primary mb-4">
-            <Link className="h-8 w-8 text-white" />
-          </div>
+          <BrandLogo size={64} className="mx-auto mb-4" />
           <h1 className="text-3xl font-bold">LinkHub</h1>
           <p className="text-muted-foreground">Sua página de links personalizada</p>
         </div>
@@ -126,6 +238,9 @@ const Auth = () => {
               </TabsList>
               
               <TabsContent value="signin">
+                {forgotPassword ? (
+                  <ForgotPasswordForm initialEmail={email} onBack={closeForgotPassword} />
+                ) : (
                 <div className="space-y-4">
                   {/* Social Login Buttons */}
                   <div className="space-y-3">
@@ -201,8 +316,20 @@ const Auth = () => {
                     >
                       {loading ? "Entrando..." : "Entrar"}
                     </Button>
+                    <div className="text-center">
+                      <Button
+                        ref={forgotLinkRef}
+                        type="button"
+                        variant="link"
+                        className="h-auto p-0 text-sm text-muted-foreground"
+                        onClick={() => setForgotPassword(true)}
+                      >
+                        Esqueci minha senha
+                      </Button>
+                    </div>
                   </form>
                 </div>
+                )}
               </TabsContent>
               
               <TabsContent value="signup">
